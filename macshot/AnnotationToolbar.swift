@@ -79,7 +79,7 @@ class ToolbarLayout {
         buttons.append(ToolbarButton(action: .ocr, sfSymbol: "doc.text.viewfinder", label: nil, tooltip: "OCR Text"))
 
         // Beautify toggle
-        var beautifyBtn = ToolbarButton(action: .beautify, sfSymbol: "sparkles", label: nil, tooltip: "Beautify")
+        var beautifyBtn = ToolbarButton(action: .beautify, sfSymbol: "sparkles", label: nil, tooltip: "Beautify — wrap in window frame")
         beautifyBtn.isSelected = beautifyEnabled
         buttons.append(beautifyBtn)
 

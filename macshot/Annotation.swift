@@ -256,9 +256,10 @@ class Annotation {
               let bitmap = NSBitmapImageRep(data: tiffData),
               let cropped = bitmap.cgImage else { return }
 
-        let blockSize = max(10, Int(min(rect.width, rect.height) / 6))
-        let tinyW = max(1, cropped.width / blockSize)
-        let tinyH = max(1, cropped.height / blockSize)
+        // Fixed block size of ~8px on screen (scaled for Retina)
+        let pixelBlock = 16
+        let tinyW = max(1, cropped.width / pixelBlock)
+        let tinyH = max(1, cropped.height / pixelBlock)
         let cs = CGColorSpaceCreateDeviceRGB()
         let bitmapInfo = CGImageAlphaInfo.premultipliedLast.rawValue
 

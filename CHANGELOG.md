@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.0.5] - 2026-03-11
+
+### Fixed
+- **Pixelate block size**: Pixelation blocks are now a fixed size regardless of selection area, so redactions look consistent whether you select a small or large region.
+- **Beautify tooltip**: Clarified the Beautify button tooltip so users understand what it does at a glance.
+
 ## [1.0.4] - 2026-03-11
 
 ### Added
