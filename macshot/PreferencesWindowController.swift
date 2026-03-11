@@ -14,6 +14,9 @@ class PreferencesWindowController: NSWindowController {
     private var historySizeField: NSTextField!
     private var historySizeStepper: NSStepper!
     private var quickModePopup: NSPopUpButton!
+    private var imageFormatPopup: NSPopUpButton!
+    private var qualitySlider: NSSlider!
+    private var qualityLabel: NSTextField!
     private var isRecordingHotkey = false
     private var localMonitor: Any?
 
@@ -21,7 +24,7 @@ class PreferencesWindowController: NSWindowController {
 
     init() {
         let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 420, height: 420),
+            contentRect: NSRect(x: 0, y: 0, width: 420, height: 500),
             styleMask: [.titled, .closable],
             backing: .buffered,
             defer: false
@@ -43,7 +46,7 @@ class PreferencesWindowController: NSWindowController {
         guard let contentView = window?.contentView else { return }
 
         let padding: CGFloat = 20
-        var y: CGFloat = 370
+        var y: CGFloat = 450
 
         // Hotkey
         let hotkeyLabel = NSTextField(labelWithString: "Global Shortcut:")
@@ -143,11 +146,44 @@ class PreferencesWindowController: NSWindowController {
         historySizeStepper.action = #selector(historySizeChanged(_:))
         contentView.addSubview(historySizeStepper)
 
-        let historyNote = NSTextField(labelWithString: "screenshots kept in memory (0 = off)")
+        let historyNote = NSTextField(labelWithString: "screenshots kept on disk (0 = off)")
         historyNote.frame = NSRect(x: 220, y: y, width: 200, height: 22)
         historyNote.font = NSFont.systemFont(ofSize: 11)
         historyNote.textColor = .secondaryLabelColor
         contentView.addSubview(historyNote)
+
+        y -= 40
+
+        // Image format
+        let formatLabel = NSTextField(labelWithString: "Image format:")
+        formatLabel.frame = NSRect(x: padding, y: y, width: 120, height: 22)
+        contentView.addSubview(formatLabel)
+
+        imageFormatPopup = NSPopUpButton(frame: NSRect(x: 150, y: y - 2, width: 100, height: 26), pullsDown: false)
+        imageFormatPopup.addItems(withTitles: ["PNG", "JPEG"])
+        imageFormatPopup.target = self
+        imageFormatPopup.action = #selector(imageFormatChanged(_:))
+        contentView.addSubview(imageFormatPopup)
+
+        y -= 35
+
+        // JPEG quality slider
+        let qualityTitleLabel = NSTextField(labelWithString: "JPEG quality:")
+        qualityTitleLabel.frame = NSRect(x: padding, y: y, width: 120, height: 22)
+        contentView.addSubview(qualityTitleLabel)
+
+        qualitySlider = NSSlider(frame: NSRect(x: 150, y: y, width: 180, height: 22))
+        qualitySlider.minValue = 10
+        qualitySlider.maxValue = 100
+        qualitySlider.target = self
+        qualitySlider.action = #selector(qualityChanged(_:))
+        contentView.addSubview(qualitySlider)
+
+        qualityLabel = NSTextField(labelWithString: "85%")
+        qualityLabel.frame = NSRect(x: 335, y: y, width: 50, height: 22)
+        qualityLabel.font = NSFont.monospacedDigitSystemFont(ofSize: 12, weight: .regular)
+        qualityLabel.alignment = .left
+        contentView.addSubview(qualityLabel)
 
         // Separator
         let separator = NSBox(frame: NSRect(x: padding, y: 40, width: 380, height: 1))
@@ -206,6 +242,21 @@ class PreferencesWindowController: NSWindowController {
 
         let quickModeCopy = UserDefaults.standard.object(forKey: "quickModeCopyToClipboard") as? Bool ?? false
         quickModePopup.selectItem(at: quickModeCopy ? 1 : 0)
+
+        let format = ImageEncoder.format
+        imageFormatPopup.selectItem(at: format == .jpeg ? 1 : 0)
+
+        let quality = Int(ImageEncoder.quality * 100)
+        qualitySlider.integerValue = quality
+        qualityLabel.stringValue = "\(quality)%"
+
+        updateQualityVisibility()
+    }
+
+    private func updateQualityVisibility() {
+        let isJPEG = imageFormatPopup.indexOfSelectedItem == 1
+        qualitySlider.isEnabled = isJPEG
+        qualityLabel.textColor = isJPEG ? .labelColor : .tertiaryLabelColor
     }
 
     // MARK: - Actions
@@ -292,6 +343,18 @@ class PreferencesWindowController: NSWindowController {
         if let url = URL(string: "https://github.com/sw33tLie/macshot") {
             NSWorkspace.shared.open(url)
         }
+    }
+
+    @objc private func imageFormatChanged(_ sender: NSPopUpButton) {
+        let format: String = sender.indexOfSelectedItem == 1 ? "jpeg" : "png"
+        UserDefaults.standard.set(format, forKey: "imageFormat")
+        updateQualityVisibility()
+    }
+
+    @objc private func qualityChanged(_ sender: NSSlider) {
+        let value = sender.integerValue
+        qualityLabel.stringValue = "\(value)%"
+        UserDefaults.standard.set(Double(value) / 100.0, forKey: "imageQuality")
     }
 
     @objc private func historySizeChanged(_ sender: NSStepper) {

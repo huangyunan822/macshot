@@ -350,7 +350,7 @@ extension AppDelegate: NSMenuDelegate {
             let item = NSMenuItem(title: title, action: #selector(copyHistoryEntry(_:)), keyEquivalent: "")
             item.target = self
             item.tag = i
-            item.image = entry.thumbnail
+            item.image = ScreenshotHistory.shared.loadThumbnail(for: entry)
             menu.addItem(item)
         }
 

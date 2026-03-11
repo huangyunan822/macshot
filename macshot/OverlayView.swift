@@ -2027,14 +2027,7 @@ class OverlayView: NSView {
 
     func copyToClipboard() {
         guard let image = captureSelectedRegion() else { return }
-        guard let tiffData = image.tiffRepresentation else { return }
-        let pasteboard = NSPasteboard.general
-        pasteboard.clearContents()
-        pasteboard.setData(tiffData, forType: .tiff)
-        if let bitmap = NSBitmapImageRep(data: tiffData),
-           let pngData = bitmap.representation(using: .png, properties: [:]) {
-            pasteboard.setData(pngData, forType: .png)
-        }
+        ImageEncoder.copyToClipboard(image)
     }
 
     // MARK: - Cleanup

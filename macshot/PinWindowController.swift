@@ -165,24 +165,15 @@ private class PinView: NSView {
     }
 
     @objc private func copyImage() {
-        guard let tiffData = image.tiffRepresentation else { return }
-        let pasteboard = NSPasteboard.general
-        pasteboard.clearContents()
-        pasteboard.setData(tiffData, forType: .tiff)
-        if let bitmap = NSBitmapImageRep(data: tiffData),
-           let pngData = bitmap.representation(using: .png, properties: [:]) {
-            pasteboard.setData(pngData, forType: .png)
-        }
+        ImageEncoder.copyToClipboard(image)
     }
 
     @objc private func saveImage() {
-        guard let tiffData = image.tiffRepresentation,
-              let bitmap = NSBitmapImageRep(data: tiffData),
-              let pngData = bitmap.representation(using: .png, properties: [:]) else { return }
+        guard let imageData = ImageEncoder.encode(image) else { return }
 
         let savePanel = NSSavePanel()
-        savePanel.allowedContentTypes = [.png]
-        savePanel.nameFieldStringValue = "macshot_\(OverlayWindowController.formattedTimestamp()).png"
+        savePanel.allowedContentTypes = [ImageEncoder.utType]
+        savePanel.nameFieldStringValue = "macshot_\(OverlayWindowController.formattedTimestamp()).\(ImageEncoder.fileExtension)"
 
         if let savedPath = UserDefaults.standard.string(forKey: "saveDirectory") {
             savePanel.directoryURL = URL(fileURLWithPath: savedPath)
@@ -192,7 +183,7 @@ private class PinView: NSView {
 
         savePanel.begin { response in
             if response == .OK, let url = savePanel.url {
-                try? pngData.write(to: url)
+                try? imageData.write(to: url)
                 UserDefaults.standard.set(url.deletingLastPathComponent().path, forKey: "saveDirectory")
             }
         }

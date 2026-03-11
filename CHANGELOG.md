@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.3.0] - 2026-03-11
+
+### Added
+- **Image format setting**: Choose between PNG (lossless, default) and JPEG with adjustable quality slider (10–100%) in Preferences. Applies to clipboard copy, file save, quick save, and screenshot history.
+- **Disk-based screenshot history**: Recent captures are now stored as files in `~/Library/Application Support/com.sw33tlie.macshot/history/` instead of in memory. Zero RAM overhead, persists across restarts, and directory is created with owner-only permissions (0700).
+
 ## [1.2.7] - 2026-03-11
 
 ### Fixed

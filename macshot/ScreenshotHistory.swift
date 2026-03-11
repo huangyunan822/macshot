@@ -1,11 +1,12 @@
 import Cocoa
 
 struct HistoryEntry {
-    let pngData: Data
-    let thumbnail: NSImage
+    let id: String           // UUID filename (without extension)
+    let fileExtension: String // "png" or "jpg"
     let timestamp: Date
     let pixelWidth: Int
     let pixelHeight: Int
+    var thumbnail: NSImage?  // lazily cached, tiny
 
     var timeAgoString: String {
         let seconds = Int(-timestamp.timeIntervalSinceNow)
@@ -27,6 +28,9 @@ class ScreenshotHistory {
 
     private(set) var entries: [HistoryEntry] = []
 
+    private let historyDir: URL
+    private let indexFile: URL
+
     var maxEntries: Int {
         if let stored = UserDefaults.standard.object(forKey: "historySize") as? Int {
             return stored
@@ -34,57 +38,158 @@ class ScreenshotHistory {
         return 10  // default
     }
 
+    private init() {
+        let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
+        historyDir = appSupport.appendingPathComponent("com.sw33tlie.macshot/history")
+        indexFile = historyDir.appendingPathComponent("index.json")
+
+        // Create directory with 0700 permissions (owner only)
+        if !FileManager.default.fileExists(atPath: historyDir.path) {
+            try? FileManager.default.createDirectory(at: historyDir, withIntermediateDirectories: true, attributes: [
+                .posixPermissions: 0o700
+            ])
+        }
+
+        loadIndex()
+    }
+
+    // MARK: - Public API
+
     func add(image: NSImage) {
         let max = maxEntries
-        guard max > 0 else { return }  // history disabled
+        guard max > 0 else { return }
 
-        // Compress to PNG immediately to avoid holding raw bitmap in memory
-        guard let tiffData = image.tiffRepresentation,
-              let bitmap = NSBitmapImageRep(data: tiffData),
-              let pngData = bitmap.representation(using: .png, properties: [:]) else { return }
+        // Encode using configured format
+        guard let imageData = ImageEncoder.encode(image) else { return }
 
+        let id = UUID().uuidString
+        let ext = ImageEncoder.fileExtension
+        let fileURL = historyDir.appendingPathComponent("\(id).\(ext)")
+        let thumbURL = historyDir.appendingPathComponent("\(id)_thumb.png")
+
+        // Write image to disk
+        do {
+            try imageData.write(to: fileURL, options: .atomic)
+        } catch {
+            return
+        }
+
+        // Write thumbnail to disk
         let thumb = makeThumbnail(image: image, maxWidth: 36)
+        if let thumbTiff = thumb.tiffRepresentation,
+           let thumbBitmap = NSBitmapImageRep(data: thumbTiff),
+           let thumbPng = thumbBitmap.representation(using: .png, properties: [:]) {
+            try? thumbPng.write(to: thumbURL, options: .atomic)
+        }
+
         let size = image.size
         let scale = NSScreen.main?.backingScaleFactor ?? 2.0
         let entry = HistoryEntry(
-            pngData: pngData,
-            thumbnail: thumb,
+            id: id,
+            fileExtension: ext,
             timestamp: Date(),
             pixelWidth: Int(size.width * scale),
-            pixelHeight: Int(size.height * scale)
+            pixelHeight: Int(size.height * scale),
+            thumbnail: thumb
         )
         entries.insert(entry, at: 0)
 
         // Prune oldest entries beyond max
-        if entries.count > max {
-            entries.removeLast(entries.count - max)
+        while entries.count > max {
+            let removed = entries.removeLast()
+            deleteFiles(for: removed.id, ext: removed.fileExtension)
         }
+
+        saveIndex()
     }
 
-    /// Re-prune after user lowers the history size in preferences
     func pruneToMax() {
         let max = maxEntries
         if max <= 0 {
-            entries.removeAll()
-        } else if entries.count > max {
-            entries.removeLast(entries.count - max)
+            clear()
+        } else {
+            while entries.count > max {
+                let removed = entries.removeLast()
+                deleteFiles(for: removed.id, ext: removed.fileExtension)
+            }
+            saveIndex()
         }
     }
 
     func clear() {
+        for entry in entries {
+            deleteFiles(for: entry.id, ext: entry.fileExtension)
+        }
         entries.removeAll()
+        saveIndex()
     }
 
     func copyEntry(at index: Int) {
         guard index >= 0, index < entries.count else { return }
-        let pngData = entries[index].pngData
-        let pasteboard = NSPasteboard.general
-        pasteboard.clearContents()
-        pasteboard.setData(pngData, forType: .png)
-        // Also provide TIFF for apps that prefer it
-        if let image = NSImage(data: pngData), let tiffData = image.tiffRepresentation {
-            pasteboard.setData(tiffData, forType: .tiff)
+        let entry = entries[index]
+        let fileURL = historyDir.appendingPathComponent("\(entry.id).\(entry.fileExtension)")
+        guard let imageData = try? Data(contentsOf: fileURL),
+              let image = NSImage(data: imageData) else { return }
+        ImageEncoder.copyToClipboard(image)
+    }
+
+    func loadThumbnail(for entry: HistoryEntry) -> NSImage? {
+        if let thumb = entry.thumbnail { return thumb }
+        let thumbURL = historyDir.appendingPathComponent("\(entry.id)_thumb.png")
+        return NSImage(contentsOf: thumbURL)
+    }
+
+    // MARK: - Persistence
+
+    private struct IndexEntry: Codable {
+        let id: String
+        let fileExtension: String
+        let timestamp: Date
+        let pixelWidth: Int
+        let pixelHeight: Int
+    }
+
+    private func saveIndex() {
+        let indexEntries = entries.map { IndexEntry(id: $0.id, fileExtension: $0.fileExtension, timestamp: $0.timestamp, pixelWidth: $0.pixelWidth, pixelHeight: $0.pixelHeight) }
+        if let data = try? JSONEncoder().encode(indexEntries) {
+            try? data.write(to: indexFile, options: .atomic)
         }
+    }
+
+    private func loadIndex() {
+        guard let data = try? Data(contentsOf: indexFile),
+              let indexEntries = try? JSONDecoder().decode([IndexEntry].self, from: data) else { return }
+
+        entries = indexEntries.compactMap { ie in
+            // Only include entries whose image file still exists
+            let ext = ie.fileExtension
+            let fileURL = historyDir.appendingPathComponent("\(ie.id).\(ext)")
+            guard FileManager.default.fileExists(atPath: fileURL.path) else { return nil }
+            return HistoryEntry(id: ie.id, fileExtension: ext, timestamp: ie.timestamp, pixelWidth: ie.pixelWidth, pixelHeight: ie.pixelHeight, thumbnail: nil)
+        }
+
+        // Prune if maxEntries was lowered since last run
+        let max = maxEntries
+        if max <= 0 {
+            clear()
+        } else {
+            while entries.count > max {
+                let removed = entries.removeLast()
+                deleteFiles(for: removed.id, ext: removed.fileExtension)
+            }
+            if entries.count < indexEntries.count {
+                saveIndex()
+            }
+        }
+    }
+
+    // MARK: - File helpers
+
+    private func deleteFiles(for id: String, ext: String = "png") {
+        let fileURL = historyDir.appendingPathComponent("\(id).\(ext)")
+        let thumbURL = historyDir.appendingPathComponent("\(id)_thumb.png")
+        try? FileManager.default.removeItem(at: fileURL)
+        try? FileManager.default.removeItem(at: thumbURL)
     }
 
     private func makeThumbnail(image: NSImage, maxWidth: CGFloat) -> NSImage {

@@ -90,14 +90,7 @@ class OverlayWindowController {
     }
 
     private func copyImageToClipboard(_ image: NSImage) {
-        guard let tiffData = image.tiffRepresentation else { return }
-        let pasteboard = NSPasteboard.general
-        pasteboard.clearContents()
-        pasteboard.setData(tiffData, forType: .tiff)
-        if let bitmap = NSBitmapImageRep(data: tiffData),
-           let pngData = bitmap.representation(using: .png, properties: [:]) {
-            pasteboard.setData(pngData, forType: .png)
-        }
+        ImageEncoder.copyToClipboard(image)
     }
 
     static func formattedTimestamp() -> String {
@@ -191,9 +184,7 @@ extension OverlayWindowController: OverlayViewDelegate {
         if copyMode {
             copyImageToClipboard(image)
         } else {
-            guard let tiffData = image.tiffRepresentation,
-                  let bitmap = NSBitmapImageRep(data: tiffData),
-                  let pngData = bitmap.representation(using: .png, properties: [:]) else {
+            guard let imageData = ImageEncoder.encode(image) else {
                 dismiss()
                 overlayDelegate?.overlayDidCancel(self)
                 return
@@ -209,10 +200,10 @@ extension OverlayWindowController: OverlayViewDelegate {
 
             let formatter = DateFormatter()
             formatter.dateFormat = "yyyy-MM-dd 'at' HH.mm.ss"
-            let filename = "Screenshot \(formatter.string(from: Date())).png"
+            let filename = "Screenshot \(formatter.string(from: Date())).\(ImageEncoder.fileExtension)"
             let fileURL = dirURL.appendingPathComponent(filename)
 
-            try? pngData.write(to: fileURL)
+            try? imageData.write(to: fileURL)
         }
 
         playCopySound()
@@ -223,13 +214,11 @@ extension OverlayWindowController: OverlayViewDelegate {
     func overlayViewDidRequestSave() {
         guard var image = overlayView?.captureSelectedRegion() else { return }
         image = applyBeautifyIfNeeded(image) ?? image
-        guard let tiffData = image.tiffRepresentation,
-              let bitmap = NSBitmapImageRep(data: tiffData),
-              let pngData = bitmap.representation(using: .png, properties: [:]) else { return }
+        guard let imageData = ImageEncoder.encode(image) else { return }
 
         let savePanel = NSSavePanel()
-        savePanel.allowedContentTypes = [UTType.png]
-        savePanel.nameFieldStringValue = "macshot_\(Self.formattedTimestamp()).png"
+        savePanel.allowedContentTypes = [ImageEncoder.utType]
+        savePanel.nameFieldStringValue = "macshot_\(Self.formattedTimestamp()).\(ImageEncoder.fileExtension)"
         savePanel.level = .statusBar + 3
 
         if let savedPath = UserDefaults.standard.string(forKey: "saveDirectory") {
@@ -241,7 +230,7 @@ extension OverlayWindowController: OverlayViewDelegate {
         savePanel.begin { [weak self] response in
             guard let self = self else { return }
             if response == .OK, let url = savePanel.url {
-                try? pngData.write(to: url)
+                try? imageData.write(to: url)
                 UserDefaults.standard.set(url.deletingLastPathComponent().path, forKey: "saveDirectory")
                 self.playCopySound()
                 self.dismiss()
