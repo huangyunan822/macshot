@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.2.4] - 2026-03-11
+
+### Fixed
+- **Color picker positioning**: The color picker popup now flips above the toolbar when it would go off the bottom of the screen, and clamps horizontally to stay within display bounds.
+
 ## [1.2.3] - 2026-03-11
 
 ### Improved

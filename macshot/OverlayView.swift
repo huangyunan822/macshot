@@ -603,13 +603,34 @@ class OverlayView: NSView {
             }
         }
 
-        let pickerX = anchorX - pickerWidth / 2
-        let pickerY: CGFloat
+        var pickerX = anchorX - pickerWidth / 2
+        var pickerY: CGFloat
         if bottomBarRect.minY < selectionRect.minY {
+            // Bar is below selection — place picker below bar
             pickerY = bottomBarRect.minY - pickerHeight - 4
+            // If it goes off the bottom, try above the bar instead
+            if pickerY < bounds.minY + 4 {
+                pickerY = bottomBarRect.maxY + 4
+            }
+            // If it still goes off the top, clamp to top
+            if pickerY + pickerHeight > bounds.maxY - 4 {
+                pickerY = bounds.maxY - pickerHeight - 4
+            }
         } else {
+            // Bar is above selection — place picker above bar
             pickerY = bottomBarRect.maxY + 4
+            // If it goes off the top, try below the bar instead
+            if pickerY + pickerHeight > bounds.maxY - 4 {
+                pickerY = bottomBarRect.minY - pickerHeight - 4
+            }
+            // If it still goes off the bottom, clamp to bottom
+            if pickerY < bounds.minY + 4 {
+                pickerY = bounds.minY + 4
+            }
         }
+
+        // Clamp horizontal
+        pickerX = max(bounds.minX + 4, min(pickerX, bounds.maxX - pickerWidth - 4))
 
         colorPickerRect = NSRect(x: pickerX, y: pickerY, width: pickerWidth, height: pickerHeight)
 
