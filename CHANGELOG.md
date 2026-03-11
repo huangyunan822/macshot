@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.2.1] - 2026-03-11
+
+### Improved
+- **Auto-Redact**: Much better credit card detection — now catches card numbers split across separate lines (e.g. "4868 7191 9682 9038" displayed as four groups), CVV codes, and expiry dates. Multi-pass detection with context awareness.
+
 ## [1.2.0] - 2026-03-11
 
 ### Added

@@ -1565,8 +1565,14 @@ class OverlayView: NSView {
             ("phone", #"(?:\+?1[-.\s]?)?(?:\(?\d{3}\)?[-.\s]?)\d{3}[-.\s]?\d{4}"#),
             // SSN (US Social Security Number)
             ("ssn", #"\b\d{3}[-\s]\d{2}[-\s]\d{4}\b"#),
-            // Credit card numbers (16 digits with optional separators)
-            ("credit_card", #"\b(?:\d{4}[-\s]?){3}\d{4}\b"#),
+            // Credit card numbers (16 digits with any whitespace/dash separators)
+            ("credit_card", #"\b\d{4}[-\s]*\d{4}[-\s]*\d{4}[-\s]*\d{4}\b"#),
+            // 4-digit groups that look like card number parts (standalone)
+            ("card_group", #"\b\d{4}\s+\d{4}\s+\d{4}\s+\d{4}\b"#),
+            // CVV (3-4 digit code near CVV/CVC/CSC label)
+            ("cvv", #"(?:CVV|CVC|CSC|CCV)\s*:?\s*\d{3,4}"#),
+            // Expiry dates (MM/YY, MM/YYYY, YYYY-MM, etc.)
+            ("expiry", #"\b(?:\d{2}[/\-]\d{2,4}|\d{4}[/\-]\d{2})\b"#),
             // IPv4 addresses
             ("ipv4", #"\b(?:\d{1,3}\.){3}\d{1,3}\b"#),
             // AWS access keys
@@ -1610,9 +1616,28 @@ class OverlayView: NSView {
 
             var redactAnnotations: [Annotation] = []
             let groupID = UUID()
-            let padding: CGFloat = 2  // slight padding around detected text
+            let padding: CGFloat = 2
+            var redactedObservations = Set<Int>()  // track already-redacted observations by index
 
-            for observation in observations {
+            // Helper to create a redaction annotation from a Vision bounding box
+            func addRedaction(box: CGRect) {
+                let viewX = selRect.origin.x + box.origin.x * selRect.width - padding
+                let viewY = selRect.origin.y + box.origin.y * selRect.height - padding
+                let viewW = box.width * selRect.width + padding * 2
+                let viewH = box.height * selRect.height + padding * 2
+                let annotation = Annotation(
+                    tool: .filledRectangle,
+                    startPoint: NSPoint(x: viewX, y: viewY),
+                    endPoint: NSPoint(x: viewX + viewW, y: viewY + viewH),
+                    color: redactColor,
+                    strokeWidth: 0
+                )
+                annotation.groupID = groupID
+                redactAnnotations.append(annotation)
+            }
+
+            // Pass 1: regex matching within each observation
+            for (i, observation) in observations.enumerated() {
                 guard let candidate = observation.topCandidates(1).first else { continue }
                 let text = candidate.string
                 let fullRange = NSRange(location: 0, length: (text as NSString).length)
@@ -1621,26 +1646,54 @@ class OverlayView: NSView {
                     let matches = regex.matches(in: text, options: [], range: fullRange)
                     for match in matches {
                         guard let swiftRange = Range(match.range, in: text) else { continue }
-
-                        // Get precise bounding box for the matched substring
                         guard let box = try? candidate.boundingBox(for: swiftRange) else { continue }
-                        let obsBox = box.boundingBox
+                        addRedaction(box: box.boundingBox)
+                        redactedObservations.insert(i)
+                    }
+                }
+            }
 
-                        // Vision normalized coords (0-1, bottom-left origin) -> view coords
-                        let viewX = selRect.origin.x + obsBox.origin.x * selRect.width - padding
-                        let viewY = selRect.origin.y + obsBox.origin.y * selRect.height - padding
-                        let viewW = obsBox.width * selRect.width + padding * 2
-                        let viewH = obsBox.height * selRect.height + padding * 2
+            // Pass 2: detect card numbers split across observations
+            // Collect observations that are purely digit groups (e.g. "4868", "7191 9682", etc.)
+            let digitGroupPattern = try? NSRegularExpression(pattern: #"^\d{3,4}$"#)
+            var digitGroupIndices: [Int] = []
+            for (i, observation) in observations.enumerated() {
+                guard !redactedObservations.contains(i) else { continue }
+                guard let candidate = observation.topCandidates(1).first else { continue }
+                let text = candidate.string.trimmingCharacters(in: .whitespaces)
+                let range = NSRange(location: 0, length: (text as NSString).length)
+                if digitGroupPattern?.firstMatch(in: text, options: [], range: range) != nil {
+                    digitGroupIndices.append(i)
+                }
+            }
+            // If 4+ standalone digit groups exist, they're likely a split card number — redact them all
+            if digitGroupIndices.count >= 4 {
+                for i in digitGroupIndices {
+                    addRedaction(box: observations[i].boundingBox)
+                    redactedObservations.insert(i)
+                }
+            }
 
-                        let annotation = Annotation(
-                            tool: .filledRectangle,
-                            startPoint: NSPoint(x: viewX, y: viewY),
-                            endPoint: NSPoint(x: viewX + viewW, y: viewY + viewH),
-                            color: redactColor,
-                            strokeWidth: 0
-                        )
-                        annotation.groupID = groupID
-                        redactAnnotations.append(annotation)
+            // Pass 3: redact observations whose text matches known sensitive labels + values
+            // e.g. "CVV 344", "EXP 2029-01", standalone 3-digit numbers near card data
+            if !redactedObservations.isEmpty {
+                let cvvPattern = try? NSRegularExpression(pattern: #"^\d{3,4}$"#)
+                let expiryPattern = try? NSRegularExpression(pattern: #"^\d{4}[-/]\d{2}$|^\d{2}[-/]\d{2,4}$"#)
+                for (i, observation) in observations.enumerated() {
+                    guard !redactedObservations.contains(i) else { continue }
+                    guard let candidate = observation.topCandidates(1).first else { continue }
+                    let text = candidate.string.trimmingCharacters(in: .whitespaces)
+                    let range = NSRange(location: 0, length: (text as NSString).length)
+
+                    // Standalone 3-digit number (likely CVV if card data was found)
+                    if cvvPattern?.firstMatch(in: text, options: [], range: range) != nil {
+                        addRedaction(box: observation.boundingBox)
+                        redactedObservations.insert(i)
+                    }
+                    // Expiry date
+                    if expiryPattern?.firstMatch(in: text, options: [], range: range) != nil {
+                        addRedaction(box: observation.boundingBox)
+                        redactedObservations.insert(i)
                     }
                 }
             }
