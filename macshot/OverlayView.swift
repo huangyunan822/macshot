@@ -100,6 +100,13 @@ class OverlayView: NSView {
         NSColor(calibratedRed: 1.0, green: 1.0, blue: 0.6, alpha: 1),  // cream
     ]
     private var customPickerSwatchRect: NSRect = .zero
+    private var showCustomColorPicker: Bool = false
+    private var customHSBCachedImage: NSImage?
+    private var customBrightness: CGFloat = 1.0
+    private var customPickerGradientRect: NSRect = .zero
+    private var customPickerBrightnessRect: NSRect = .zero
+    private var isDraggingHSBGradient: Bool = false
+    private var isDraggingBrightnessSlider: Bool = false
 
     // Handle
     private let handleSize: CGFloat = 10
@@ -579,7 +586,13 @@ class OverlayView: NSView {
         let swatchSize: CGFloat = 24
         let padding: CGFloat = 6
         let pickerWidth = CGFloat(cols) * (swatchSize + padding) + padding
-        let pickerHeight = CGFloat(rows) * (swatchSize + padding) + padding
+        var pickerHeight = CGFloat(rows) * (swatchSize + padding) + padding
+
+        // Extra height for inline HSB picker
+        let gradientSize: CGFloat = 140
+        let brightnessBarHeight: CGFloat = 16
+        let hsbExtraHeight: CGFloat = showCustomColorPicker ? (padding + gradientSize + padding + brightnessBarHeight + padding) : 0
+        pickerHeight += hsbExtraHeight
 
         // Find color button in bottom bar
         var anchorX = bottomBarRect.midX
@@ -604,12 +617,15 @@ class OverlayView: NSView {
         ToolbarLayout.bgColor.setFill()
         NSBezierPath(roundedRect: colorPickerRect, xRadius: 6, yRadius: 6).fill()
 
+        // Swatches Y base: if HSB picker is showing, swatches start above it
+        let swatchBaseY = colorPickerRect.maxY
+
         // Preset swatches
         for (i, color) in availableColors.enumerated() {
             let col = i % cols
             let row = i / cols
             let x = colorPickerRect.minX + padding + CGFloat(col) * (swatchSize + padding)
-            let y = colorPickerRect.maxY - padding - swatchSize - CGFloat(row) * (swatchSize + padding)
+            let y = swatchBaseY - padding - swatchSize - CGFloat(row) * (swatchSize + padding)
             let swatchRect = NSRect(x: x, y: y, width: swatchSize, height: swatchSize)
 
             color.setFill()
@@ -623,19 +639,27 @@ class OverlayView: NSView {
             }
         }
 
-        // Custom color picker swatch (rainbow gradient + "..." label)
+        // Custom color picker swatch (rainbow gradient + "+" label)
         let customIdx = availableColors.count
         let customCol = customIdx % cols
         let customRow = customIdx / cols
         let cx = colorPickerRect.minX + padding + CGFloat(customCol) * (swatchSize + padding)
-        let cy = colorPickerRect.maxY - padding - swatchSize - CGFloat(customRow) * (swatchSize + padding)
+        let cy = swatchBaseY - padding - swatchSize - CGFloat(customRow) * (swatchSize + padding)
         let customRect = NSRect(x: cx, y: cy, width: swatchSize, height: swatchSize)
         customPickerSwatchRect = customRect
 
         // Draw a rainbow gradient
-        let gradient = NSGradient(colors: [.systemRed, .systemYellow, .systemGreen, .systemBlue, .systemPurple, .systemRed])
-        let path = NSBezierPath(roundedRect: customRect, xRadius: 4, yRadius: 4)
-        gradient?.draw(in: path, angle: 45)
+        let rainbowGrad = NSGradient(colors: [.systemRed, .systemYellow, .systemGreen, .systemBlue, .systemPurple, .systemRed])
+        let rainbowPath = NSBezierPath(roundedRect: customRect, xRadius: 4, yRadius: 4)
+        rainbowGrad?.draw(in: rainbowPath, angle: 45)
+
+        // Highlight if expanded
+        if showCustomColorPicker {
+            NSColor.white.withAlphaComponent(0.4).setStroke()
+            let border = NSBezierPath(roundedRect: customRect.insetBy(dx: -1, dy: -1), xRadius: 5, yRadius: 5)
+            border.lineWidth = 2
+            border.stroke()
+        }
 
         // "+" label
         let plusAttrs: [NSAttributedString.Key: Any] = [
@@ -645,6 +669,106 @@ class OverlayView: NSView {
         let plusStr = "+" as NSString
         let plusSize = plusStr.size(withAttributes: plusAttrs)
         plusStr.draw(at: NSPoint(x: customRect.midX - plusSize.width / 2, y: customRect.midY - plusSize.height / 2), withAttributes: plusAttrs)
+
+        // Inline HSB color picker
+        if showCustomColorPicker {
+            let swatchRowsHeight = CGFloat(rows) * (swatchSize + padding) + padding
+            let gradientY = colorPickerRect.maxY - swatchRowsHeight - padding - gradientSize
+            let gradientX = colorPickerRect.minX + padding
+            let gradientW = pickerWidth - padding * 2
+            let gradRect = NSRect(x: gradientX, y: gradientY, width: gradientW, height: gradientSize)
+            customPickerGradientRect = gradRect
+
+            // Draw HS gradient (cached bitmap for performance)
+            drawHSBGradient(in: gradRect, brightness: customBrightness)
+
+            // Crosshair indicator for current color
+            let hsb = currentColor.usingColorSpace(.deviceRGB)
+            if let hsb = hsb {
+                var h: CGFloat = 0, s: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
+                hsb.getHue(&h, saturation: &s, brightness: &b, alpha: &a)
+                let cx = gradRect.minX + h * gradRect.width
+                let cy = gradRect.minY + s * gradRect.height
+                let crossSize: CGFloat = 10
+                // Outer ring (dark)
+                NSColor.black.withAlphaComponent(0.6).setStroke()
+                let outerRing = NSBezierPath(ovalIn: NSRect(x: cx - crossSize/2, y: cy - crossSize/2, width: crossSize, height: crossSize))
+                outerRing.lineWidth = 2
+                outerRing.stroke()
+                // Inner ring (white)
+                NSColor.white.setStroke()
+                let innerRing = NSBezierPath(ovalIn: NSRect(x: cx - crossSize/2 + 1, y: cy - crossSize/2 + 1, width: crossSize - 2, height: crossSize - 2))
+                innerRing.lineWidth = 1.5
+                innerRing.stroke()
+            }
+
+            // Brightness slider
+            let bSliderY = gradientY - padding - brightnessBarHeight
+            let bSliderRect = NSRect(x: gradientX, y: bSliderY, width: gradientW, height: brightnessBarHeight)
+            customPickerBrightnessRect = bSliderRect
+
+            // Draw brightness gradient: black to current HS color at full brightness
+            let currentHS = NSColor(calibratedHue: hsb?.hueComponent ?? 0,
+                                     saturation: hsb?.saturationComponent ?? 1,
+                                     brightness: 1.0, alpha: 1.0)
+            let bPath = NSBezierPath(roundedRect: bSliderRect, xRadius: 4, yRadius: 4)
+            let bGrad = NSGradient(starting: .black, ending: currentHS)
+            bGrad?.draw(in: bPath, angle: 0)
+
+            // Brightness indicator
+            let bx = bSliderRect.minX + customBrightness * bSliderRect.width
+            NSColor.white.setStroke()
+            let bIndicator = NSBezierPath(ovalIn: NSRect(x: bx - 6, y: bSliderRect.midY - 6, width: 12, height: 12))
+            bIndicator.lineWidth = 2
+            bIndicator.stroke()
+            NSColor.black.withAlphaComponent(0.3).setStroke()
+            let bIndicatorOuter = NSBezierPath(ovalIn: NSRect(x: bx - 7, y: bSliderRect.midY - 7, width: 14, height: 14))
+            bIndicatorOuter.lineWidth = 1
+            bIndicatorOuter.stroke()
+        }
+    }
+
+    private var cachedBrightness: CGFloat = -1
+
+    private func drawHSBGradient(in rect: NSRect, brightness: CGFloat) {
+        // Render at reduced resolution for performance, then scale up
+        let scale: CGFloat = 2  // half-res
+        let w = Int(rect.width / scale)
+        let h = Int(rect.height / scale)
+        guard w > 0 && h > 0 else { return }
+
+        // Only regenerate if brightness changed or cache is nil
+        if customHSBCachedImage == nil || cachedBrightness != brightness {
+            let bitmapRep = NSBitmapImageRep(
+                bitmapDataPlanes: nil,
+                pixelsWide: w, pixelsHigh: h,
+                bitsPerSample: 8, samplesPerPixel: 4,
+                hasAlpha: true, isPlanar: false,
+                colorSpaceName: .calibratedRGB,
+                bytesPerRow: w * 4, bitsPerPixel: 32
+            )!
+            for px in 0..<w {
+                for py in 0..<h {
+                    let hue = CGFloat(px) / CGFloat(w)
+                    let sat = CGFloat(py) / CGFloat(h)
+                    let color = NSColor(calibratedHue: hue, saturation: sat, brightness: brightness, alpha: 1.0)
+                    var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
+                    color.getRed(&r, green: &g, blue: &b, alpha: &a)
+                    bitmapRep.setColor(NSColor(calibratedRed: r, green: g, blue: b, alpha: 1), atX: px, y: h - 1 - py)
+                }
+            }
+            let img = NSImage(size: NSSize(width: w, height: h))
+            img.addRepresentation(bitmapRep)
+            customHSBCachedImage = img
+            cachedBrightness = brightness
+        }
+
+        // Clip to rounded rect and draw scaled
+        NSGraphicsContext.saveGraphicsState()
+        NSBezierPath(roundedRect: rect, xRadius: 4, yRadius: 4).addClip()
+        NSGraphicsContext.current?.imageInterpolation = .high
+        customHSBCachedImage!.draw(in: rect, from: NSRect(origin: .zero, size: customHSBCachedImage!.size), operation: .sourceOver, fraction: 1.0)
+        NSGraphicsContext.restoreGraphicsState()
     }
 
     // MARK: - Toolbar Layout
@@ -727,23 +851,40 @@ class OverlayView: NSView {
 
         // Color picker swatch selection
         if showColorPicker {
+            // Check HSB gradient drag start
+            if showCustomColorPicker && customPickerGradientRect.contains(point) {
+                isDraggingHSBGradient = true
+                let color = colorFromHSBGradient(at: point)
+                currentColor = color
+                applyColorToTextIfEditing()
+                needsDisplay = true
+                return
+            }
+            // Check brightness slider drag start
+            if showCustomColorPicker && customPickerBrightnessRect.contains(point) {
+                isDraggingBrightnessSlider = true
+                updateBrightnessFromPoint(point)
+                return
+            }
+
             if let color = hitTestColorPicker(at: point) {
                 currentColor = color
                 showColorPicker = false
-                if isTextEditing, let tv = textEditView {
-                    // Apply color to selected text or all text
-                    let range = selectedOrAllRange()
-                    if range.length > 0 {
-                        tv.textStorage?.addAttribute(.foregroundColor, value: currentColor, range: range)
-                    }
-                    tv.insertionPointColor = currentColor
-                    tv.typingAttributes[.foregroundColor] = currentColor
-                    window?.makeFirstResponder(tv)
+                showCustomColorPicker = false
+                applyColorToTextIfEditing()
+                if isTextEditing {
+                    window?.makeFirstResponder(textEditView)
                 }
                 needsDisplay = true
                 return
             }
+            // If click is inside the color picker rect, don't dismiss
+            if colorPickerRect.contains(point) {
+                needsDisplay = true
+                return
+            }
             showColorPicker = false
+            showCustomColorPicker = false
             needsDisplay = true
         }
 
@@ -835,12 +976,26 @@ class OverlayView: NSView {
     override func mouseDragged(with event: NSEvent) {
         let point = convert(event.locationInWindow, from: nil)
 
+        // Handle HSB gradient dragging
+        if isDraggingHSBGradient {
+            let color = colorFromHSBGradient(at: point)
+            currentColor = color
+            applyColorToTextIfEditing()
+            needsDisplay = true
+            return
+        }
+        // Handle brightness slider dragging
+        if isDraggingBrightnessSlider {
+            updateBrightnessFromPoint(point)
+            return
+        }
+
         switch state {
         case .selecting:
             let x = min(selectionStart.x, point.x)
             let y = min(selectionStart.y, point.y)
-            let w = abs(point.x - selectionStart.x)
-            let h = abs(point.y - selectionStart.y)
+            let w = max(1, abs(point.x - selectionStart.x))
+            let h = max(1, abs(point.y - selectionStart.y))
             selectionRect = NSRect(x: x, y: y, width: w, height: h)
             needsDisplay = true
 
@@ -863,6 +1018,14 @@ class OverlayView: NSView {
     }
 
     override func mouseUp(with event: NSEvent) {
+        if isDraggingHSBGradient {
+            isDraggingHSBGradient = false
+            return
+        }
+        if isDraggingBrightnessSlider {
+            isDraggingBrightnessSlider = false
+            return
+        }
         lastDragPoint = nil
         switch state {
         case .selecting:
@@ -911,8 +1074,8 @@ class OverlayView: NSView {
         let point = convert(event.locationInWindow, from: nil)
         let x = min(selectionStart.x, point.x)
         let y = min(selectionStart.y, point.y)
-        let w = abs(point.x - selectionStart.x)
-        let h = abs(point.y - selectionStart.y)
+        let w = max(1, abs(point.x - selectionStart.x))
+        let h = max(1, abs(point.y - selectionStart.y))
         selectionRect = NSRect(x: x, y: y, width: w, height: h)
         needsDisplay = true
     }
@@ -1028,8 +1191,9 @@ class OverlayView: NSView {
         }
     }
 
-    /// Returns a color if a preset swatch was clicked, or opens the system color panel
-    /// if the custom picker swatch was clicked. Returns nil if nothing was hit.
+    /// Returns a color if a preset swatch was clicked, toggles the inline HSB picker
+    /// if the custom picker swatch was clicked, or picks from the HSB gradient.
+    /// Returns nil if nothing was hit.
     private func hitTestColorPicker(at point: NSPoint) -> NSColor? {
         guard showColorPicker else { return nil }
         let cols = 6
@@ -1043,32 +1207,54 @@ class OverlayView: NSView {
             let y = colorPickerRect.maxY - padding - swatchSize - CGFloat(row) * (swatchSize + padding)
             let swatchRect = NSRect(x: x, y: y, width: swatchSize, height: swatchSize)
             if swatchRect.contains(point) {
+                showCustomColorPicker = false
                 return color
             }
         }
 
-        // Custom color picker swatch
+        // Custom color picker toggle swatch
         if customPickerSwatchRect.contains(point) {
-            openSystemColorPicker()
-            return nil  // don't close picker yet, color panel will handle it
+            showCustomColorPicker.toggle()
+            customHSBCachedImage = nil  // force redraw
+            needsDisplay = true
+            return nil
+        }
+
+        // HSB gradient area
+        if showCustomColorPicker && customPickerGradientRect.contains(point) {
+            let color = colorFromHSBGradient(at: point)
+            return color
+        }
+
+        // Brightness slider
+        if showCustomColorPicker && customPickerBrightnessRect.contains(point) {
+            updateBrightnessFromPoint(point)
+            return nil  // brightness changed, color updated via updateBrightnessFromPoint
         }
 
         return nil
     }
 
-    private func openSystemColorPicker() {
-        showColorPicker = false
-        let panel = NSColorPanel.shared
-        panel.color = currentColor
-        panel.setTarget(self)
-        panel.setAction(#selector(systemColorPicked(_:)))
-        panel.level = .statusBar + 2
-        panel.makeKeyAndOrderFront(nil)
+    private func colorFromHSBGradient(at point: NSPoint) -> NSColor {
+        let hue = max(0, min(1, (point.x - customPickerGradientRect.minX) / customPickerGradientRect.width))
+        let sat = max(0, min(1, (point.y - customPickerGradientRect.minY) / customPickerGradientRect.height))
+        return NSColor(calibratedHue: hue, saturation: sat, brightness: customBrightness, alpha: 1.0)
+    }
+
+    private func updateBrightnessFromPoint(_ point: NSPoint) {
+        customBrightness = max(0, min(1, (point.x - customPickerBrightnessRect.minX) / customPickerBrightnessRect.width))
+        customHSBCachedImage = nil  // brightness changed, redraw gradient
+        // Update current color with new brightness
+        if let hsb = currentColor.usingColorSpace(.deviceRGB) {
+            var h: CGFloat = 0, s: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
+            hsb.getHue(&h, saturation: &s, brightness: &b, alpha: &a)
+            currentColor = NSColor(calibratedHue: h, saturation: s, brightness: customBrightness, alpha: 1.0)
+            applyColorToTextIfEditing()
+        }
         needsDisplay = true
     }
 
-    @objc private func systemColorPicked(_ sender: NSColorPanel) {
-        currentColor = sender.color
+    private func applyColorToTextIfEditing() {
         if let tv = textEditView {
             let range = selectedOrAllRange()
             if range.length > 0 {
@@ -1077,7 +1263,6 @@ class OverlayView: NSView {
             tv.insertionPointColor = currentColor
             tv.typingAttributes[.foregroundColor] = currentColor
         }
-        needsDisplay = true
     }
 
     // MARK: - Annotation Creation
@@ -1543,6 +1728,7 @@ class OverlayView: NSView {
                 window?.makeFirstResponder(self)
             } else if showColorPicker {
                 showColorPicker = false
+                showCustomColorPicker = false
                 needsDisplay = true
             } else {
                 overlayDelegate?.overlayViewDidCancel()
@@ -1853,6 +2039,10 @@ class OverlayView: NSView {
         sizeInputField = nil
         cursorTimer?.invalidate()
         cursorTimer = nil
+        showCustomColorPicker = false
+        customHSBCachedImage = nil
+        isDraggingHSBGradient = false
+        isDraggingBrightnessSlider = false
         needsDisplay = true
     }
 }

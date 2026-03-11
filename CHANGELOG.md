@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.2.3] - 2026-03-11
+
+### Improved
+- **Color picker**: Replaced the external system color panel with an inline HSB gradient picker. Click the rainbow "+" swatch to expand a hue-saturation gradient and brightness slider directly inside the toolbar popup — no separate window, no losing focus.
+
+### Fixed
+- **Selection drawing**: The overlay no longer disappears when the selection width or height is momentarily zero while dragging. The selection region stays visible throughout the entire drag.
+
 ## [1.2.2] - 2026-03-11
 
 ### Improved
