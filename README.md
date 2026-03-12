@@ -1,5 +1,9 @@
 # macshot
 
+<p align="center">
+  <img src="assets/logo.svg" alt="macshot logo" width="128"/>
+</p>
+
 A native macOS screenshot tool inspired by [Flameshot](https://flameshot.org/). No Electron, no Qt, no bloat — just pure Swift and AppKit.
 
 macshot lives in your menu bar and lets you capture, annotate, and share screenshots with a single hotkey.
