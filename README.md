@@ -8,6 +8,10 @@ A native macOS screenshot tool inspired by [Flameshot](https://flameshot.org/). 
 
 macshot lives in your menu bar and lets you capture, annotate, and share screenshots with a single hotkey.
 
+<p align="center">
+  <img src="assets/preview.png" alt="macshot demo" width="700"/>
+</p>
+
 ## Features
 
 - **Instant capture** — global hotkey (default: `Cmd+Shift+X`) freezes your screen and lets you select a region
