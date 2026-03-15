@@ -37,7 +37,13 @@ class ScreenCaptureManager {
                             config.showsCursor = false
                             config.captureResolution = .best
                             if let image = try? await SCScreenshotManager.captureImage(contentFilter: filter, configuration: config) {
-                                return ScreenCapture(screen: screen, image: image)
+                                // SCScreenshotManager returns an IOSurface-backed CGImage (GPU memory).
+                                // Blit it into a CPU-backed bitmap now, while we're already on a
+                                // background thread, so the first draw and tiffRepresentation calls
+                                // at confirm-time are instant instead of stalling the main thread
+                                // with a ~1 s GPU→CPU readback.
+                                let cpuImage = Self.copyToCPUBacked(image) ?? image
+                                return ScreenCapture(screen: screen, image: cpuImage)
                             }
                             return nil
                         }
@@ -57,5 +63,25 @@ class ScreenCaptureManager {
                 await MainActor.run { completion([]) }
             }
         }
+    }
+
+    /// Blit an IOSurface-backed CGImage into a plain CPU-backed bitmap.
+    /// This forces the GPU→CPU readback on the calling (background) thread so it
+    /// never blocks the main thread later when the image is first drawn or encoded.
+    private static func copyToCPUBacked(_ src: CGImage) -> CGImage? {
+        let w = src.width
+        let h = src.height
+        let cs = CGColorSpaceCreateDeviceRGB()
+        let bitmapInfo = CGImageAlphaInfo.premultipliedFirst.rawValue | CGBitmapInfo.byteOrder32Little.rawValue
+        guard let ctx = CGContext(
+            data: nil,
+            width: w, height: h,
+            bitsPerComponent: 8,
+            bytesPerRow: w * 4,
+            space: cs,
+            bitmapInfo: bitmapInfo
+        ) else { return nil }
+        ctx.draw(src, in: CGRect(x: 0, y: 0, width: w, height: h))
+        return ctx.makeImage()
     }
 }

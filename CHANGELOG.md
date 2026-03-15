@@ -1,5 +1,10 @@
 # Changelog
 
+## [2.1.5] - 2026-03-15
+
+### Fixed
+- **~1 s delay on snap/fullscreen confirm** — copying, saving, or pinning a window-snap or full-screen (F key) selection was stalling the main thread for ~1 second before the screenshot sound played. Root cause: `SCScreenshotManager.captureImage` returns an IOSurface-backed CGImage (GPU memory) that is only read back to CPU RAM the first time its pixels are accessed. For manual drag selections the readback happened silently during the drag (many `draw()` calls); for snap/fullscreen the user confirmed before any draw occurred, so the blocking readback hit the main thread at copy/save/pin time. Fix: blit the IOSurface CGImage into a CPU-backed `CGContext` immediately after capture, while still on the background capture thread, so the readback is done before the overlay even appears.
+
 ## [2.1.4] - 2026-03-15
 
 ### Added
