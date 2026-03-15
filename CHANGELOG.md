@@ -1,5 +1,13 @@
 # Changelog
 
+## [2.2.0] - 2026-03-15
+
+### Added
+- **Scroll Capture** — select a region, click the Scroll Capture button (above Record in the right toolbar), then scroll normally. macshot stitches each captured strip into one seamless tall image using Apple Vision's `VNTranslationalImageRegistrationRequest` for pixel-perfect alignment. Works at any scroll speed; handles both downward and upward scrolling. The full screen turns transparent during capture so you see live content everywhere, not a frozen overlay. Press Stop (or Esc) when done — the result is copied to clipboard and shown as a floating thumbnail.
+
+### Improved
+- **Scroll Capture live preview** — entire overlay window is fully transparent during scroll capture so you see live screen content on the whole screen, not just inside the selection rectangle.
+
 ## [2.1.6] - 2026-03-15
 
 ### Fixed

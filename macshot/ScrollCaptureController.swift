@@ -1,51 +1,56 @@
 import Cocoa
 import ScreenCaptureKit
-import Accelerate
+import Vision
 
 // MARK: - ScrollCaptureController
 
-/// Manages a scroll-capture session: listens for scroll events, captures strips of
-/// the selected region after scrolling settles, and stitches them together using
-/// SAD (sum of absolute differences) template matching to find the exact overlap.
+/// Manages a scroll-capture session: captures strips whenever scroll activity is detected,
+/// stitches them together using SAD template matching to find the exact pixel overlap.
 @MainActor
 final class ScrollCaptureController {
 
     // MARK: - Public state
 
     private(set) var stripCount: Int = 0
-
-    /// Live stitched result in Retina pixels (grows as strips are added).
     private(set) var stitchedImage: CGImage?
     private(set) var stitchedPixelSize: CGSize = .zero
-
     private(set) var isActive: Bool = false
 
     // MARK: - Callbacks
 
-    var onStripAdded:  ((Int) -> Void)?  // stripCount
+    var onStripAdded:  ((Int) -> Void)?
     var onSessionDone: ((NSImage?) -> Void)?
+
+    // MARK: - Config
+
+    var excludedWindowIDs: [CGWindowID] = []
 
     // MARK: - Private
 
-    /// The region to capture in AppKit screen coordinates (bottom-left origin, points).
     private let captureRect: NSRect
     private let screen: NSScreen
 
     private var scDisplay: SCDisplay?
+    private var excludedSCWindows: [SCWindow] = []
+    private var scSourceRect: CGRect = .zero
 
-    /// Scroll event monitor (global, passive — no Accessibility permission needed).
-    private var scrollMonitor: Any?
+    // Scroll monitors
+    private var scrollMonitorGlobal: Any?
+    private var scrollMonitorLocal:  Any?
 
-    /// Debounce timer: fires after scroll velocity has settled.
-    private var debounceTimer: Timer?
-    private let debounceInterval: TimeInterval = 0.40
+    // Throttle: capture at most once every `captureInterval` seconds while scrolling
+    private let captureInterval: TimeInterval = 0.25
+    private var lastCaptureTime: TimeInterval = 0
+    private var pendingCaptureTask: Task<Void, Never>? = nil
+    // End-of-scroll: capture one final frame after scroll momentum dies
+    private var settlementTimer: Timer?
+    private let settlementInterval: TimeInterval = 0.40
+    // Guard: only one captureAndStitch at a time
+    private var isCapturing: Bool = false
 
-    /// Minimum pixel movement to bother appending a new strip (avoids jitter duplicates).
-    private let minNewContentPx = 4
-
-    /// Canvas is grown downward (vertical scroll). Support horizontal is future work.
-    private var canvasWidthPx:  Int = 0
-    private var canvasHeightPx: Int = 0
+    // Stitching state — all in points (not pixels), Vision works in normalised/point space
+    private var previousStrip: NSImage?       // last captured strip (for registration)
+    private var runningStitched: NSImage?     // growing stitched canvas in points
 
     // MARK: - Init
 
@@ -59,279 +64,200 @@ final class ScrollCaptureController {
     func startSession() async {
         guard !isActive else { return }
 
-        // Resolve the SCDisplay for this screen
         if let content = try? await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true) {
             scDisplay = content.displays.first(where: { d in
                 abs(d.frame.origin.x - screen.frame.origin.x) < 2 &&
                 abs(d.frame.origin.y - (NSScreen.screens.map(\.frame.maxY).max() ?? 0) - screen.frame.origin.y) < 50
             }) ?? content.displays.first
+            excludedSCWindows = content.windows.filter { excludedWindowIDs.contains(CGWindowID($0.windowID)) }
         }
-        guard scDisplay != nil else {
-            onSessionDone?(nil)
-            return
-        }
+        guard scDisplay != nil else { onSessionDone?(nil); return }
 
-        // Capture the first strip immediately
-        guard let first = await captureStrip() else {
-            onSessionDone?(nil)
-            return
-        }
+        // AppKit → SCKit coordinate conversion (bottom-left → top-left origin)
+        let df = screen.frame
+        scSourceRect = CGRect(
+            x: captureRect.minX - df.minX,
+            y: (df.maxY - captureRect.maxY) - df.minY,
+            width:  captureRect.width,
+            height: captureRect.height
+        )
 
-        isActive = true
-        appendFirstStrip(first)
+        guard let firstCG = await captureStrip() else { onSessionDone?(nil); return }
+        let scale = screen.backingScaleFactor
+        let firstImg = NSImage(cgImage: firstCG,
+                               size: CGSize(width:  CGFloat(firstCG.width)  / scale,
+                                            height: CGFloat(firstCG.height) / scale))
+        isActive        = true
+        previousStrip   = firstImg
+        runningStitched = firstImg
+        stitchedImage   = firstCG
+        stitchedPixelSize = CGSize(width: CGFloat(firstCG.width), height: CGFloat(firstCG.height))
+        stripCount      = 1
         onStripAdded?(stripCount)
 
-        // Install global scroll monitor
-        scrollMonitor = NSEvent.addGlobalMonitorForEvents(matching: .scrollWheel) { [weak self] _ in
-            self?.scheduleDebounce()
+        // Monitor both global (events to other apps) and local (events falling through overlay)
+        scrollMonitorGlobal = NSEvent.addGlobalMonitorForEvents(matching: .scrollWheel) { [weak self] _ in
+            self?.onScrollEvent()
+        }
+        scrollMonitorLocal = NSEvent.addLocalMonitorForEvents(matching: .scrollWheel) { [weak self] event in
+            self?.onScrollEvent()
+            return event
         }
     }
 
     func stopSession() {
         isActive = false
-        debounceTimer?.invalidate()
-        debounceTimer = nil
-        if let m = scrollMonitor { NSEvent.removeMonitor(m); scrollMonitor = nil }
+        settlementTimer?.invalidate(); settlementTimer = nil
+        pendingCaptureTask?.cancel(); pendingCaptureTask = nil
+        if let m = scrollMonitorGlobal { NSEvent.removeMonitor(m); scrollMonitorGlobal = nil }
+        if let m = scrollMonitorLocal  { NSEvent.removeMonitor(m); scrollMonitorLocal  = nil }
         deliverResult()
     }
 
-    // MARK: - Scroll debounce
+    // MARK: - Scroll handling
 
-    private func scheduleDebounce() {
-        debounceTimer?.invalidate()
-        debounceTimer = Timer.scheduledTimer(withTimeInterval: debounceInterval, repeats: false) { [weak self] _ in
+    private func onScrollEvent() {
+        guard isActive else { return }
+
+        // Reset settlement timer on every scroll event
+        settlementTimer?.invalidate()
+        settlementTimer = Timer.scheduledTimer(withTimeInterval: settlementInterval, repeats: false) { [weak self] _ in
             guard let self = self else { return }
-            Task { @MainActor in await self.onScrollSettled() }
+            Task { @MainActor in await self.captureAndStitch() }
+        }
+
+        // Throttle: don't capture more often than captureInterval
+        let now = ProcessInfo.processInfo.systemUptime
+        guard now - lastCaptureTime >= captureInterval else { return }
+        lastCaptureTime = now
+
+        pendingCaptureTask?.cancel()
+        pendingCaptureTask = Task { [weak self] in
+            await self?.captureAndStitch()
         }
     }
 
-    private func onScrollSettled() async {
-        guard isActive else { return }
-        guard let newStrip = await captureStrip() else { return }
-        guard let lastStrip = lastCapturedStrip else { return }
+    private func captureAndStitch() async {
+        guard isActive, !isCapturing else { return }
+        isCapturing = true
+        defer { isCapturing = false }
 
-        let overlap = findOverlap(previous: lastStrip, next: newStrip)
-        let newContentPx = newStrip.height - overlap.overlapPx
+        guard let cgStrip = await captureStrip() else { return }
+        let scale = screen.backingScaleFactor
+        let newStrip = NSImage(cgImage: cgStrip,
+                               size: CGSize(width:  CGFloat(cgStrip.width)  / scale,
+                                            height: CGFloat(cgStrip.height) / scale))
 
-        // Discard if no new content (identical frame or tiny jitter)
-        guard newContentPx >= minNewContentPx else { return }
+        guard let prev = previousStrip else { return }
 
-        appendStrip(newStrip, overlapPx: overlap.overlapPx)
-        onStripAdded?(stripCount)
+        guard let offset = verticalOffset(from: newStrip, to: prev) else {
+            // Can't register — skip
+            previousStrip = newStrip
+            return
+        }
+
+        if offset > 0 {
+            // Downward scroll: new content at the bottom
+            guard let composed = compositeBelow(base: runningStitched ?? prev,
+                                                new: newStrip,
+                                                offset: offset) else { return }
+            runningStitched = composed
+            stitchedImage   = composed.cgImage(forProposedRect: nil, context: nil, hints: nil)
+            stitchedPixelSize = CGSize(width: composed.size.width  * scale,
+                                       height: composed.size.height * scale)
+            previousStrip = newStrip
+            stripCount   += 1
+            onStripAdded?(stripCount)
+        } else if offset < 0 {
+            // Upward scroll: trim bottom of canvas
+            let crop = abs(offset)
+            if let trimmed = cropBottom(of: runningStitched ?? prev, by: crop) {
+                runningStitched = trimmed
+                stitchedImage   = trimmed.cgImage(forProposedRect: nil, context: nil, hints: nil)
+                stitchedPixelSize = CGSize(width: trimmed.size.width  * scale,
+                                           height: trimmed.size.height * scale)
+            }
+            previousStrip = newStrip
+        }
+        // offset == 0 → no movement, skip
     }
 
     // MARK: - Strip capture
 
-    /// The most recently captured raw strip (used as template for overlap detection).
-    private var lastCapturedStrip: CGImage?
-
     private func captureStrip() async -> CGImage? {
         guard let display = scDisplay else { return nil }
-        let filter = SCContentFilter(display: display, excludingWindows: [])
+        let filter = SCContentFilter(display: display, excludingWindows: excludedSCWindows)
         let config = SCStreamConfiguration()
-        config.sourceRect = captureRect
-        config.width  = Int(captureRect.width  * screen.backingScaleFactor)
-        config.height = Int(captureRect.height * screen.backingScaleFactor)
-        config.showsCursor = false
+        config.sourceRect        = scSourceRect
+        config.width             = Int(captureRect.width  * screen.backingScaleFactor)
+        config.height            = Int(captureRect.height * screen.backingScaleFactor)
+        config.showsCursor       = false
         config.captureResolution = .best
-        guard let raw = try? await SCScreenshotManager.captureImage(contentFilter: filter, configuration: config) else { return nil }
-        let cpu = copyToCPUBacked(raw) ?? raw
-        lastCapturedStrip = cpu
-        return cpu
+        guard let raw = try? await SCScreenshotManager.captureImage(contentFilter: filter,
+                                                                     configuration: config) else { return nil }
+        return copyToCPUBacked(raw) ?? raw
     }
 
-    // MARK: - Stitching
+    // MARK: - Vision-based offset detection
 
-    private func appendFirstStrip(_ strip: CGImage) {
-        canvasWidthPx  = strip.width
-        canvasHeightPx = strip.height
-        stitchedImage  = strip
-        stitchedPixelSize = CGSize(width: canvasWidthPx, height: canvasHeightPx)
-        stripCount = 1
+    /// Returns the vertical translation (in points) needed to align `current` onto `reference`.
+    /// Positive = current is below reference (downward scroll).
+    /// Negative = current is above reference (upward scroll).
+    /// nil = registration failed.
+    private func verticalOffset(from current: NSImage, to reference: NSImage) -> CGFloat? {
+        guard let curCG = current.cgImage(forProposedRect: nil, context: nil, hints: nil),
+              let refCG = reference.cgImage(forProposedRect: nil, context: nil, hints: nil) else { return nil }
+
+        let request = VNTranslationalImageRegistrationRequest(targetedCGImage: refCG)
+        let handler = VNImageRequestHandler(cgImage: curCG, options: [:])
+        guard (try? handler.perform([request])) != nil,
+              let obs = request.results?.first as? VNImageTranslationAlignmentObservation else { return nil }
+
+        let ty = obs.alignmentTransform.ty
+        // Convert Vision pixel offset → AppKit points
+        guard current.size.height > 0 else { return nil }
+        let pixelScale = CGFloat(curCG.height) / current.size.height
+        return ty / (pixelScale > 0 ? pixelScale : 1)
     }
 
-    private func appendStrip(_ strip: CGImage, overlapPx: Int) {
-        let newContentH = max(0, strip.height - overlapPx)
-        guard newContentH > 0 else { return }
+    // MARK: - Stitching helpers
 
-        let newTotalH = canvasHeightPx + newContentH
-        let cs = CGColorSpaceCreateDeviceRGB()
-        let bitmapInfo = CGImageAlphaInfo.premultipliedFirst.rawValue | CGBitmapInfo.byteOrder32Little.rawValue
-
-        guard let ctx = CGContext(
-            data: nil,
-            width: canvasWidthPx, height: newTotalH,
-            bitsPerComponent: 8,
-            bytesPerRow: canvasWidthPx * 4,
-            space: cs,
-            bitmapInfo: bitmapInfo
-        ) else { return }
-
-        // CGContext uses bottom-left origin.
-        // Existing stitched content goes at the top (y = newContentH).
-        if let existing = stitchedImage {
-            ctx.draw(existing, in: CGRect(x: 0, y: newContentH,
-                                          width: canvasWidthPx, height: canvasHeightPx))
-        }
-
-        // New content is the non-overlapping bottom portion of the incoming strip.
-        // In CG top-left bitmap coords, the non-overlapping part starts at y = overlapPx.
-        if let newContent = strip.cropping(to: CGRect(
-            x: 0, y: overlapPx, width: strip.width, height: newContentH
-        )) {
-            ctx.draw(newContent, in: CGRect(x: 0, y: 0, width: canvasWidthPx, height: newContentH))
-        }
-
-        canvasHeightPx = newTotalH
-        stitchedImage  = ctx.makeImage()
-        stitchedPixelSize = CGSize(width: canvasWidthPx, height: canvasHeightPx)
-        stripCount += 1
+    /// Composite `new` below `base`, overlapping by (new.height - offset) points.
+    private func compositeBelow(base: NSImage, new: NSImage, offset: CGFloat) -> NSImage? {
+        let totalH = base.size.height + offset
+        let size   = NSSize(width: base.size.width, height: totalH)
+        let result = NSImage(size: size)
+        result.lockFocus()
+        // base sits at the top
+        base.draw(in: CGRect(x: 0, y: totalH - base.size.height,
+                             width: base.size.width, height: base.size.height))
+        // new sits at the bottom (overlaps with the bottom of base by new.height - offset)
+        new.draw(in: CGRect(x: 0, y: 0, width: new.size.width, height: new.size.height))
+        result.unlockFocus()
+        return result
     }
 
-    // MARK: - Overlap detection (SAD template matching)
-
-    private struct OverlapResult {
-        let overlapPx:  Int    // how many rows at the top of `next` overlap with `previous`
-        let confidence: Float  // 0–1; 1 = perfect match
-    }
-
-    /// Finds the exact pixel overlap between two consecutive strips.
-    ///
-    /// Algorithm:
-    ///   - Take a horizontal band from the **bottom** of `previous` as the search template.
-    ///   - Scan it downward through the **top portion** of `next` using sum of absolute
-    ///     differences (SAD), computed via vDSP for speed.
-    ///   - The row offset of the minimum SAD gives the overlap.
-    ///
-    /// This handles all scroll speeds correctly, including slow micro-scrolls and
-    /// fast page-jumps up to half the strip height.
-    private func findOverlap(previous: CGImage, next: CGImage) -> OverlapResult {
-        let scale        = Int(screen.backingScaleFactor)
-        let templateH    = max(32, 32 * scale)   // ~32 pt in Retina pixels
-        let stripW       = previous.width
-
-        guard previous.height > templateH * 2,
-              next.height >= templateH,
-              next.width == stripW else {
-            return OverlapResult(overlapPx: 0, confidence: 0)
-        }
-
-        // Template = bottom `templateH` rows of `previous`
-        let templateY = previous.height - templateH
-        guard let templateCG = previous.cropping(to: CGRect(
-            x: 0, y: templateY, width: stripW, height: templateH
-        )) else { return OverlapResult(overlapPx: 0, confidence: 0) }
-
-        // Search region = top (searchH + templateH) rows of `next`.
-        // We scan up to half the strip height to handle fast scrolls.
-        let maxSearchRows = min(next.height / 2, next.height - templateH)
-        guard maxSearchRows > 0 else { return OverlapResult(overlapPx: 0, confidence: 0) }
-
-        let searchRegionH = maxSearchRows + templateH
-        guard let searchCG = next.cropping(to: CGRect(
-            x: 0, y: 0, width: stripW, height: searchRegionH
-        )) else { return OverlapResult(overlapPx: 0, confidence: 0) }
-
-        guard let tBuf = cgImageToRGBA(templateCG),
-              let sBuf = cgImageToRGBA(searchCG) else {
-            return OverlapResult(overlapPx: 0, confidence: 0)
-        }
-
-        // Convert template bytes to Float once — only channels 0,1,2 (R,G,B; skip A)
-        // We interleave all pixels, so stride by 4 and pick channels 0,1,2 per pixel.
-        // For speed, sample every `colStride` columns.
-        let colStride = max(1, stripW / 80)
-        let sampledCols = stride(from: 0, to: stripW, by: colStride).map { $0 }
-        let numSamples  = sampledCols.count * templateH * 3  // 3 colour channels
-
-        var tFloat = [Float](repeating: 0, count: numSamples)
-        var idx = 0
-        for row in 0..<templateH {
-            for col in sampledCols {
-                let pix = (row * stripW + col) * 4
-                tFloat[idx]     = Float(tBuf[pix])
-                tFloat[idx + 1] = Float(tBuf[pix + 1])
-                tFloat[idx + 2] = Float(tBuf[pix + 2])
-                idx += 3
-            }
-        }
-
-        var bestOffset = 0
-        var bestSAD: Float = .infinity
-
-        var sFloat = [Float](repeating: 0, count: numSamples)
-
-        for candidateRow in 0..<maxSearchRows {
-            var i2 = 0
-            for row in 0..<templateH {
-                for col in sampledCols {
-                    let pix = ((candidateRow + row) * stripW + col) * 4
-                    sFloat[i2]     = Float(sBuf[pix])
-                    sFloat[i2 + 1] = Float(sBuf[pix + 1])
-                    sFloat[i2 + 2] = Float(sBuf[pix + 2])
-                    i2 += 3
-                }
-            }
-
-            var diff = [Float](repeating: 0, count: numSamples)
-            vDSP_vsub(sFloat, 1, tFloat, 1, &diff, 1, vDSP_Length(numSamples))
-            var absDiff = diff
-            vDSP_vabs(absDiff, 1, &absDiff, 1, vDSP_Length(numSamples))
-            var sad: Float = 0
-            vDSP_sve(absDiff, 1, &sad, vDSP_Length(numSamples))
-
-            if sad < bestSAD {
-                bestSAD = sad
-                bestOffset = candidateRow
-            }
-        }
-
-        // Normalise: expected max SAD if every channel differs by 30 grey levels
-        let maxExpectedSAD = Float(numSamples) * 30.0
-        let confidence = max(0, min(1, 1.0 - bestSAD / maxExpectedSAD))
-
-        // If confidence is too low the content changed beyond recognition — append cleanly
-        if confidence < 0.15 {
-            return OverlapResult(overlapPx: 0, confidence: confidence)
-        }
-
-        // `bestOffset` = first row of `next` that matches the top of the template.
-        // The overlap region in `next` starts at row `bestOffset` and spans `templateH` rows.
-        // Total rows to skip from the top of `next` = bestOffset + templateH
-        //   … but bestOffset already represents where the TEMPLATE starts in the search buf,
-        //   which is the bottom of the overlap region as seen from `next`.
-        // So the full overlap count = bestOffset + templateH (the entire matching band
-        // plus everything above it that was already in `previous`).
-        let totalOverlap = bestOffset + templateH
-
-        return OverlapResult(overlapPx: totalOverlap, confidence: confidence)
-    }
-
-    // MARK: - Helpers
-
-    private func cgImageToRGBA(_ image: CGImage) -> [UInt8]? {
-        let w = image.width, h = image.height
-        var buf = [UInt8](repeating: 0, count: w * h * 4)
-        let cs = CGColorSpaceCreateDeviceRGB()
-        guard let ctx = CGContext(
-            data: &buf, width: w, height: h,
-            bitsPerComponent: 8, bytesPerRow: w * 4,
-            space: cs,
-            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
-        ) else { return nil }
-        ctx.draw(image, in: CGRect(x: 0, y: 0, width: w, height: h))
-        return buf
+    /// Remove `amount` points from the bottom of `image` (undo an upward scroll).
+    private func cropBottom(of image: NSImage, by amount: CGFloat) -> NSImage? {
+        let newH = image.size.height - amount
+        guard newH > 0 else { return image }
+        let size   = NSSize(width: image.size.width, height: newH)
+        let result = NSImage(size: size)
+        result.lockFocus()
+        image.draw(in:   NSRect(origin: .zero, size: size),
+                   from: NSRect(x: 0, y: amount, width: image.size.width, height: newH),
+                   operation: .copy, fraction: 1)
+        result.unlockFocus()
+        return result
     }
 
     private func copyToCPUBacked(_ src: CGImage) -> CGImage? {
         let w = src.width, h = src.height
-        let cs = CGColorSpaceCreateDeviceRGB()
+        let cs         = CGColorSpaceCreateDeviceRGB()
         let bitmapInfo = CGImageAlphaInfo.premultipliedFirst.rawValue | CGBitmapInfo.byteOrder32Little.rawValue
-        guard let ctx = CGContext(
-            data: nil, width: w, height: h,
-            bitsPerComponent: 8, bytesPerRow: w * 4,
-            space: cs, bitmapInfo: bitmapInfo
-        ) else { return nil }
+        guard let ctx = CGContext(data: nil, width: w, height: h,
+                                  bitsPerComponent: 8, bytesPerRow: w * 4,
+                                  space: cs, bitmapInfo: bitmapInfo) else { return nil }
         ctx.draw(src, in: CGRect(x: 0, y: 0, width: w, height: h))
         return ctx.makeImage()
     }
@@ -339,15 +265,7 @@ final class ScrollCaptureController {
     // MARK: - Deliver result
 
     private func deliverResult() {
-        guard let cg = stitchedImage else {
-            onSessionDone?(nil)
-            return
-        }
-        let scale = screen.backingScaleFactor
-        let ns = NSImage(cgImage: cg, size: CGSize(
-            width:  CGFloat(cg.width)  / scale,
-            height: CGFloat(cg.height) / scale
-        ))
-        onSessionDone?(ns)
+        guard let img = runningStitched else { onSessionDone?(nil); return }
+        onSessionDone?(img)
     }
 }

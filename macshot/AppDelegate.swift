@@ -457,6 +457,7 @@ extension AppDelegate: OverlayWindowControllerDelegate {
         // (no action needed — the scroll event monitor catches global scroll events)
 
         let scc = ScrollCaptureController(captureRect: rect, screen: screen)
+        scc.excludedWindowIDs = overlayControllers.map { $0.windowNumber }
         scrollCaptureController = scc
 
         scc.onStripAdded = { [weak self, weak controller] count in

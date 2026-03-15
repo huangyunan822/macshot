@@ -1060,9 +1060,11 @@ class OverlayView: NSView {
             return
         }
 
-        // Once annotation mode has been toggled on, never redraw the frozen screenshot —
-        // it would show stale content. Keep the background transparent so live content shows through.
-        if !annotationModeEverUsed {
+        // During scroll capture: make the entire window transparent so the user sees
+        // live screen content everywhere (not just inside the selection).
+        if isScrollCapturing {
+            context.cgContext.clear(bounds)
+        } else if !annotationModeEverUsed {
             // Draw screenshot
             if let image = screenshotImage {
                 image.draw(in: bounds, from: .zero, operation: .copy, fraction: 1.0)
@@ -1085,6 +1087,14 @@ class OverlayView: NSView {
 
         // Draw clear selection region
         if state != .idle && selectionRect.width >= 1 && selectionRect.height >= 1 {
+            // During scroll capture: punch a fully-transparent hole so the live screen
+            // content underneath shows through the overlay window.
+            if isScrollCapturing {
+                context.saveGraphicsState()
+                context.cgContext.clear(selectionRect)
+                context.restoreGraphicsState()
+            }
+
             // Clear area inside selection
             context.saveGraphicsState()
             NSBezierPath(rect: selectionRect).setClip()
@@ -1092,7 +1102,7 @@ class OverlayView: NSView {
             // Apply zoom transform — scales/pans content around the selection center
             applyZoomTransform(to: context)
 
-            if !annotationModeEverUsed, let image = screenshotImage {
+            if !isScrollCapturing, !annotationModeEverUsed, let image = screenshotImage {
                 image.draw(in: bounds, from: .zero, operation: .copy, fraction: 1.0)
             }
 

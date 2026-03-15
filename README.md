@@ -14,6 +14,7 @@ macshot lives in your menu bar and lets you capture, annotate, and share screens
 
 ## Features
 
+- **Scroll capture** — select a region and scroll normally; macshot stitches each strip into one seamless tall image using Apple Vision for pixel-perfect alignment; works at any speed, handles upward and downward scrolling
 - **Screen recording** — record any region as MP4 (H.264) or GIF; interact with apps normally while recording, or toggle annotation mode to draw on the live screen; recordings saved to your configured folder
 - **Instant capture** — global hotkey (default: `Cmd+Shift+X`) freezes your screen and lets you select a region
 - **Editor window** — open any capture in a standalone resizable editor window; annotate, crop, copy, save, pin, or upload without dismissing the overlay
