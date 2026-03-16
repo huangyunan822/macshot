@@ -1,5 +1,6 @@
 import Cocoa
 
+@MainActor
 class FloatingThumbnailController: NSObject, NSDraggingSource {
 
     private var window: NSPanel?
