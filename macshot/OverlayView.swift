@@ -164,6 +164,29 @@ class OverlayView: NSView {
     private var textFontDropdownRect: NSRect = .zero
     private var textConfirmRect: NSRect = .zero
     private var textCancelRect: NSRect = .zero
+    private var textBgToggleRect: NSRect = .zero
+    private var textOutlineToggleRect: NSRect = .zero
+    private var textAlignLeftRect: NSRect = .zero
+    private var textAlignCenterRect: NSRect = .zero
+    private var textAlignRightRect: NSRect = .zero
+    private var textAlignment: NSTextAlignment = .left
+    private var isResizingTextBox: Bool = false
+    private var textBoxResizeHandle: ResizeHandle = .none
+    private var textBoxResizeStart: NSPoint = .zero
+    private var textBoxOrigFrame: NSRect = .zero
+    private var editingAnnotation: Annotation?  // annotation being re-edited
+    private var textBgEnabled: Bool = UserDefaults.standard.bool(forKey: "textBgEnabled")
+    private var textOutlineEnabled: Bool = UserDefaults.standard.bool(forKey: "textOutlineEnabled")
+    private var textBgColorValue: NSColor = {
+        if let data = UserDefaults.standard.data(forKey: "textBgColor"),
+           let c = try? NSKeyedUnarchiver.unarchivedObject(ofClass: NSColor.self, from: data) { return c }
+        return NSColor.black.withAlphaComponent(0.6)
+    }()
+    private var textOutlineColorValue: NSColor = {
+        if let data = UserDefaults.standard.data(forKey: "textOutlineColor"),
+           let c = try? NSKeyedUnarchiver.unarchivedObject(ofClass: NSColor.self, from: data) { return c }
+        return NSColor.white
+    }()
     private var showFontPicker: Bool = false
     private var fontPickerRect: NSRect = .zero
     private var fontPickerItemRects: [NSRect] = []
@@ -232,6 +255,8 @@ class OverlayView: NSView {
 
     // Color picker popover
     private var showColorPicker: Bool = false
+    private enum ColorPickerTarget { case drawColor, textBg, textOutline }
+    private var colorPickerTarget: ColorPickerTarget = .drawColor
     private var colorPickerRect: NSRect = .zero
 
     // Beautify style picker popover
@@ -260,6 +285,8 @@ class OverlayView: NSView {
     private var optionsStrokeSliderRect: NSRect = .zero
     private var optionsSmoothToggleRect: NSRect = .zero
     private var optionsRoundedToggleRect: NSRect = .zero
+    private var measureUnitToggleRect: NSRect = .zero
+    private var currentMeasureInPoints: Bool = UserDefaults.standard.bool(forKey: "measureInPoints")
     private var isDraggingOptionsStroke: Bool = false
     private var showBeautifyInOptionsRow: Bool = false  // true when user clicks beautify button to adjust settings
     private var optionsLineStyleRects: [NSRect] = []  // hit rects for line style buttons
@@ -1436,6 +1463,76 @@ class OverlayView: NSView {
                 // Resize handles
                 if state == .selected {
                     drawResizeHandles()
+                }
+            }
+
+            // Hide the text view when color picker is open for bg/outline (so picker isn't behind it)
+            if let sv = textScrollView {
+                let shouldHide = showColorPicker && (colorPickerTarget == .textBg || colorPickerTarget == .textOutline)
+                sv.isHidden = shouldHide
+            }
+
+            // Live text box (bg/outline + resize handles)
+            if let sv = textScrollView, textEditView != nil {
+                let pad: CGFloat = 4
+                let pillRect = sv.frame.insetBy(dx: -pad, dy: -pad)
+                let cornerR: CGFloat = 4
+
+                // Background fill
+                if textBgEnabled {
+                    textBgColorValue.setFill()
+                    NSBezierPath(roundedRect: pillRect, xRadius: cornerR, yRadius: cornerR).fill()
+                }
+
+                // Text outline
+                if textOutlineEnabled {
+                    textOutlineColorValue.setStroke()
+                    let outlinePath = NSBezierPath(roundedRect: pillRect, xRadius: cornerR, yRadius: cornerR)
+                    outlinePath.lineWidth = 2
+                    outlinePath.stroke()
+                }
+
+                // Draw text content when scroll view is hidden (color picker open)
+                if sv.isHidden, let tv = textEditView, let attrStr = tv.textStorage, attrStr.length > 0 {
+                    let inset = tv.textContainerInset
+                    let textRect = NSRect(x: sv.frame.minX + inset.width, y: sv.frame.minY + inset.height,
+                                          width: sv.frame.width - inset.width * 2,
+                                          height: sv.frame.height - inset.height * 2)
+                    context.saveGraphicsState()
+                    let flipped = NSAffineTransform()
+                    flipped.translateX(by: 0, yBy: sv.frame.maxY + sv.frame.minY)
+                    flipped.scaleX(by: 1, yBy: -1)
+                    flipped.concat()
+                    attrStr.draw(in: textRect)
+                    context.restoreGraphicsState()
+                }
+
+                // Box border (always visible while editing)
+                NSColor.white.withAlphaComponent(0.4).setStroke()
+                let borderPath = NSBezierPath(rect: sv.frame)
+                borderPath.lineWidth = 1
+                let pattern: [CGFloat] = [4, 3]
+                borderPath.setLineDash(pattern, count: 2, phase: 0)
+                borderPath.stroke()
+
+                // Resize handles on the text box
+                let hs: CGFloat = 6
+                let handleColor = NSColor.white
+                let handleRects = [
+                    NSRect(x: sv.frame.minX - hs/2, y: sv.frame.minY - hs/2, width: hs, height: hs),  // bottom-left
+                    NSRect(x: sv.frame.maxX - hs/2, y: sv.frame.minY - hs/2, width: hs, height: hs),  // bottom-right
+                    NSRect(x: sv.frame.minX - hs/2, y: sv.frame.maxY - hs/2, width: hs, height: hs),  // top-left
+                    NSRect(x: sv.frame.maxX - hs/2, y: sv.frame.maxY - hs/2, width: hs, height: hs),  // top-right
+                    NSRect(x: sv.frame.midX - hs/2, y: sv.frame.minY - hs/2, width: hs, height: hs),  // bottom
+                    NSRect(x: sv.frame.midX - hs/2, y: sv.frame.maxY - hs/2, width: hs, height: hs),  // top
+                    NSRect(x: sv.frame.minX - hs/2, y: sv.frame.midY - hs/2, width: hs, height: hs),  // left
+                    NSRect(x: sv.frame.maxX - hs/2, y: sv.frame.midY - hs/2, width: hs, height: hs),  // right
+                ]
+                for hr in handleRects {
+                    handleColor.setFill()
+                    NSBezierPath(roundedRect: hr, xRadius: 1, yRadius: 1).fill()
+                    NSColor.black.withAlphaComponent(0.3).setStroke()
+                    NSBezierPath(roundedRect: hr, xRadius: 1, yRadius: 1).stroke()
                 }
             }
 
@@ -2917,6 +3014,11 @@ class OverlayView: NSView {
         textFontDropdownRect = .zero
         textConfirmRect = .zero
         textCancelRect = .zero
+        textBgToggleRect = .zero
+        textOutlineToggleRect = .zero
+        textAlignLeftRect = .zero
+        textAlignCenterRect = .zero
+        textAlignRightRect = .zero
 
         if showBeautifyInOptionsRow && beautifyEnabled {
             drawBeautifyOptionsRow(in: rowRect)
@@ -2929,7 +3031,38 @@ class OverlayView: NSView {
         }
 
         if currentTool == .measure {
-            // Hint text for auto-measure shortcuts
+            measureUnitToggleRect = .zero
+            let pad: CGFloat = 10
+            var curX = rowRect.minX + pad
+
+            // px / pt segment toggle
+            let segH: CGFloat = 22
+            let segW: CGFloat = 32
+            let segY = rowRect.midY - segH / 2
+            let totalSegW = segW * 2
+            let segBgRect = NSRect(x: curX, y: segY, width: totalSegW, height: segH)
+            NSColor.white.withAlphaComponent(0.06).setFill()
+            NSBezierPath(roundedRect: segBgRect, xRadius: 5, yRadius: 5).fill()
+
+            for (i, label) in ["px", "pt"].enumerated() {
+                let btnRect = NSRect(x: curX + CGFloat(i) * segW, y: segY, width: segW, height: segH)
+                if i == 0 { measureUnitToggleRect = btnRect }
+                let isActive = (i == 0 && !currentMeasureInPoints) || (i == 1 && currentMeasureInPoints)
+                if isActive {
+                    ToolbarLayout.accentColor.withAlphaComponent(0.45).setFill()
+                    NSBezierPath(roundedRect: btnRect.insetBy(dx: 1.5, dy: 1.5), xRadius: 4, yRadius: 4).fill()
+                }
+                let attrs: [NSAttributedString.Key: Any] = [
+                    .font: NSFont.systemFont(ofSize: 11, weight: .semibold),
+                    .foregroundColor: NSColor.white.withAlphaComponent(isActive ? 0.9 : 0.35),
+                ]
+                let str = label as NSString
+                let size = str.size(withAttributes: attrs)
+                str.draw(at: NSPoint(x: btnRect.midX - size.width / 2, y: btnRect.midY - size.height / 2), withAttributes: attrs)
+            }
+            curX += totalSegW + 16
+
+            // Hint text
             let hint = "Hold 1 auto-vertical  ·  Hold 2 auto-horizontal"
             let hintAttrs: [NSAttributedString.Key: Any] = [
                 .font: NSFont.systemFont(ofSize: 10, weight: .medium),
@@ -2937,9 +3070,7 @@ class OverlayView: NSView {
             ]
             let hintStr = hint as NSString
             let hintSize = hintStr.size(withAttributes: hintAttrs)
-            hintStr.draw(at: NSPoint(x: rowRect.midX - hintSize.width / 2,
-                                     y: rowRect.midY - hintSize.height / 2),
-                         withAttributes: hintAttrs)
+            hintStr.draw(at: NSPoint(x: curX, y: rowRect.midY - hintSize.height / 2), withAttributes: hintAttrs)
             return
         }
 
@@ -3515,6 +3646,42 @@ class OverlayView: NSView {
         NSColor.white.withAlphaComponent(0.12).setFill()
         NSBezierPath(roundedRect: NSRect(x: curX - 4, y: rowRect.minY + 7, width: 1, height: rowRect.height - 14), xRadius: 0.5, yRadius: 0.5).fill()
 
+        // ── Alignment buttons ──
+        textAlignLeftRect = .zero; textAlignCenterRect = .zero; textAlignRightRect = .zero
+        let alignSymbols = [("text.alignleft", NSTextAlignment.left), ("text.aligncenter", NSTextAlignment.center), ("text.alignright", NSTextAlignment.right)]
+        for (symbol, align) in alignSymbols {
+            let aRect = NSRect(x: curX, y: btnY, width: btnW, height: btnH)
+            if align == .left { textAlignLeftRect = aRect }
+            else if align == .center { textAlignCenterRect = aRect }
+            else { textAlignRightRect = aRect }
+            let isActive = textAlignment == align
+            if isActive {
+                activeColor.setFill()
+                NSBezierPath(roundedRect: aRect.insetBy(dx: 1, dy: 1), xRadius: 3, yRadius: 3).fill()
+            }
+            drawTopBarIcon(symbol, in: aRect, selected: isActive)
+            curX += btnW + 2
+        }
+        curX += 6
+
+        // ── Separator ──
+        NSColor.white.withAlphaComponent(0.12).setFill()
+        NSBezierPath(roundedRect: NSRect(x: curX - 4, y: rowRect.minY + 7, width: 1, height: rowRect.height - 14), xRadius: 0.5, yRadius: 0.5).fill()
+
+        // ── Text background toggle ──
+        curX = drawTextStyleToggle(label: "Fill", color: textBgColorValue, enabled: textBgEnabled,
+                                   x: curX, rowRect: rowRect, targetRect: &textBgToggleRect)
+        curX += 4
+
+        // ── Text outline toggle ──
+        curX = drawTextStyleToggle(label: "Outline", color: textOutlineColorValue, enabled: textOutlineEnabled,
+                                   x: curX, rowRect: rowRect, targetRect: &textOutlineToggleRect)
+        curX += 8
+
+        // ── Separator ──
+        NSColor.white.withAlphaComponent(0.12).setFill()
+        NSBezierPath(roundedRect: NSRect(x: curX - 4, y: rowRect.minY + 7, width: 1, height: rowRect.height - 14), xRadius: 0.5, yRadius: 0.5).fill()
+
         // ── Font size controls ──
         let minusRect = NSRect(x: curX, y: btnY, width: 20, height: btnH)
         textSizeDecRect = minusRect
@@ -3561,6 +3728,51 @@ class OverlayView: NSView {
         if showFontPicker {
             drawFontPickerDropdown()
         }
+    }
+
+    @discardableResult
+    private func drawTextStyleToggle(label: String, color: NSColor, enabled: Bool,
+                                     x: CGFloat, rowRect: NSRect, targetRect: inout NSRect) -> CGFloat {
+        let btnH: CGFloat = 20
+        let swatchSize: CGFloat = 12
+        let labelAttrs: [NSAttributedString.Key: Any] = [
+            .font: NSFont.systemFont(ofSize: 9.5, weight: .medium),
+            .foregroundColor: NSColor.white.withAlphaComponent(enabled ? 0.85 : 0.35),
+        ]
+        let labelStr = label as NSString
+        let labelSize = labelStr.size(withAttributes: labelAttrs)
+        let btnW = swatchSize + 4 + labelSize.width + 8
+        let btnRect = NSRect(x: x, y: rowRect.midY - btnH / 2, width: btnW, height: btnH)
+        targetRect = btnRect
+
+        // Button background
+        let bgAlpha: CGFloat = enabled ? 0.15 : 0.06
+        NSColor.white.withAlphaComponent(bgAlpha).setFill()
+        NSBezierPath(roundedRect: btnRect, xRadius: 4, yRadius: 4).fill()
+
+        // Color swatch
+        let swatchRect = NSRect(x: btnRect.minX + 4, y: btnRect.midY - swatchSize / 2,
+                                width: swatchSize, height: swatchSize)
+        if enabled {
+            color.setFill()
+            NSBezierPath(roundedRect: swatchRect, xRadius: 2, yRadius: 2).fill()
+        } else {
+            NSColor.white.withAlphaComponent(0.1).setFill()
+            NSBezierPath(roundedRect: swatchRect, xRadius: 2, yRadius: 2).fill()
+            // Diagonal line through swatch
+            NSColor.white.withAlphaComponent(0.25).setStroke()
+            let strike = NSBezierPath()
+            strike.lineWidth = 1
+            strike.move(to: NSPoint(x: swatchRect.minX + 2, y: swatchRect.minY + 2))
+            strike.line(to: NSPoint(x: swatchRect.maxX - 2, y: swatchRect.maxY - 2))
+            strike.stroke()
+        }
+
+        // Label
+        labelStr.draw(at: NSPoint(x: swatchRect.maxX + 4, y: btnRect.midY - labelSize.height / 2),
+                       withAttributes: labelAttrs)
+
+        return x + btnW
     }
 
     private func drawTextFormatButton(rect: NSRect, label: String, font: NSFont, active: Bool,
@@ -5099,8 +5311,10 @@ class OverlayView: NSView {
             }
             let p1 = toCanvas(px: pixelX, py: startPx)
             let p2 = toCanvas(px: pixelX, py: endPx)
-            return Annotation(tool: .measure, startPoint: p1, endPoint: p2,
+            let ann = Annotation(tool: .measure, startPoint: p1, endPoint: p2,
                               color: annotationColor, strokeWidth: currentStrokeWidth)
+            ann.measureInPoints = currentMeasureInPoints
+            return ann
         } else {
             startPx = pixelX
             for px in stride(from: pixelX - 1, through: 0, by: -1) {
@@ -5114,8 +5328,10 @@ class OverlayView: NSView {
             }
             let p1 = toCanvas(px: startPx, py: pixelY)
             let p2 = toCanvas(px: endPx, py: pixelY)
-            return Annotation(tool: .measure, startPoint: p1, endPoint: p2,
+            let ann = Annotation(tool: .measure, startPoint: p1, endPoint: p2,
                               color: annotationColor, strokeWidth: currentStrokeWidth)
+            ann.measureInPoints = currentMeasureInPoints
+            return ann
         }
     }
 
@@ -6246,10 +6462,7 @@ class OverlayView: NSView {
             if customPickerGradientRect.contains(point) {
                 isDraggingHSBGradient = true
                 let color = colorFromHSBGradient(at: point)
-                currentColor = color
-                applyColorToTextIfEditing()
-                applyColorToSelectedAnnotation()
-                needsDisplay = true
+                applyPickedColor(color)
                 return
             }
             // Check brightness slider drag start
@@ -6267,13 +6480,10 @@ class OverlayView: NSView {
             }
 
             if let color = hitTestColorPicker(at: point) {
-                currentColor = color
-                applyColorToTextIfEditing()
-                applyColorToSelectedAnnotation()
+                applyPickedColor(color)
                 if isTextEditing {
                     window?.makeFirstResponder(textEditView)
                 }
-                needsDisplay = true
                 return
             }
             // If click is inside the color picker rect, don't dismiss
@@ -6286,6 +6496,7 @@ class OverlayView: NSView {
                 // fall through — don't dismiss here, the button's .toggle() will close it
             } else {
                 showColorPicker = false
+                colorPickerTarget = .drawColor
                 needsDisplay = true
             }
         }
@@ -6586,6 +6797,30 @@ class OverlayView: NSView {
                     return
                 }
             }
+            // Check text box resize handles
+            if let sv = textScrollView {
+                let hs: CGFloat = 10  // hit area
+                let f = sv.frame
+                let handles: [(ResizeHandle, NSRect)] = [
+                    (.bottomLeft,  NSRect(x: f.minX - hs/2, y: f.minY - hs/2, width: hs, height: hs)),
+                    (.bottomRight, NSRect(x: f.maxX - hs/2, y: f.minY - hs/2, width: hs, height: hs)),
+                    (.topLeft,     NSRect(x: f.minX - hs/2, y: f.maxY - hs/2, width: hs, height: hs)),
+                    (.topRight,    NSRect(x: f.maxX - hs/2, y: f.maxY - hs/2, width: hs, height: hs)),
+                    (.bottom,      NSRect(x: f.midX - hs/2, y: f.minY - hs/2, width: hs, height: hs)),
+                    (.top,         NSRect(x: f.midX - hs/2, y: f.maxY - hs/2, width: hs, height: hs)),
+                    (.left,        NSRect(x: f.minX - hs/2, y: f.midY - hs/2, width: hs, height: hs)),
+                    (.right,       NSRect(x: f.maxX - hs/2, y: f.midY - hs/2, width: hs, height: hs)),
+                ]
+                for (handle, rect) in handles {
+                    if rect.contains(point) {
+                        isResizingTextBox = true
+                        textBoxResizeHandle = handle
+                        textBoxResizeStart = point
+                        textBoxOrigFrame = f
+                        return
+                    }
+                }
+            }
             // Clicking on the text editor itself — don't commit
             if let sv = textScrollView, sv.frame.contains(point) {
                 return
@@ -6660,6 +6895,21 @@ class OverlayView: NSView {
 
                 // Tool options row click handling
                 if optionsRowRect.contains(point) {
+                    // Measure unit toggle (px/pt)
+                    if currentTool == .measure && measureUnitToggleRect != .zero {
+                        let pxRect = measureUnitToggleRect
+                        let ptRect = NSRect(x: pxRect.maxX, y: pxRect.minY, width: pxRect.width, height: pxRect.height)
+                        if pxRect.contains(point) && currentMeasureInPoints {
+                            currentMeasureInPoints = false
+                            UserDefaults.standard.set(false, forKey: "measureInPoints")
+                            needsDisplay = true; return
+                        }
+                        if ptRect.contains(point) && !currentMeasureInPoints {
+                            currentMeasureInPoints = true
+                            UserDefaults.standard.set(true, forKey: "measureInPoints")
+                            needsDisplay = true; return
+                        }
+                    }
                     // Stroke slider
                     if optionsStrokeSliderRect != .zero && optionsStrokeSliderRect.insetBy(dx: -4, dy: -4).contains(point) {
                         isDraggingOptionsStroke = true
@@ -6745,6 +6995,26 @@ class OverlayView: NSView {
                         }
                         if textStrikethroughRect != .zero && textStrikethroughRect.contains(point) {
                             toggleTextStrikethrough(); return
+                        }
+                        // Alignment buttons
+                        for (rect, align) in [(textAlignLeftRect, NSTextAlignment.left),
+                                               (textAlignCenterRect, NSTextAlignment.center),
+                                               (textAlignRightRect, NSTextAlignment.right)] {
+                            if rect != .zero && rect.contains(point) {
+                                textAlignment = align
+                                applyAlignmentToText()
+                                needsDisplay = true; return
+                            }
+                        }
+                        if textBgToggleRect != .zero && textBgToggleRect.contains(point) {
+                            textBgEnabled.toggle()
+                            UserDefaults.standard.set(textBgEnabled, forKey: "textBgEnabled")
+                            needsDisplay = true; return
+                        }
+                        if textOutlineToggleRect != .zero && textOutlineToggleRect.contains(point) {
+                            textOutlineEnabled.toggle()
+                            UserDefaults.standard.set(textOutlineEnabled, forKey: "textOutlineEnabled")
+                            needsDisplay = true; return
                         }
                         if textSizeDecRect != .zero && textSizeDecRect.contains(point) {
                             textFontSize = max(10, textFontSize - 2)
@@ -6941,6 +7211,34 @@ class OverlayView: NSView {
             return
         }
 
+        // Handle text box resize
+        if isResizingTextBox, let sv = textScrollView, let tv = textEditView {
+            let dx = point.x - textBoxResizeStart.x
+            let dy = point.y - textBoxResizeStart.y
+            let orig = textBoxOrigFrame
+            var newFrame = orig
+            let minW: CGFloat = 60
+            let minH: CGFloat = max(28, textFontSize + 12)
+
+            switch textBoxResizeHandle {
+            case .right:       newFrame.size.width = max(minW, orig.width + dx)
+            case .left:        newFrame.origin.x = min(orig.maxX - minW, orig.minX + dx); newFrame.size.width = orig.maxX - newFrame.minX
+            case .top:         newFrame.size.height = max(minH, orig.height + dy)
+            case .bottom:      let newMinY = min(orig.maxY - minH, orig.minY + dy); newFrame.origin.y = newMinY; newFrame.size.height = orig.maxY - newMinY
+            case .topRight:    newFrame.size.width = max(minW, orig.width + dx); newFrame.size.height = max(minH, orig.height + dy)
+            case .topLeft:     newFrame.origin.x = min(orig.maxX - minW, orig.minX + dx); newFrame.size.width = orig.maxX - newFrame.minX; newFrame.size.height = max(minH, orig.height + dy)
+            case .bottomRight: newFrame.size.width = max(minW, orig.width + dx); let newMinY = min(orig.maxY - minH, orig.minY + dy); newFrame.origin.y = newMinY; newFrame.size.height = orig.maxY - newMinY
+            case .bottomLeft:  newFrame.origin.x = min(orig.maxX - minW, orig.minX + dx); newFrame.size.width = orig.maxX - newFrame.minX; let newMinY = min(orig.maxY - minH, orig.minY + dy); newFrame.origin.y = newMinY; newFrame.size.height = orig.maxY - newMinY
+            default: break
+            }
+
+            sv.frame = newFrame
+            tv.frame.size = newFrame.size
+            tv.textContainer?.containerSize = NSSize(width: newFrame.width - tv.textContainerInset.width * 2, height: CGFloat.greatestFiniteMagnitude)
+            needsDisplay = true
+            return
+        }
+
         // Handle options row slider dragging
         if isDraggingOptionsStroke {
             updateOptionsStrokeSlider(at: point)
@@ -6963,10 +7261,7 @@ class OverlayView: NSView {
         // Handle HSB gradient dragging
         if isDraggingHSBGradient {
             let color = colorFromHSBGradient(at: point)
-            currentColor = color
-            applyColorToTextIfEditing()
-            applyColorToSelectedAnnotation()
-            needsDisplay = true
+            applyPickedColor(color)
             return
         }
         // Handle brightness slider dragging
@@ -7152,6 +7447,10 @@ class OverlayView: NSView {
             isDraggingRightBar = false
             return
         }
+        if isResizingTextBox {
+            isResizingTextBox = false
+            return
+        }
         if isDraggingOptionsStroke {
             isDraggingOptionsStroke = false
             return
@@ -7273,6 +7572,22 @@ class OverlayView: NSView {
                     needsDisplay = true
                     return
                 }
+            }
+        }
+
+        // Right-click on text Fill/Outline swatches: open color picker targeting that property
+        if currentTool == .text {
+            if textBgToggleRect != .zero && textBgToggleRect.insetBy(dx: -2, dy: -2).contains(point) {
+                if !textBgEnabled { textBgEnabled = true; UserDefaults.standard.set(true, forKey: "textBgEnabled") }
+                colorPickerTarget = .textBg
+                showColorPicker = true
+                needsDisplay = true; return
+            }
+            if textOutlineToggleRect != .zero && textOutlineToggleRect.insetBy(dx: -2, dy: -2).contains(point) {
+                if !textOutlineEnabled { textOutlineEnabled = true; UserDefaults.standard.set(true, forKey: "textOutlineEnabled") }
+                colorPickerTarget = .textOutline
+                showColorPicker = true
+                needsDisplay = true; return
             }
         }
 
@@ -7523,6 +7838,7 @@ class OverlayView: NSView {
             currentTool = .loupe
             needsDisplay = true
         case .color:
+            colorPickerTarget = .drawColor
             showColorPicker.toggle()
             needsDisplay = true
         case .sizeDisplay:
@@ -7726,16 +8042,34 @@ class OverlayView: NSView {
     private func updateBrightnessFromPoint(_ point: NSPoint) {
         customBrightness = max(0, min(1, (point.x - customPickerBrightnessRect.minX) / customPickerBrightnessRect.width))
         customHSBCachedImage = nil  // brightness changed, redraw gradient
-        currentColor = NSColor(calibratedHue: customPickerHue, saturation: customPickerSaturation, brightness: customBrightness, alpha: 1.0)
-        applyColorToTextIfEditing()
-        applyColorToSelectedAnnotation()
-        needsDisplay = true
+        let color = NSColor(calibratedHue: customPickerHue, saturation: customPickerSaturation, brightness: customBrightness, alpha: 1.0)
+        applyPickedColor(color)
     }
 
     private func updateOpacityFromPoint(_ point: NSPoint) {
         currentColorOpacity = max(0.05, min(1, (point.x - opacitySliderRect.minX) / opacitySliderRect.width))
         OverlayView.lastUsedOpacity = currentColorOpacity
         applyColorToSelectedAnnotation()
+        needsDisplay = true
+    }
+
+    private func applyPickedColor(_ color: NSColor) {
+        switch colorPickerTarget {
+        case .drawColor:
+            currentColor = color
+            applyColorToTextIfEditing()
+            applyColorToSelectedAnnotation()
+        case .textBg:
+            textBgColorValue = color
+            if let data = try? NSKeyedArchiver.archivedData(withRootObject: color, requiringSecureCoding: false) {
+                UserDefaults.standard.set(data, forKey: "textBgColor")
+            }
+        case .textOutline:
+            textOutlineColorValue = color
+            if let data = try? NSKeyedArchiver.archivedData(withRootObject: color, requiringSecureCoding: false) {
+                UserDefaults.standard.set(data, forKey: "textOutlineColor")
+            }
+        }
         needsDisplay = true
     }
 
@@ -7927,7 +8261,32 @@ class OverlayView: NSView {
 
         switch currentTool {
         case .text:
-            showTextField(at: point)
+            // Check if clicking on an existing text annotation → re-edit it
+            let canvasPoint = viewToCanvas(point)
+            if let existingAnn = annotations.reversed().first(where: { $0.tool == .text && $0.hitTest(point: canvasPoint) }) {
+                // Remove from annotations (will be re-added on commit)
+                if let idx = annotations.firstIndex(where: { $0 === existingAnn }) {
+                    annotations.remove(at: idx)
+                }
+                editingAnnotation = existingAnn
+                // Restore text formatting state
+                textFontSize = existingAnn.fontSize
+                textBold = existingAnn.isBold
+                textItalic = existingAnn.isItalic
+                textUnderline = existingAnn.isUnderline
+                textStrikethrough = existingAnn.isStrikethrough
+                textFontFamily = existingAnn.fontFamilyName ?? "System"
+                textAlignment = existingAnn.textAlignment
+                textBgEnabled = existingAnn.textBgColor != nil
+                if let bg = existingAnn.textBgColor { textBgColorValue = bg }
+                textOutlineEnabled = existingAnn.textOutlineColor != nil
+                if let ol = existingAnn.textOutlineColor { textOutlineColorValue = ol }
+                showTextField(at: existingAnn.textDrawRect.origin,
+                              existingText: existingAnn.attributedText,
+                              existingFrame: existingAnn.textDrawRect)
+            } else {
+                showTextField(at: point)
+            }
             return
         case .number:
             numberCounter += 1
@@ -7978,6 +8337,9 @@ class OverlayView: NSView {
         }
         if currentTool == .arrow {
             annotation.arrowStyle = currentArrowStyle
+        }
+        if currentTool == .measure {
+            annotation.measureInPoints = currentMeasureInPoints
         }
         currentAnnotation = annotation
     }
@@ -8065,12 +8427,10 @@ class OverlayView: NSView {
 
     private func showTextField(at point: NSPoint, existingText: NSAttributedString? = nil, existingFrame: NSRect = .zero) {
         let height = max(28, textFontSize + 12)
-        let minW: CGFloat = 250
-        let maxW = max(minW, bounds.width - point.x - 20)
-        // If we have an exact frame from a previous commit, restore it; otherwise compute fresh.
+        let defaultW: CGFloat = 200
         let svFrame: NSRect = existingFrame != .zero
             ? existingFrame
-            : NSRect(x: point.x, y: point.y - height, width: maxW, height: height)
+            : NSRect(x: point.x, y: point.y - height, width: defaultW, height: height)
         let scrollView = NSScrollView(frame: svFrame)
         scrollView.hasVerticalScroller = false
         scrollView.hasHorizontalScroller = false
@@ -8079,7 +8439,7 @@ class OverlayView: NSView {
         scrollView.drawsBackground = false
         scrollView.backgroundColor = .clear
 
-        let tv = NSTextView(frame: NSRect(x: 0, y: 0, width: maxW, height: height))
+        let tv = NSTextView(frame: NSRect(x: 0, y: 0, width: svFrame.width, height: svFrame.height))
         tv.isEditable = true
         tv.isSelectable = true
         tv.isRichText = true
@@ -8089,16 +8449,20 @@ class OverlayView: NSView {
         tv.textColor = currentColor
         tv.insertionPointColor = currentColor
         tv.isVerticallyResizable = true
-        tv.isHorizontallyResizable = true
-        tv.textContainer?.widthTracksTextView = false
-        tv.textContainer?.containerSize = NSSize(width: CGFloat.greatestFiniteMagnitude, height: CGFloat.greatestFiniteMagnitude)
-        tv.textContainerInset = .zero  // eliminate inset so editing position == draw(in:) position
+        tv.isHorizontallyResizable = false
+        tv.textContainer?.widthTracksTextView = true
+        tv.textContainer?.containerSize = NSSize(width: svFrame.width, height: CGFloat.greatestFiniteMagnitude)
+        tv.textContainerInset = NSSize(width: 4, height: 4)
         tv.delegate = self
+        tv.alignment = textAlignment
 
         let font = currentTextFont()
+        let paraStyle = NSMutableParagraphStyle()
+        paraStyle.alignment = textAlignment
         tv.typingAttributes = [
             .font: font,
-            .foregroundColor: currentColor
+            .foregroundColor: currentColor,
+            .paragraphStyle: paraStyle,
         ]
 
         scrollView.documentView = tv
@@ -8108,10 +8472,11 @@ class OverlayView: NSView {
 
         if let existing = existingText {
             tv.textStorage?.setAttributedString(existing)
+            resizeTextViewToFit()
         }
 
         window?.makeFirstResponder(tv)
-        needsDisplay = true  // trigger options row redraw with text controls
+        needsDisplay = true
         window?.invalidateCursorRects(for: self)
     }
 
@@ -8317,7 +8682,25 @@ class OverlayView: NSView {
         window?.makeFirstResponder(tv)
     }
 
+    private func applyAlignmentToText() {
+        guard let tv = textEditView, let ts = tv.textStorage else { return }
+        let range = NSRange(location: 0, length: ts.length)
+        let paraStyle = NSMutableParagraphStyle()
+        paraStyle.alignment = textAlignment
+        ts.beginEditing()
+        ts.addAttribute(.paragraphStyle, value: paraStyle, range: range)
+        ts.endEditing()
+        tv.alignment = textAlignment
+        tv.typingAttributes[.paragraphStyle] = paraStyle
+        window?.makeFirstResponder(tv)
+    }
+
     private func cancelTextEditing() {
+        // If re-editing, restore the original annotation
+        if let ann = editingAnnotation {
+            annotations.append(ann)
+            editingAnnotation = nil
+        }
         textScrollView?.removeFromSuperview()
         textScrollView = nil
         textEditView = nil
@@ -8336,9 +8719,12 @@ class OverlayView: NSView {
             // draw(in:) lands correctly with no coordinate math.
             let attrStr = NSAttributedString(attributedString: tv.textStorage!)
             let imgSize = sv.frame.size
+            let inset = tv.textContainerInset
             let img = NSImage(size: imgSize)
             img.lockFocusFlipped(true)
-            attrStr.draw(in: NSRect(origin: .zero, size: imgSize))
+            attrStr.draw(in: NSRect(x: inset.width, y: inset.height,
+                                     width: imgSize.width - inset.width * 2,
+                                     height: imgSize.height - inset.height * 2))
             img.unlockFocus()
 
             let annotation = Annotation(tool: .text,
@@ -8354,12 +8740,16 @@ class OverlayView: NSView {
             annotation.isUnderline = textUnderline
             annotation.isStrikethrough = textStrikethrough
             annotation.fontFamilyName = textFontFamily == "System" ? nil : textFontFamily
+            annotation.textBgColor = textBgEnabled ? textBgColorValue : nil
+            annotation.textOutlineColor = textOutlineEnabled ? textOutlineColorValue : nil
+            annotation.textAlignment = textAlignment
             annotation.textImage = img
             annotation.textDrawRect = sv.frame
             annotations.append(annotation)
             undoStack.append(.added(annotation))
             redoStack.removeAll()
         }
+        editingAnnotation = nil
         sv.removeFromSuperview()
         textScrollView = nil
         textEditView = nil
@@ -9476,6 +9866,7 @@ extension OverlayView: NSTextViewDelegate {
 
     func textDidChange(_ notification: Notification) {
         resizeTextViewToFit()
+        needsDisplay = true
     }
 
     private func resizeTextViewToFit() {
@@ -9487,13 +9878,14 @@ extension OverlayView: NSTextViewDelegate {
         let extraHeight = layoutManager.extraLineFragmentRect.height
 
         let minH = max(28, textFontSize + 12)
-        let newWidth = max(250, ceil(usedRect.width) + 16)
-        let newHeight = max(minH, ceil(usedRect.height + extraHeight) + 10)
+        let inset = tv.textContainerInset
+        let newHeight = max(minH, ceil(usedRect.height + extraHeight) + inset.height * 2)
+        let width = sv.frame.width  // keep width fixed
 
         // Pin the top edge, adjust origin Y downward as height grows
         let topEdge = sv.frame.maxY
-        sv.frame = NSRect(x: sv.frame.minX, y: topEdge - newHeight, width: newWidth, height: newHeight)
-        tv.frame.size = NSSize(width: newWidth, height: newHeight)
+        sv.frame = NSRect(x: sv.frame.minX, y: topEdge - newHeight, width: width, height: newHeight)
+        tv.frame.size = NSSize(width: width, height: newHeight)
     }
 }
 

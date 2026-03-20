@@ -118,6 +118,10 @@ class Annotation {
     var arrowStyle: ArrowStyle = .single // arrow head style
     var rectFillStyle: RectFillStyle = .stroke // rectangle fill mode
     var stampImage: NSImage?          // rendered emoji or loaded picture for stamp tool
+    var measureInPoints: Bool = false  // true = show pt, false = show px
+    var textBgColor: NSColor?         // background pill color (nil = no background)
+    var textOutlineColor: NSColor?    // text outline/stroke color (nil = no outline)
+    var textAlignment: NSTextAlignment = .left // text alignment within the box
     var fontFamilyName: String?       // font family for text (nil = system default)
 
     init(tool: AnnotationTool, startPoint: NSPoint, endPoint: NSPoint, color: NSColor, strokeWidth: CGFloat) {
@@ -150,6 +154,10 @@ class Annotation {
         c.arrowStyle = arrowStyle
         c.rectFillStyle = rectFillStyle
         c.stampImage = stampImage
+        c.measureInPoints = measureInPoints
+        c.textBgColor = textBgColor
+        c.textOutlineColor = textOutlineColor
+        c.textAlignment = textAlignment
         c.fontFamilyName = fontFamilyName
         return c
     }
@@ -829,6 +837,24 @@ class Annotation {
 
     private func drawText() {
         guard let image = textImage, textDrawRect != .zero else { return }
+        let pad: CGFloat = 4
+        let pillRect = textDrawRect.insetBy(dx: -pad, dy: -pad)
+        let cornerR: CGFloat = 4
+
+        // Background pill
+        if let bg = textBgColor {
+            bg.setFill()
+            NSBezierPath(roundedRect: pillRect, xRadius: cornerR, yRadius: cornerR).fill()
+        }
+
+        // Outline
+        if let outline = textOutlineColor {
+            outline.setStroke()
+            let outlinePath = NSBezierPath(roundedRect: pillRect, xRadius: cornerR, yRadius: cornerR)
+            outlinePath.lineWidth = 2
+            outlinePath.stroke()
+        }
+
         image.draw(in: textDrawRect)
     }
 
@@ -899,7 +925,6 @@ class Annotation {
         guard distance > 1 else { return }
 
         let scale = NSScreen.main?.backingScaleFactor ?? 2.0
-        let pixelDistance = Int(distance * scale)
 
         // Main measurement line
         let lineColor = color
@@ -931,15 +956,18 @@ class Annotation {
         capPath.stroke()
 
         // Dimension label
-        let pxWidth = Int(abs(dx) * scale)
-        let pxHeight = Int(abs(dy) * scale)
+        let unit = measureInPoints ? "pt" : "px"
+        let s = measureInPoints ? 1.0 : scale
+        let dispDistance = Int(distance * s)
+        let dispWidth = Int(abs(dx) * s)
+        let dispHeight = Int(abs(dy) * s)
         let labelText: String
-        if pxWidth < 3 {
-            labelText = "\(pxHeight)px"
-        } else if pxHeight < 3 {
-            labelText = "\(pxWidth)px"
+        if dispWidth < 3 {
+            labelText = "\(dispHeight)\(unit)"
+        } else if dispHeight < 3 {
+            labelText = "\(dispWidth)\(unit)"
         } else {
-            labelText = "\(pixelDistance)px (\(pxWidth) × \(pxHeight))"
+            labelText = "\(dispDistance)\(unit) (\(dispWidth) × \(dispHeight))"
         }
 
         let fontSize: CGFloat = 11
@@ -1337,5 +1365,15 @@ class Annotation {
             height: availH
         )
         attrStr.draw(with: textRect, options: [.usesLineFragmentOrigin, .usesFontLeading])
+    }
+}
+
+extension NSColor {
+    var bestContrastColor: NSColor {
+        guard let rgb = usingColorSpace(.sRGB) else { return .white }
+        var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
+        rgb.getRed(&r, green: &g, blue: &b, alpha: &a)
+        let luminance = 0.299 * r + 0.587 * g + 0.114 * b
+        return (luminance * a) > 0.5 ? .black : .white
     }
 }

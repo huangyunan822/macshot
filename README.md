@@ -26,7 +26,8 @@ macshot lives in your menu bar and lets you capture, annotate, and share screens
 - **Annotation tools** — arrow (5 styles: single, thick/banner, double, open, tail), line, rectangle (3 fill modes: stroke, stroke+fill, fill), ellipse (3 fill modes), pencil (with optional smooth strokes), marker/highlighter, text, numbered markers (with optional pointer cone), pixelate, Gaussian blur, stamp/emoji
 - **Color opacity** — drag the opacity slider in the color picker to set transparency for all drawing tools; marker keeps its own highlight opacity
 - **Hover-to-move** — hover over any annotation with a drawing tool active to instantly drag, resize, or delete it without switching to the Select tool
-- **Rich text** — bold, italic, underline, strikethrough, adjustable font size; `Enter` inserts a new line; confirm with ✓ button
+- **Rich text** — bold, italic, underline, strikethrough, adjustable font size, left/center/right alignment; `Enter` inserts a new line; confirm with ✓ button; resizable text box with word wrap; click existing text to re-edit
+- **Text fill & outline** — toggle a background pill or outline stroke on text annotations with configurable colors; right-click to open the color picker
 - **Translation** — translate extracted OCR text to any language directly in the OCR results window
 - **Shift-constrain** — hold Shift while drawing for straight lines, perfect circles, and squares
 - **Auto-redact PII** — one-click detection and redaction of emails, phone numbers, credit cards, SSNs, API keys, and more; uses blur or pixelate style matching the active tool

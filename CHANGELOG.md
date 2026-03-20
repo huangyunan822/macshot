@@ -1,5 +1,19 @@
 # Changelog
 
+## [3.0.1] - 2026-03-20
+
+### Added
+- **Text box with visible bounds** — text annotations now show a resizable dashed border while editing. Drag any of the 8 handles to resize the box; text automatically reflows to fit the new width.
+- **Text alignment** — left, center, and right alignment buttons in the text secondary toolbar. Applied live while editing.
+- **Click to re-edit text** — with the text tool active, clicking on an existing text annotation opens it for editing with all formatting restored (font, size, style, alignment, fill, outline). Cancel (ESC) restores the original.
+- **Text background & outline** — "Fill" and "Outline" toggle buttons in the text secondary toolbar. Left-click toggles on/off, right-click opens the full color picker to choose the color. Both render as a rounded pill behind/around the text, visible live during editing.
+- **Measure unit toggle** — px/pt segment control in the measure tool options row. Switch between pixel values (Retina-scaled) and point values (1:1 with design tools). Persisted across sessions.
+
+### Fixed
+- **Color picker behind text** — when opening the color picker for text Fill/Outline, the text view is temporarily hidden so the picker is fully visible. Text content is rendered manually in its place.
+- **Text box doesn't expand on newline** — the dashed border and resize handles now update immediately when pressing Enter to add new lines.
+- **Thick arrow corners** — all 3 corners of the thick arrow's triangle head are now consistently rounded using quadratic bezier curves through each corner point.
+
 ## [3.0.0] - 2026-03-20
 
 ### Added
