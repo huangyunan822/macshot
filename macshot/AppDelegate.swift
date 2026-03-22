@@ -421,25 +421,39 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
         toast.show(status: "Uploading...")
 
-        ImageUploader.upload(image: image) { result in
-            switch result {
-            case .success(let uploadResult):
-                // Copy link to clipboard
-                let pasteboard = NSPasteboard.general
-                pasteboard.clearContents()
-                pasteboard.setString(uploadResult.link, forType: .string)
+        let provider = UserDefaults.standard.string(forKey: "uploadProvider") ?? "imgbb"
 
-                // Store delete URL in UserDefaults for future deletion
-                var uploads = UserDefaults.standard.array(forKey: "imgbbUploads") as? [[String: String]] ?? []
-                uploads.append([
-                    "deleteURL": uploadResult.deleteURL,
-                    "link": uploadResult.link,
-                ])
-                UserDefaults.standard.set(uploads, forKey: "imgbbUploads")
+        if provider == "gdrive" && GoogleDriveUploader.shared.isSignedIn {
+            GoogleDriveUploader.shared.uploadImage(image) { result in
+                switch result {
+                case .success(let link):
+                    let pasteboard = NSPasteboard.general
+                    pasteboard.clearContents()
+                    pasteboard.setString(link, forType: .string)
+                    toast.showSuccess(link: link, deleteURL: "")
+                case .failure(let error):
+                    toast.showError(message: error.localizedDescription)
+                }
+            }
+        } else {
+            ImageUploader.upload(image: image) { result in
+                switch result {
+                case .success(let uploadResult):
+                    let pasteboard = NSPasteboard.general
+                    pasteboard.clearContents()
+                    pasteboard.setString(uploadResult.link, forType: .string)
 
-                toast.showSuccess(link: uploadResult.link, deleteURL: uploadResult.deleteURL)
-            case .failure(let error):
-                toast.showError(message: error.localizedDescription)
+                    var uploads = UserDefaults.standard.array(forKey: "imgbbUploads") as? [[String: String]] ?? []
+                    uploads.append([
+                        "deleteURL": uploadResult.deleteURL,
+                        "link": uploadResult.link,
+                    ])
+                    UserDefaults.standard.set(uploads, forKey: "imgbbUploads")
+
+                    toast.showSuccess(link: uploadResult.link, deleteURL: uploadResult.deleteURL)
+                case .failure(let error):
+                    toast.showError(message: error.localizedDescription)
+                }
             }
         }
     }
@@ -525,7 +539,7 @@ extension AppDelegate: OverlayWindowControllerDelegate {
             self.recordingOverlayController = nil
 
             if let url = url {
-                self.showRecordingCompletedToast(url: url)
+                VideoEditorWindowController.open(url: url)
             } else if let error = error {
                 print("Recording failed: \(error.localizedDescription)")
             }

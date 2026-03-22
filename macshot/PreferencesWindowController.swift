@@ -29,6 +29,9 @@ class PreferencesWindowController: NSWindowController, NSTabViewDelegate {
     private var imgbbKeyField: NSTextField!
     private var localMonitor: Any?
     private weak var uploadsStack: NSStackView?
+    private var providerPopup: NSPopUpButton!
+    private var gdriveSignInBtn: NSButton!
+    private var gdriveStatusLabel: NSTextField!
     // Recording tab controls
     private var recordingFormatPopup: NSPopUpButton!
     private var recordingFPSPopup: NSPopUpButton!
@@ -329,24 +332,6 @@ class PreferencesWindowController: NSWindowController, NSTabViewDelegate {
         stack.addArrangedSubview(labeledRow("History size:", controls: [historySizeField, historySizeStepper, histNote]))
         stack.setCustomSpacing(20, after: stack.arrangedSubviews.last!)
 
-        // ── Upload ───────────────────────────────────────────
-        stack.addArrangedSubview(sectionHeader("Upload"))
-        stack.setCustomSpacing(10, after: stack.arrangedSubviews.last!)
-
-        imgbbKeyField = NSTextField()
-        imgbbKeyField.placeholderString = "Leave empty to use default"
-        imgbbKeyField.font = NSFont.monospacedSystemFont(ofSize: 11, weight: .regular)
-        imgbbKeyField.target = self
-        imgbbKeyField.action = #selector(imgbbKeyChanged(_:))
-
-        stack.addArrangedSubview(labeledRow("imgbb API key:", controls: [imgbbKeyField]))
-        stack.setCustomSpacing(4, after: stack.arrangedSubviews.last!)
-
-        let imgbbNote = NSTextField(wrappingLabelWithString: "Uses imgbb.com. A shared key is included — get your own free key at imgbb.com/api if you hit rate limits.")
-        imgbbNote.font = NSFont.systemFont(ofSize: 10)
-        imgbbNote.textColor = .secondaryLabelColor
-        stack.addArrangedSubview(indented(imgbbNote))
-
         // Make stack fill scroll width
         let clipView = scroll.contentView
         scroll.documentView = stack
@@ -630,7 +615,78 @@ class PreferencesWindowController: NSWindowController, NSTabViewDelegate {
         stack.alignment = .leading
         stack.spacing = 6
         stack.translatesAutoresizingMaskIntoConstraints = false
-        stack.edgeInsets = NSEdgeInsets(top: 0, left: 12, bottom: 12, right: 12)
+        stack.edgeInsets = NSEdgeInsets(top: 0, left: 20, bottom: 16, right: 20)
+
+        // ── Upload Provider ──
+        stack.addArrangedSubview(sectionHeader("Upload Provider"))
+        stack.setCustomSpacing(10, after: stack.arrangedSubviews.last!)
+
+        providerPopup = NSPopUpButton()
+        providerPopup.addItems(withTitles: ["imgbb (images only)", "Google Drive (images + videos)"])
+        let currentProvider = UserDefaults.standard.string(forKey: "uploadProvider") ?? "imgbb"
+        providerPopup.selectItem(at: currentProvider == "gdrive" ? 1 : 0)
+        providerPopup.target = self
+        providerPopup.action = #selector(uploadProviderChanged(_:))
+        stack.addArrangedSubview(labeledRow("Provider:", controls: [providerPopup]))
+        stack.setCustomSpacing(16, after: stack.arrangedSubviews.last!)
+
+        // ── Google Drive ──
+        stack.addArrangedSubview(sectionHeader("Google Drive"))
+        stack.setCustomSpacing(10, after: stack.arrangedSubviews.last!)
+
+        gdriveStatusLabel = NSTextField(labelWithString: "")
+        gdriveStatusLabel.font = NSFont.systemFont(ofSize: 11)
+        gdriveStatusLabel.textColor = .secondaryLabelColor
+        updateGDriveStatus()
+
+        gdriveSignInBtn = NSButton(title: "Sign In with Google", target: self, action: #selector(gdriveSignInTapped(_:)))
+        gdriveSignInBtn.bezelStyle = .rounded
+        updateGDriveButton()
+
+        stack.addArrangedSubview(labeledRow("Account:", controls: [gdriveStatusLabel]))
+        stack.addArrangedSubview(indented(gdriveSignInBtn))
+        stack.setCustomSpacing(4, after: stack.arrangedSubviews.last!)
+
+        let gdriveNote = NSTextField(wrappingLabelWithString: "Files are uploaded to a \"macshot\" folder in your Google Drive. Everything stays private — nothing is shared publicly.")
+        gdriveNote.font = NSFont.systemFont(ofSize: 10)
+        gdriveNote.textColor = .secondaryLabelColor
+        stack.addArrangedSubview(indented(gdriveNote))
+        stack.setCustomSpacing(16, after: stack.arrangedSubviews.last!)
+
+        // ── imgbb ──
+        stack.addArrangedSubview(sectionHeader("imgbb"))
+        stack.setCustomSpacing(10, after: stack.arrangedSubviews.last!)
+
+        imgbbKeyField = NSTextField()
+        imgbbKeyField.placeholderString = "Leave empty to use default"
+        imgbbKeyField.font = NSFont.monospacedSystemFont(ofSize: 11, weight: .regular)
+        imgbbKeyField.target = self
+        imgbbKeyField.action = #selector(imgbbKeyChanged(_:))
+        if let key = UserDefaults.standard.string(forKey: "imgbbAPIKey") {
+            imgbbKeyField.stringValue = key
+        }
+
+        stack.addArrangedSubview(labeledRow("API key:", controls: [imgbbKeyField]))
+        stack.setCustomSpacing(4, after: stack.arrangedSubviews.last!)
+
+        let imgbbNote = NSTextField(wrappingLabelWithString: "A shared key is included — get your own free key at imgbb.com/api if you hit rate limits. Images only (no video support).")
+        imgbbNote.font = NSFont.systemFont(ofSize: 10)
+        imgbbNote.textColor = .secondaryLabelColor
+        stack.addArrangedSubview(indented(imgbbNote))
+        stack.setCustomSpacing(20, after: stack.arrangedSubviews.last!)
+
+        // ── Upload History ──
+        stack.addArrangedSubview(sectionHeader("Upload History"))
+        stack.setCustomSpacing(10, after: stack.arrangedSubviews.last!)
+
+        // Placeholder for upload history rows
+        let historyContainer = NSStackView()
+        historyContainer.orientation = .vertical
+        historyContainer.alignment = .leading
+        historyContainer.spacing = 6
+        historyContainer.translatesAutoresizingMaskIntoConstraints = false
+        stack.addArrangedSubview(historyContainer)
+        self.uploadsStack = historyContainer
 
         let clipView = scroll.contentView
         scroll.documentView = stack
@@ -641,8 +697,48 @@ class PreferencesWindowController: NSWindowController, NSTabViewDelegate {
             stack.trailingAnchor.constraint(equalTo: clipView.trailingAnchor),
         ])
 
-        self.uploadsStack = stack
         return scroll
+    }
+
+    private func updateGDriveStatus() {
+        if GoogleDriveUploader.shared.isSignedIn {
+            gdriveStatusLabel?.stringValue = GoogleDriveUploader.shared.userEmail ?? "Signed in"
+            gdriveStatusLabel?.textColor = .labelColor
+        } else {
+            gdriveStatusLabel?.stringValue = "Not signed in"
+            gdriveStatusLabel?.textColor = .secondaryLabelColor
+        }
+    }
+
+    private func updateGDriveButton() {
+        if GoogleDriveUploader.shared.isSignedIn {
+            gdriveSignInBtn?.title = "Sign Out"
+        } else {
+            gdriveSignInBtn?.title = "Sign In with Google"
+        }
+    }
+
+    @objc private func uploadProviderChanged(_ sender: NSPopUpButton) {
+        let provider = sender.indexOfSelectedItem == 1 ? "gdrive" : "imgbb"
+        UserDefaults.standard.set(provider, forKey: "uploadProvider")
+    }
+
+    @objc private func gdriveSignInTapped(_ sender: NSButton) {
+        if GoogleDriveUploader.shared.isSignedIn {
+            GoogleDriveUploader.shared.signOut()
+            updateGDriveStatus()
+            updateGDriveButton()
+        } else {
+            GoogleDriveUploader.shared.signIn(from: window) { [weak self] success in
+                guard let self = self else { return }
+                self.window?.makeKeyAndOrderFront(nil)
+                // Delay slightly to let fetchUserEmail complete
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+                    self.updateGDriveStatus()
+                    self.updateGDriveButton()
+                }
+            }
+        }
     }
 
     private func reloadUploadsTab() {

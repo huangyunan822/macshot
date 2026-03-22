@@ -1,5 +1,21 @@
 # Changelog
 
+## [3.0.3] - 2026-03-22
+
+### Added
+- **Video editor window** — after recording stops, a dedicated editor window opens with video playback, a trim timeline with draggable start/end handles, and action buttons: Play/Pause (Space bar), Save, Upload to Google Drive, Reveal in Finder, Copy Path. Trim handles let you cut the beginning and end of the video before exporting.
+- **Mute audio toggle** — speaker icon in the video editor strips audio from exports when enabled.
+- **Google Drive integration** — upload screenshots and videos directly to your Google Drive. Sign in via OAuth2 in Preferences → Uploads. Files are stored in a private "macshot" folder. Token refresh is automatic — sign in once, stay signed in. Supports both images (PNG) and videos (MP4/GIF).
+- **Upload provider selector** — choose between imgbb (images only) and Google Drive (images + videos) in Preferences → Uploads.
+- **Redesigned Uploads tab** — provider selector, Google Drive sign-in/sign-out, imgbb API key, and upload history all in one tab.
+
+### Fixed
+- **Upload confirm dialog** — now shows "Upload to Google Drive?" when Drive is the selected provider instead of always showing imgbb.
+- **Upload toast delete button** — "Delete from server" button is now hidden for Google Drive uploads (which have no delete URL).
+- **Video playhead clamping** — the playhead circle no longer goes past the timeline edges near the beginning/end.
+- **Video trim playback** — play always starts from trim start (not video start) and resets to exact trim start position with zero-tolerance seek.
+- **Keychain prompts** — replaced Keychain token storage with file-based storage in Application Support to eliminate repeated "confidential information" prompts on rebuild/update.
+
 ## [3.0.2] - 2026-03-20
 
 ### Added

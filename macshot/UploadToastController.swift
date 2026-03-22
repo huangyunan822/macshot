@@ -128,19 +128,21 @@ class UploadToastController {
         contentView.addSubview(linkBtn)
         self.linkButton = linkBtn
 
-        // Delete button
-        let delBtn = NSButton(frame: NSRect(x: 16, y: 10, width: 140, height: 22))
-        delBtn.bezelStyle = .inline
-        delBtn.isBordered = false
-        let delAttrs = NSMutableAttributedString(string: "Delete from server", attributes: [
-            .font: NSFont.systemFont(ofSize: 11, weight: .medium),
-            .foregroundColor: NSColor(calibratedRed: 1.0, green: 0.5, blue: 0.5, alpha: 1.0),
-        ])
-        delBtn.attributedTitle = delAttrs
-        delBtn.target = self
-        delBtn.action = #selector(deleteUpload)
-        contentView.addSubview(delBtn)
-        self.deleteButton = delBtn
+        // Delete button (only for imgbb — Google Drive has no delete URL)
+        if !deleteURL.isEmpty {
+            let delBtn = NSButton(frame: NSRect(x: 16, y: 10, width: 140, height: 22))
+            delBtn.bezelStyle = .inline
+            delBtn.isBordered = false
+            let delAttrs = NSMutableAttributedString(string: "Delete from server", attributes: [
+                .font: NSFont.systemFont(ofSize: 11, weight: .medium),
+                .foregroundColor: NSColor(calibratedRed: 1.0, green: 0.5, blue: 0.5, alpha: 1.0),
+            ])
+            delBtn.attributedTitle = delAttrs
+            delBtn.target = self
+            delBtn.action = #selector(deleteUpload)
+            contentView.addSubview(delBtn)
+            self.deleteButton = delBtn
+        }
 
         // Auto-dismiss after 10 seconds
         dismissTask?.cancel()

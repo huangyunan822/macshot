@@ -15,7 +15,8 @@ macshot lives in your menu bar and lets you capture, annotate, and share screens
 ## Features
 
 - **Scroll capture** — select a region and scroll normally; macshot stitches each strip into one seamless image using Apple Vision for pixel-perfect alignment; works at any speed, auto-detects horizontal or vertical scrolling
-- **Screen recording** — record any region or full screen as MP4 (H.264) or GIF; interact with apps normally while recording, or toggle annotation mode to draw on the live screen; optional mouse click highlighting; recordings saved to your configured folder
+- **Screen recording** — record any region or full screen as MP4 (H.264) or GIF; interact with apps normally while recording, or toggle annotation mode to draw on the live screen; optional mouse click highlighting; after recording, a video editor opens with trim timeline, mute audio, save, and upload to Google Drive
+- **Google Drive upload** — upload screenshots and videos directly to your Google Drive with one click; sign in once in Preferences, files go to a private "macshot" folder; automatic token refresh
 - **Instant capture** — global hotkey (default: `Cmd+Shift+X`) freezes your screen and lets you select a region
 - **Editor window** — open any capture in a standalone resizable editor window with a top bar showing pixel dimensions, crop, flip H/V, and zoom level; annotate, crop, copy, save, pin, or upload without dismissing the overlay
 - **Crop tool** — editor window only; drag a rectangle (with rule-of-thirds grid) to crop the image in place, annotations translate automatically; fully undoable
@@ -43,7 +44,7 @@ macshot lives in your menu bar and lets you capture, annotate, and share screens
 - **Pin to screen** — pin a screenshot as a floating always-on-top window, movable and resizable; open in editor with the pencil button
 - **Floating thumbnail** — thumbnail slides in after capture with Copy/Save/Pin/Edit/Upload action buttons on hover; multiple thumbnails stack vertically; configurable auto-dismiss delay (toggleable)
 - **Screenshot history** — re-copy recent captures from the menu bar "Recent Captures" submenu (configurable); press `Cmd+Shift+H` for a full-screen visual history overlay
-- **Upload to imgbb** — one-click upload; view and copy upload/delete URLs in Preferences → Uploads
+- **Upload** — one-click upload to imgbb (images) or Google Drive (images + videos); configurable in Preferences → Uploads
 - **Pixel dimensions** — always-visible size label above the selection, click to type an exact resolution
 - **Quick save** — right-click a window (snap mode) or drag to instantly save to your configured folder
 - **Output formats** — PNG (lossless), JPEG, HEIC, and WebP with configurable quality; optional Retina downscale to 1x; sRGB color profile embedding

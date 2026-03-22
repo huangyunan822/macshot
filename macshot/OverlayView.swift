@@ -4643,7 +4643,10 @@ class OverlayView: NSView {
             .font: NSFont.systemFont(ofSize: 13, weight: .semibold),
             .foregroundColor: NSColor.white,
         ]
-        let title = "Upload to imgbb.com?" as NSString
+        let provider = UserDefaults.standard.string(forKey: "uploadProvider") ?? "imgbb"
+        let isGDrive = provider == "gdrive" && GoogleDriveUploader.shared.isSignedIn
+        let titleText = isGDrive ? "Upload to Google Drive?" : "Upload to imgbb.com?"
+        let title = titleText as NSString
         let titleSize = title.size(withAttributes: titleAttrs)
         title.draw(at: NSPoint(x: dialogRect.midX - titleSize.width / 2, y: dialogRect.maxY - 30), withAttributes: titleAttrs)
 
@@ -4652,7 +4655,8 @@ class OverlayView: NSView {
             .font: NSFont.systemFont(ofSize: 11, weight: .regular),
             .foregroundColor: NSColor.white.withAlphaComponent(0.6),
         ]
-        let sub = "Your screenshot will be sent to imgbb.com" as NSString
+        let subText = isGDrive ? "Your screenshot will be saved to your Google Drive" : "Your screenshot will be sent to imgbb.com"
+        let sub = subText as NSString
         let subSize = sub.size(withAttributes: subAttrs)
         sub.draw(at: NSPoint(x: dialogRect.midX - subSize.width / 2, y: dialogRect.maxY - 52), withAttributes: subAttrs)
 
