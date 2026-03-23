@@ -1,129 +1,117 @@
 # macshot
 
 <p align="center">
-  <img src="assets/logo.svg" alt="macshot logo" width="256"/>
+  <img src="assets/logo.svg" alt="macshot logo" width="200"/>
 </p>
 
-A native macOS screenshot tool inspired by [Flameshot](https://flameshot.org/). No Electron, no Qt, no bloat — built with Swift and AppKit.
+<p align="center">
+  <b>Free, open-source screenshot & screen recording tool for macOS.</b><br>
+  Native Swift + AppKit. No Electron. No bloat.
+</p>
 
-macshot lives in your menu bar and lets you capture, annotate, and share screenshots with a single hotkey.
+<p align="center">
+  <a href="https://github.com/sw33tLie/macshot/releases/latest">Download</a> · <a href="https://github.com/sw33tLie/macshot/blob/main/CHANGELOG.md">Changelog</a> · <a href="https://github.com/sw33tLie/macshot/blob/main/PRIVACY.md">Privacy</a>
+</p>
 
 <p align="center">
   <img src="assets/preview.png" alt="macshot demo" width="700"/>
 </p>
 
-## Features
+---
 
-- **Scroll capture** — select a region and scroll normally; macshot stitches each strip into one seamless image using Apple Vision for pixel-perfect alignment; works at any speed, auto-detects horizontal or vertical scrolling
-- **Screen recording** — record any region or full screen as MP4 (H.264, up to 120fps) or GIF; optional system audio capture; interact with apps normally while recording, or toggle annotation mode to draw on the live screen; optional mouse click highlighting; after recording, a video editor opens with trim timeline, mute/strip audio, save, and upload to Google Drive
-- **Google Drive upload** — upload screenshots and videos directly to your Google Drive with one click; sign in once in Preferences, files go to a private "macshot" folder; automatic token refresh
-- **Instant capture** — global hotkey (default: `Cmd+Shift+X`) freezes your screen and lets you select a region
-- **Editor window** — open any capture in a standalone resizable editor window with a top bar showing pixel dimensions, crop, flip H/V, and zoom level; annotate, crop, copy, save, pin, or upload without dismissing the overlay
-- **Crop tool** — editor window only; drag a rectangle (with rule-of-thirds grid) to crop the image in place, annotations translate automatically; fully undoable
-- **Flip image** — flip horizontally or vertically in the editor; annotations are mirrored to match; fully undoable
-- **Auto-measure** — with the measure tool, hold `1` for automatic vertical or `2` for horizontal measurement; scans pixels outward from cursor until color changes
-- **Window snap** — hover over any window to highlight it with a blue border and click to snap to it; `Tab` toggles snap mode, `F` captures full screen
-- **Live QR & barcode detection** — automatically detects QR codes and barcodes in the selected area; shows an inline bar to open URLs or copy the payload
-- **Annotation tools** — arrow (5 styles: single, thick/banner, double, open, tail), line, rectangle (3 fill modes: stroke, stroke+fill, fill), ellipse (3 fill modes), pencil (with optional smooth strokes), marker/highlighter, text, numbered markers (with optional pointer cone), pixelate, Gaussian blur, stamp/emoji
-- **Color opacity** — drag the opacity slider in the color picker to set transparency for all drawing tools; marker keeps its own highlight opacity
-- **Hover-to-move** — hover over any annotation with a drawing tool active to instantly drag, resize, rotate, or delete it without switching to the Select tool
-- **Rich text** — bold, italic, underline, strikethrough, adjustable font size, left/center/right alignment; `Enter` inserts a new line; confirm with ✓ button; resizable text box with word wrap; click existing text to re-edit
-- **Text fill & outline** — toggle a background pill or outline stroke on text annotations with configurable colors; right-click to open the color picker
-- **Translation** — translate extracted OCR text to any language directly in the OCR results window
-- **Shift-constrain** — hold Shift while drawing for straight lines, perfect circles, and squares; hold Shift while rotating for 90° snapping
-- **Auto-redact PII** — one-click detection and redaction of emails, phone numbers, credit cards, SSNs, API keys, and more; uses blur or pixelate style matching the active tool
-- **Snap alignment guides** — annotations snap to selection midlines and existing annotation edges with cyan guide lines (toggleable in Preferences)
-- **Delay capture** — set a 3/5/10 second timer to capture tooltips, menus, and hover states
-- **Secure redaction** — pixelate tool is irreversible (multi-pass downscale, not a reversible blur)
-- **Stamp / Emoji tool** — place emojis or load custom images onto screenshots; 21 quick-access emojis plus a categorized picker with 100+ emojis; stamps are movable and resizable with a live cursor preview
-- **Color picker** — 12 preset colors, one click to switch
-- **Undo/Redo** — `Cmd+Z` / `Cmd+Shift+Z`
-- **OCR text extraction** — extract text from any selected area using Apple Vision, with copy, search, and translation
-- **Beautify mode** — wrap screenshots in a macOS window frame with traffic lights, shadow, and gradient background (28 styles)
-- **Background removal** — remove the background from any selection using Apple Vision (macOS 14+)
-- **Pin to screen** — pin a screenshot as a floating always-on-top window, movable and resizable; open in editor with the pencil button
-- **Floating thumbnail** — thumbnail slides in after capture with Copy/Save/Pin/Edit/Upload action buttons on hover; multiple thumbnails stack vertically; configurable auto-dismiss delay (toggleable)
-- **Screenshot history** — re-copy recent captures from the menu bar "Recent Captures" submenu (configurable); press `Cmd+Shift+H` for a full-screen visual history overlay
-- **Upload** — one-click upload to imgbb (images) or Google Drive (images + videos); configurable in Preferences → Uploads
-- **Pixel dimensions** — always-visible size label above the selection, click to type an exact resolution
-- **Quick save** — right-click a window (snap mode) or drag to instantly save to your configured folder
-- **Output formats** — PNG (lossless), JPEG, HEIC, and WebP with configurable quality; optional Retina downscale to 1x; sRGB color profile embedding
-- **Output options** — copy to clipboard (`Cmd+C`), save to file (`Cmd+S`)
-- **Multi-monitor support** — captures all screens simultaneously
-- **Configurable hotkey** — change it in Preferences
-- **Automatic updates** — built-in update checking via [Sparkle](https://sparkle-project.org/); checks every 30 minutes or manually from the menu bar
-- **WebP encoding** — powered by [Swift-WebP](https://github.com/ainame/Swift-WebP) (libwebp wrapper)
-- **Lightweight** — ~8 MB memory at idle, menu bar only (no dock icon)
+### Why macshot?
+
+- **Capture & annotate in one flow** — select a region, draw arrows/text/shapes/blur, copy to clipboard. One hotkey, zero friction.
+- **Screen recording with built-in editor** — record any area or full screen as MP4/GIF with optional system audio, then trim and export without leaving the app.
+- **Scroll capture** — select a region and scroll. macshot stitches it into one seamless tall (or wide) image automatically.
+- **Upload anywhere** — one-click upload to Google Drive or imgbb. Link copied to clipboard instantly.
+- **Lightweight & native** — ~8 MB memory at idle. Lives in your menu bar. Built with Swift and AppKit, not a web browser in disguise.
+
+---
 
 ## Install
 
-### Homebrew
-
+**Homebrew:**
 ```bash
 brew install sw33tlie/macshot/macshot
 ```
 
-### Manual
+**Manual:** Download the latest `.dmg` from [Releases](https://github.com/sw33tLie/macshot/releases), open it, drag to `/Applications`.
 
-Download the latest `.dmg` from [Releases](https://github.com/sw33tLie/macshot/releases), open it, and drag `macshot.app` to `/Applications`.
+---
 
-### Build from source
+## Quick Start
 
-Requires Xcode 16+ and macOS 14+.
+1. Launch macshot — it appears in your menu bar
+2. Press `Cmd+Shift+X` to capture
+3. Drag to select, annotate with the toolbar, press `Cmd+C` to copy
+4. Press `Esc` to cancel
 
-```bash
-git clone https://github.com/sw33tLie/macshot.git
-cd macshot
-xcodebuild -project macshot.xcodeproj -scheme macshot -configuration Release -derivedDataPath build clean build
-cp -R build/Build/Products/Release/macshot.app /Applications/
-```
+---
 
-## Usage
+<details>
+<summary><b>All Features</b></summary>
 
-1. Launch macshot — it appears as an icon in your menu bar
-2. Press `Cmd+Shift+X` (or click "Capture Screen" from the menu bar)
-3. Drag to select a region, or hover over a window and click to snap to it
-4. Annotate using the toolbar below the selection
-5. Press `Cmd+C` to copy to clipboard, or `Cmd+S` to save to file
-6. Press `Esc` to cancel at any time
+### Capture
+- **Instant capture** — global hotkey freezes your screen, select any region
+- **Window snap** — hover over a window and click to capture it exactly; `Tab` toggles snap, `F` for full screen
+- **Scroll capture** — auto-detects vertical or horizontal scrolling, stitches with Apple Vision
+- **Delay capture** — 3/5/10 second timer for tooltips, menus, hover states
+- **Multi-monitor** — captures all screens simultaneously
+- **Quick save** — right-click + drag to save instantly without annotation
 
-### Keyboard shortcuts
+### Annotation Tools
+- **Arrow** — 5 styles: single, thick/banner, double, open, tail
+- **Shapes** — rectangle and ellipse with 3 fill modes (stroke, stroke+fill, fill), corner radius slider
+- **Text** — rich formatting (bold/italic/underline/strikethrough), resizable text box, left/center/right alignment, background fill & outline colors, click to re-edit
+- **Pencil & Marker** — freeform drawing with optional smoothing
+- **Numbered markers** — auto-incrementing, with optional pointer cone
+- **Stamp / Emoji** — 21 quick emojis, 100+ in categorized picker, or load any image
+- **Pixelate & Blur** — irreversible redaction; auto-redact PII (emails, phones, credit cards, SSNs, API keys) with one click
+- **Measure** — pixel ruler with px/pt toggle; hold `1` or `2` for auto-measure
+- **Loupe** — 2x magnifier
+- **Color sampler** — eyedropper to pick any color
+- **Rotation** — rotate shapes via handle, Shift for 90° snaps
+- **Hover-to-move** — drag, resize, rotate, or delete any annotation without switching tools
 
-**General**
+### Screen Recording
+- **MP4 (H.264)** up to 120fps or **GIF** (5/10/15fps)
+- **System audio capture** — toggle on/off, excludes macshot's own sounds
+- **Mouse click highlights** — visual ripple on clicks during recording
+- **Annotation mode** — draw on screen while recording
+- **Video editor** — trim timeline, mute/strip audio, play/pause, save, upload, reveal in Finder
 
-| Shortcut | Action |
-|---|---|
-| `Cmd+Shift+X` | Capture screen (configurable) |
-| `Enter` | Confirm and copy to clipboard |
-| `Cmd+C` | Copy to clipboard |
-| `Cmd+S` | Save to file |
-| `Cmd+Z` | Undo |
-| `Cmd+Shift+Z` | Redo |
-| `Cmd+0` | Reset zoom to 1x |
-| `Esc` | Cancel / close popover |
-| `Delete` | Remove selected or hovered annotation |
-| `Tab` | Toggle window snap mode |
-| `F` | Capture full screen (snap mode) |
-| `Shift` (while drawing) | Constrain to straight lines / perfect shapes |
-| `Right-click` + drag | Quick save to file (no annotation) |
+### Output & Upload
+- **Formats** — PNG, JPEG, HEIC, WebP with quality slider
+- **Google Drive** — sign in once, uploads to a private "macshot" folder
+- **imgbb** — anonymous image hosting with shareable links
+- **Retina downscale** — optional 1x export for smaller files
+- **sRGB color profile** — optional embedding for cross-display consistency
 
-**Tool shortcuts** (active after selecting a region)
+### Editor Window
+- Standalone resizable window with full annotation tools
+- Crop (with rule-of-thirds grid), flip H/V, zoom 0.1x–8x
+- Top bar with pixel dimensions, zoom level
 
-| Key | Tool |
-|---|---|
-| `A` | Arrow |
-| `L` | Line |
-| `P` | Pencil |
-| `M` | Marker / Highlighter |
-| `R` | Rectangle |
-| `T` | Text |
-| `N` | Numbered marker |
-| `B` | Blur |
-| `X` | Pixelate |
-| `I` | Color sampler |
-| `G` | Stamp / Emoji |
-| `S` | Select & Edit (move/resize annotations) |
-| `E` | Open in Editor window (overlay only) |
+### Beautify
+- macOS window frame with traffic lights, shadow, and gradient background
+- 28 gradient styles, adjustable padding/corner radius/shadow
+
+### Other
+- **OCR** — extract text with Apple Vision, translate to 30+ languages
+- **Background removal** — Apple Vision foreground mask (macOS 14+)
+- **Pin to screen** — floating always-on-top window
+- **Floating thumbnail** — auto-dismiss preview with Copy/Save/Pin/Edit/Upload
+- **Screenshot history** — menu bar submenu + full-screen visual history panel (`Cmd+Shift+H`)
+- **QR & barcode detection** — inline Open/Copy actions
+- **Snap alignment guides** — annotations snap to midlines and edges
+- **Auto-updates** via Sparkle
+- **~8 MB memory** at idle
+
+</details>
+
+<details>
+<summary><b>Keyboard Shortcuts</b></summary>
 
 **Global hotkeys** (configurable in Preferences)
 
@@ -134,17 +122,51 @@ cp -R build/Build/Products/Release/macshot.app /Applications/
 | `Cmd+Shift+R` | Record Area |
 | `Cmd+Shift+H` | Show History Panel |
 
-### Permissions
+**General** (during capture)
 
-macshot requires **Screen Recording** permission. macOS will prompt you on first capture. If it doesn't work:
+| Shortcut | Action |
+|---|---|
+| `Enter` | Confirm and copy to clipboard |
+| `Cmd+C` | Copy to clipboard |
+| `Cmd+S` | Save to file |
+| `Cmd+Z` / `Cmd+Shift+Z` | Undo / Redo |
+| `Cmd+0` | Reset zoom to 1x |
+| `Esc` | Cancel / close popover |
+| `Delete` | Remove selected annotation |
+| `Tab` | Toggle window snap mode |
+| `F` | Capture full screen (snap mode) |
+| `Shift` (while drawing) | Constrain to straight lines / perfect shapes |
+| `Right-click` + drag | Quick save to file |
 
-1. Open **System Settings > Privacy & Security > Screen Recording**
-2. Enable macshot (or remove and re-add it)
-3. Restart macshot
+**Tool shortcuts** (active after selecting a region)
+
+| Key | Tool |
+|---|---|
+| `A` | Arrow |
+| `L` | Line |
+| `P` | Pencil |
+| `M` | Marker |
+| `R` | Rectangle |
+| `T` | Text |
+| `N` | Number |
+| `B` | Blur |
+| `X` | Pixelate |
+| `I` | Color sampler |
+| `G` | Stamp / Emoji |
+| `S` | Select & Edit |
+| `E` | Open in Editor |
+
+</details>
+
+---
+
+## Permissions
+
+macshot requires **Screen Recording** permission. macOS will prompt you on first capture.
 
 ## Requirements
 
-- macOS 14.0 (Sonoma) or later
+macOS 14.0 (Sonoma) or later.
 
 ## License
 
