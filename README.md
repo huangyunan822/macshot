@@ -95,7 +95,7 @@ brew install sw33tlie/macshot/macshot
 
 ### Beautify
 - macOS window frame with traffic lights, shadow, and gradient background
-- 28 gradient styles, adjustable padding/corner radius/shadow
+- 30 gradient styles including 7 mesh gradients (macOS 15+), adjustable padding/corner radius/shadow
 
 ### Other
 - **OCR** — extract text with Apple Vision, translate to 30+ languages

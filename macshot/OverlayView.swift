@@ -276,6 +276,7 @@ class OverlayView: NSView {
     private var showBeautifyGradientPicker: Bool = false
     private var beautifyGradientPickerRect: NSRect = .zero
     private var beautifyGradientBtnRect: NSRect = .zero
+    private var beautifyToggleRect: NSRect = .zero
     private var beautifyToolbarAnimProgress: CGFloat = 1.0  // 0..1, 1 = fully settled
     private var beautifyToolbarAnimTimer: Timer?
     private var beautifyToolbarAnimTarget: Bool = false  // target beautify state
@@ -672,7 +673,7 @@ class OverlayView: NSView {
         let point = convert(event.locationInWindow, from: nil)
 
         // Stamp cursor preview — track in view coords (same as annotations)
-        if currentTool == .stamp && currentStampImage != nil && state == .selected && !isRecording {
+        if currentTool == .stamp && currentStampImage != nil && state == .selected && !isRecording && !showBeautifyInOptionsRow {
             if stampPreviewPoint == nil || hypot(point.x - (stampPreviewPoint?.x ?? 0), point.y - (stampPreviewPoint?.y ?? 0)) > 0.5 {
                 stampPreviewPoint = point
                 needsDisplay = true
@@ -733,7 +734,7 @@ class OverlayView: NSView {
         }
 
         // Track cursor for loupe live preview (use canvas space for zoom correctness)
-        if state == .selected && currentTool == .loupe {
+        if state == .selected && currentTool == .loupe && !showBeautifyInOptionsRow {
             let newPoint = viewToCanvas(convert(event.locationInWindow, from: nil))
             if newPoint != loupeCursorPoint {
                 loupeCursorPoint = newPoint
@@ -1085,6 +1086,11 @@ class OverlayView: NSView {
         // Beautify panel — arrow cursor for entire panel
         if showBeautifyPicker && beautifyPickerRect.width > 0 {
             addCursorRect(beautifyPickerRect, cursor: .arrow)
+        }
+
+        // Beautify gradient picker dropdown — arrow cursor
+        if showBeautifyGradientPicker && beautifyGradientPickerRect.width > 0 {
+            addCursorRect(beautifyGradientPickerRect, cursor: .arrow)
         }
 
         // Tool options row — arrow cursor
@@ -2721,9 +2727,7 @@ class OverlayView: NSView {
             beautifySwatchRects.append(swatchRect)
 
             let swatchPath = NSBezierPath(roundedRect: swatchRect, xRadius: 5, yRadius: 5)
-            if let grad = NSGradient(colors: style.stops.map { $0.0 }, atLocations: style.stops.map { $0.1 }, colorSpace: .deviceRGB) {
-                grad.draw(in: swatchPath, angle: style.angle - 90)  // NSGradient angle: 0=up, CG angle: 0=right
-            }
+            drawStyleSwatch(style: style, path: swatchPath, rect: swatchRect)
 
             // Selection ring
             if i == beautifyStyleIndex % styles.count {
@@ -2732,6 +2736,22 @@ class OverlayView: NSView {
                 ring.lineWidth = 2
                 ring.stroke()
             }
+        }
+    }
+
+    /// Draw a gradient swatch — uses mesh rendering on macOS 15+ for mesh styles, linear otherwise.
+    private func drawStyleSwatch(style: BeautifyStyle, path: NSBezierPath, rect: NSRect) {
+        if #available(macOS 15.0, *), let mesh = style.meshDef {
+            if let img = BeautifyRenderer.renderMeshSwatch(mesh, size: max(rect.width, rect.height)) {
+                NSGraphicsContext.saveGraphicsState()
+                path.addClip()
+                img.draw(in: rect, from: .zero, operation: .sourceOver, fraction: 1.0)
+                NSGraphicsContext.restoreGraphicsState()
+                return
+            }
+        }
+        if let grad = NSGradient(colors: style.stops.map { $0.0 }, atLocations: style.stops.map { $0.1 }, colorSpace: .deviceRGB) {
+            grad.draw(in: path, angle: style.angle - 90)  // NSGradient angle: 0=up, CG angle: 0=right
         }
     }
 
@@ -2985,7 +3005,7 @@ class OverlayView: NSView {
         case .text:
             return true
         default:
-            return showBeautifyInOptionsRow && beautifyEnabled
+            return showBeautifyInOptionsRow
         }
     }
 
@@ -3047,7 +3067,7 @@ class OverlayView: NSView {
         textAlignCenterRect = .zero
         textAlignRightRect = .zero
 
-        if showBeautifyInOptionsRow && beautifyEnabled {
+        if showBeautifyInOptionsRow {
             drawBeautifyOptionsRow(in: rowRect)
             return
         }
@@ -4153,13 +4173,10 @@ class OverlayView: NSView {
         // Gradient picker button — shows current gradient, opens grid popover on click
         let btnSize: CGFloat = 22
         let btnRect = NSRect(x: curX, y: rowRect.midY - btnSize / 2, width: btnSize, height: btnSize)
-        beautifyGradientBtnRect = btnRect
 
         let currentStyle = BeautifyRenderer.styles[beautifyStyleIndex % BeautifyRenderer.styles.count]
         let btnPath = NSBezierPath(roundedRect: btnRect, xRadius: 5, yRadius: 5)
-        if let grad = NSGradient(colors: currentStyle.stops.map { $0.0 }, atLocations: currentStyle.stops.map { $0.1 }, colorSpace: .deviceRGB) {
-            grad.draw(in: btnPath, angle: currentStyle.angle - 90)
-        }
+        drawStyleSwatch(style: currentStyle, path: btnPath, rect: btnRect)
         // Selection ring
         ToolbarLayout.accentColor.setStroke()
         let ring = NSBezierPath(roundedRect: btnRect.insetBy(dx: -1.5, dy: -1.5), xRadius: 6, yRadius: 6)
@@ -4173,7 +4190,30 @@ class OverlayView: NSView {
         ]
         let triStr = "▾" as NSString
         let triSize = triStr.size(withAttributes: triAttrs)
-        triStr.draw(at: NSPoint(x: btnRect.maxX + 6, y: btnRect.midY - triSize.height / 2), withAttributes: triAttrs)
+        let triX = btnRect.maxX + 6
+        triStr.draw(at: NSPoint(x: triX, y: btnRect.midY - triSize.height / 2), withAttributes: triAttrs)
+
+        // Hit rect covers swatch + triangle
+        beautifyGradientBtnRect = NSRect(x: btnRect.minX, y: btnRect.minY, width: triX + triSize.width - btnRect.minX, height: btnRect.height)
+
+        // On/off toggle switch — far right
+        let toggleW: CGFloat = 36
+        let toggleH: CGFloat = 20
+        let toggleX = rowRect.maxX - pad - toggleW
+        let toggleY = rowRect.midY - toggleH / 2
+        let toggleRect = NSRect(x: toggleX, y: toggleY, width: toggleW, height: toggleH)
+        beautifyToggleRect = toggleRect
+
+        let trackPath = NSBezierPath(roundedRect: toggleRect, xRadius: toggleH / 2, yRadius: toggleH / 2)
+        (beautifyEnabled ? ToolbarLayout.accentColor : NSColor.white.withAlphaComponent(0.2)).setFill()
+        trackPath.fill()
+
+        let knobInset: CGFloat = 2
+        let knobD = toggleH - knobInset * 2
+        let knobX = beautifyEnabled ? toggleRect.maxX - knobD - knobInset : toggleRect.minX + knobInset
+        let knobRect = NSRect(x: knobX, y: toggleY + knobInset, width: knobD, height: knobD)
+        NSColor.white.setFill()
+        NSBezierPath(ovalIn: knobRect).fill()
     }
 
     private func drawBeautifyGradientPicker() {
@@ -4221,9 +4261,7 @@ class OverlayView: NSView {
             beautifySwatchRects.append(sr)
 
             let path = NSBezierPath(roundedRect: sr, xRadius: 6, yRadius: 6)
-            if let grad = NSGradient(colors: style.stops.map { $0.0 }, atLocations: style.stops.map { $0.1 }, colorSpace: .deviceRGB) {
-                grad.draw(in: path, angle: style.angle - 90)
-            }
+            drawStyleSwatch(style: style, path: path, rect: sr)
 
             if i == beautifyStyleIndex % styles.count {
                 ToolbarLayout.accentColor.setStroke()
@@ -6258,6 +6296,16 @@ class OverlayView: NSView {
     func rebuildToolbarLayout() {
         let movableAnnotations = annotations.contains { $0.isMovable }
         bottomButtons = ToolbarLayout.bottomButtons(selectedTool: currentTool, selectedColor: currentColor, beautifyEnabled: beautifyEnabled, beautifyStyleIndex: beautifyStyleIndex, hasAnnotations: movableAnnotations, isRecording: isRecording, isAnnotating: isAnnotating)
+        // When beautify options row is showing, deselect all tools and highlight beautify instead
+        if showBeautifyInOptionsRow {
+            for i in bottomButtons.indices {
+                if case .tool = bottomButtons[i].action {
+                    bottomButtons[i].isSelected = false
+                } else if case .beautify = bottomButtons[i].action {
+                    bottomButtons[i].isSelected = true
+                }
+            }
+        }
         rightButtons = ToolbarLayout.rightButtons(delaySeconds: delaySeconds, beautifyEnabled: beautifyEnabled, beautifyStyleIndex: beautifyStyleIndex, hasAnnotations: movableAnnotations, translateEnabled: translateEnabled, isRecording: isRecording, isCapturingVideo: isCapturingVideo, isAnnotating: isAnnotating, isDetached: isDetached)
 
         // When beautify is active, anchor toolbars to the expanded preview frame
@@ -6981,6 +7029,36 @@ class OverlayView: NSView {
 
                 // Tool options row click handling
                 if optionsRowRect.contains(point) {
+                    // Beautify toggle & controls (check first — overrides tool options)
+                    if showBeautifyInOptionsRow {
+                        if beautifyToggleRect != .zero && beautifyToggleRect.insetBy(dx: -4, dy: -4).contains(point) {
+                            beautifyEnabled.toggle()
+                            UserDefaults.standard.set(beautifyEnabled, forKey: "beautifyEnabled")
+                            startBeautifyToolbarAnimation()
+                            needsDisplay = true
+                            return
+                        }
+                        if beautifyModeWindowRect.contains(point) {
+                            beautifyMode = .window; UserDefaults.standard.set(beautifyMode.rawValue, forKey: "beautifyMode"); needsDisplay = true; return
+                        }
+                        if beautifyModeRoundedRect.contains(point) {
+                            beautifyMode = .rounded; UserDefaults.standard.set(beautifyMode.rawValue, forKey: "beautifyMode"); needsDisplay = true; return
+                        }
+                        for (idx, sr) in [beautifyPaddingSliderRect, beautifyCornerSliderRect, beautifyShadowSliderRect, beautifyBgRadiusSliderRect].enumerated() {
+                            if sr != .zero && sr.insetBy(dx: -4, dy: -4).contains(point) {
+                                isDraggingBeautifySlider = true
+                                activeBeautifySlider = idx
+                                updateBeautifySlider(at: point)
+                                return
+                            }
+                        }
+                        if beautifyGradientBtnRect != .zero && beautifyGradientBtnRect.insetBy(dx: -4, dy: -4).contains(point) {
+                            showBeautifyGradientPicker.toggle()
+                            needsDisplay = true
+                            return
+                        }
+                        return  // consumed by beautify options row
+                    }
                     // Measure unit toggle (px/pt)
                     if currentTool == .measure && measureUnitToggleRect != .zero {
                         let pxRect = measureUnitToggleRect
@@ -7144,30 +7222,6 @@ class OverlayView: NSView {
                         }
                         if redactTypeDropdownRect != .zero && redactTypeDropdownRect.contains(point) {
                             showRedactTypePicker.toggle()
-                            needsDisplay = true
-                            return
-                        }
-                    }
-                    // Beautify mode buttons
-                    if showBeautifyInOptionsRow && beautifyEnabled {
-                        if beautifyModeWindowRect.contains(point) {
-                            beautifyMode = .window; UserDefaults.standard.set(beautifyMode.rawValue, forKey: "beautifyMode"); needsDisplay = true; return
-                        }
-                        if beautifyModeRoundedRect.contains(point) {
-                            beautifyMode = .rounded; UserDefaults.standard.set(beautifyMode.rawValue, forKey: "beautifyMode"); needsDisplay = true; return
-                        }
-                        // Beautify sliders
-                        for (idx, sr) in [beautifyPaddingSliderRect, beautifyCornerSliderRect, beautifyShadowSliderRect, beautifyBgRadiusSliderRect].enumerated() {
-                            if sr != .zero && sr.insetBy(dx: -4, dy: -4).contains(point) {
-                                isDraggingBeautifySlider = true
-                                activeBeautifySlider = idx
-                                updateBeautifySlider(at: point)
-                                return
-                            }
-                        }
-                        // Gradient picker button
-                        if beautifyGradientBtnRect != .zero && beautifyGradientBtnRect.insetBy(dx: -4, dy: -4).contains(point) {
-                            showBeautifyGradientPicker.toggle()
                             needsDisplay = true
                             return
                         }
@@ -7995,21 +8049,17 @@ class OverlayView: NSView {
                 overlayDelegate?.overlayViewDidRequestRemoveBackground()
             }
         case .beautify:
+            commitTextFieldIfNeeded()
+            showFontPicker = false
+            showEmojiPicker = false
+            stampPreviewPoint = nil
+            loupeCursorPoint = .zero
+            showBeautifyInOptionsRow = true
+            // Auto-enable beautify on first click in this session
             if !beautifyEnabled {
-                // OFF → ON: turn on and show settings
                 beautifyEnabled = true
                 UserDefaults.standard.set(true, forKey: "beautifyEnabled")
-                showBeautifyInOptionsRow = true
                 startBeautifyToolbarAnimation()
-            } else if showBeautifyInOptionsRow {
-                // ON + settings showing → OFF
-                beautifyEnabled = false
-                UserDefaults.standard.set(false, forKey: "beautifyEnabled")
-                showBeautifyInOptionsRow = false
-                startBeautifyToolbarAnimation()
-            } else {
-                // ON + settings hidden → show settings (don't toggle off)
-                showBeautifyInOptionsRow = true
             }
             needsDisplay = true
         case .beautifyStyle:

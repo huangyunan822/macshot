@@ -204,6 +204,7 @@ class OverlayWindowController {
         overlayWindow?.orderOut(nil)
         overlayWindow?.close()
         overlayWindow = nil
+        NSCursor.arrow.set()
     }
 
     private func saveSelectionIfNeeded() {

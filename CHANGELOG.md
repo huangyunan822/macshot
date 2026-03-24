@@ -1,5 +1,24 @@
 # Changelog
 
+## [3.0.7] - 2026-03-24
+
+### Added
+- **Mesh gradients** — 7 new organic, multi-directional gradient backgrounds using SwiftUI MeshGradient (macOS 15+ only, hidden on macOS 14). Shown first in the gradient picker.
+- **Beautify on/off toggle** — dedicated toggle switch in the beautify options row to enable/disable the effect independently from the tool.
+- **Beautify active indicator** — sparkles icon turns gold when the beautify effect is enabled, visible even when using other tools.
+
+### Improved
+- **Beautify is now a proper tool mode** — clicking the sparkles button deselects the current drawing tool and shows the beautify options row. No more confusing 3-click toggle cycle.
+- **Gradient picker hit area** — the dropdown triangle next to the gradient swatch is now clickable to open/close the picker.
+- **Gradient picker cursor** — arrow cursor over the expanded gradient dropdown instead of crosshair.
+
+### Fixed
+- **Crosshair cursor stuck after cancel** — cursor now explicitly resets to arrow when dismissing the overlay, preventing stale crosshair on desktop/fullscreen apps.
+- **Loupe/stamp cursor in beautify mode** — loupe preview and stamp cursor no longer persist when switching to beautify mode.
+
+### Removed
+- 5 duplicate gradient styles (Warm, Arctic, Mint, Charcoal, Steel) that were too similar to existing ones.
+
 ## [3.0.6] - 2026-03-23
 
 ### Fixed

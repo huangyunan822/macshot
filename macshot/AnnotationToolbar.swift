@@ -149,8 +149,9 @@ class ToolbarLayout {
 
         if !isRecording && actionEnabled(1004) {
             var beautifyBtn = ToolbarButton(action: .beautify, sfSymbol: "sparkles", label: nil, tooltip: "Beautify")
-            beautifyBtn.isSelected = beautifyEnabled
-            beautifyBtn.hasContextMenu = true
+            if beautifyEnabled {
+                beautifyBtn.tintColor = NSColor(calibratedRed: 1.0, green: 0.8, blue: 0.2, alpha: 1.0)
+            }
             buttons.append(beautifyBtn)
         }
 
