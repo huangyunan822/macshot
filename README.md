@@ -70,11 +70,11 @@ brew install sw33tlie/macshot/macshot
 - **Quick OCR** — `Cmd+Shift+T` to select and extract text instantly
 
 ### Annotation Tools
-- **Arrow** — 5 styles: single, thick/banner, double, open, tail
+- **Arrow** — 5 styles: single, thick/banner, double, open, tail; right-click to add anchor points for complex curves
 - **Shapes** — rectangle and ellipse with 3 fill modes (stroke, stroke+fill, fill), corner radius slider
 - **Text** — rich formatting (bold/italic/underline/strikethrough), resizable text box, left/center/right alignment, background fill & outline colors, click to re-edit
 - **Pencil & Marker** — freeform drawing with optional smoothing
-- **Numbered markers** — auto-incrementing, with optional pointer cone
+- **Numbered markers** — auto-incrementing (1/I/A/a formats), with optional pointer cone
 - **Stamp / Emoji** — 21 quick emojis, 100+ in categorized picker, or load any image
 - **Pixelate & Blur** — irreversible redaction; auto-redact PII (emails, phones, credit cards, SSNs, API keys) with one click
 - **Measure** — pixel ruler with px/pt toggle; hold `1` or `2` for auto-measure
@@ -152,6 +152,7 @@ brew install sw33tlie/macshot/macshot
 | `Shift` (while drawing) | Constrain to straight lines / perfect shapes |
 | `Space` (while drawing) | Reposition shape without changing size |
 | `Right-click` + drag | Quick save to file |
+| `Right-click` on line/arrow | Add anchor point for multi-point curves |
 
 **Tool shortcuts** (active after selecting a region)
 

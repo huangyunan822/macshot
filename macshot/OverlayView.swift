@@ -453,6 +453,7 @@ class OverlayView: NSView {
     // Annotation selection/resize controls
     private var isResizingAnnotation: Bool = false
     private var annotationResizeHandle: ResizeHandle = .none
+    private var annotationResizeAnchorIndex: Int = -1  // index into anchorPoints for multi-anchor drag
     private var isRotatingAnnotation: Bool = false
     private var rotationStartAngle: CGFloat = 0
     private var rotationOriginal: CGFloat = 0
@@ -3251,6 +3252,17 @@ class OverlayView: NSView {
             curX += totalW + 10
         }
 
+        // ── Right-click hint for line/arrow multi-point ──
+        if currentTool == .line || currentTool == .arrow {
+            let hintStr = "Right-click to add points" as NSString
+            let hintAttrs: [NSAttributedString.Key: Any] = [
+                .font: NSFont.systemFont(ofSize: 9.5, weight: .medium),
+                .foregroundColor: NSColor.white.withAlphaComponent(0.3),
+            ]
+            let hintSize = hintStr.size(withAttributes: hintAttrs)
+            hintStr.draw(at: NSPoint(x: curX, y: rowRect.midY - hintSize.height / 2), withAttributes: hintAttrs)
+        }
+
         // ── Shape fill style segment control ──
         if currentTool == .rectangle || currentTool == .ellipse {
             optionsRectFillStyleRects = []
@@ -5723,22 +5735,23 @@ class OverlayView: NSView {
     private func drawAnnotationControls(for annotation: Annotation) {
         // Arrow, line, and measure: show only 2 endpoint handles, no bounding box
         if annotation.tool == .arrow || annotation.tool == .line || annotation.tool == .measure {
+            let pts = annotation.waypoints
             let s: CGFloat = 10
-            let startRect = NSRect(x: annotation.startPoint.x - s/2, y: annotation.startPoint.y - s/2, width: s, height: s)
-            let endRect   = NSRect(x: annotation.endPoint.x   - s/2, y: annotation.endPoint.y   - s/2, width: s, height: s)
-
-            // Middle bend handle: use actual controlPoint if set, otherwise visual midpoint
-            let midPt = annotation.controlPoint ?? NSPoint(
-                x: (annotation.startPoint.x + annotation.endPoint.x) / 2,
-                y: (annotation.startPoint.y + annotation.endPoint.y) / 2
-            )
             let sm: CGFloat = 8
-            let midRect = NSRect(x: midPt.x - sm/2, y: midPt.y - sm/2, width: sm, height: sm)
 
-            annotationResizeHandleRects = [(.bottomLeft, startRect), (.topRight, endRect), (.top, midRect)]
+            annotationResizeHandleRects = []
 
-            // Draw dashed line from endpoints to control point (only if bent)
-            if annotation.controlPoint != nil {
+            // Draw guide path through all waypoints
+            if pts.count > 2 {
+                let guidePath = NSBezierPath()
+                guidePath.lineWidth = 1
+                guidePath.setLineDash([3, 4], count: 2, phase: 0)
+                NSColor.white.withAlphaComponent(0.35).setStroke()
+                guidePath.move(to: pts[0])
+                for i in 1..<pts.count { guidePath.line(to: pts[i]) }
+                guidePath.stroke()
+            } else if annotation.controlPoint != nil {
+                let midPt = annotation.controlPoint!
                 let guidePath = NSBezierPath()
                 guidePath.lineWidth = 1
                 guidePath.setLineDash([3, 4], count: 2, phase: 0)
@@ -5749,6 +5762,12 @@ class OverlayView: NSView {
                 guidePath.stroke()
             }
 
+            // Endpoint handles (start = .bottomLeft, end = .topRight)
+            let startRect = NSRect(x: pts.first!.x - s/2, y: pts.first!.y - s/2, width: s, height: s)
+            let endRect = NSRect(x: pts.last!.x - s/2, y: pts.last!.y - s/2, width: s, height: s)
+            annotationResizeHandleRects.append((.bottomLeft, startRect))
+            annotationResizeHandleRects.append((.topRight, endRect))
+
             for rect in [startRect, endRect] {
                 ToolbarLayout.accentColor.setFill()
                 NSBezierPath(ovalIn: rect).fill()
@@ -5758,13 +5777,35 @@ class OverlayView: NSView {
                 border.stroke()
             }
 
-            // Mid handle: slightly different style (diamond-ish via smaller circle, white fill)
-            NSColor.white.withAlphaComponent(0.9).setFill()
-            NSBezierPath(ovalIn: midRect).fill()
-            ToolbarLayout.accentColor.setStroke()
-            let midBorder = NSBezierPath(ovalIn: midRect.insetBy(dx: 0.5, dy: 0.5))
-            midBorder.lineWidth = 1.5
-            midBorder.stroke()
+            // Intermediate anchor handles (use .top, .bottom, .left, .right, etc. as unique handle IDs)
+            let anchorHandleIDs: [ResizeHandle] = [.top, .bottom, .left, .right, .topLeft, .topRight, .bottomLeft, .bottomRight]
+            if pts.count > 2 {
+                for i in 1..<(pts.count - 1) {
+                    let handleID = i - 1 < anchorHandleIDs.count ? anchorHandleIDs[i - 1] : .top
+                    let midRect = NSRect(x: pts[i].x - sm/2, y: pts[i].y - sm/2, width: sm, height: sm)
+                    annotationResizeHandleRects.append((handleID, midRect))
+                    NSColor.white.withAlphaComponent(0.9).setFill()
+                    NSBezierPath(ovalIn: midRect).fill()
+                    ToolbarLayout.accentColor.setStroke()
+                    let midBorder = NSBezierPath(ovalIn: midRect.insetBy(dx: 0.5, dy: 0.5))
+                    midBorder.lineWidth = 1.5
+                    midBorder.stroke()
+                }
+            } else {
+                // Legacy single bend handle (or visual midpoint)
+                let midPt = annotation.controlPoint ?? NSPoint(
+                    x: (annotation.startPoint.x + annotation.endPoint.x) / 2,
+                    y: (annotation.startPoint.y + annotation.endPoint.y) / 2
+                )
+                let midRect = NSRect(x: midPt.x - sm/2, y: midPt.y - sm/2, width: sm, height: sm)
+                annotationResizeHandleRects.append((.top, midRect))
+                NSColor.white.withAlphaComponent(0.9).setFill()
+                NSBezierPath(ovalIn: midRect).fill()
+                ToolbarLayout.accentColor.setStroke()
+                let midBorder = NSBezierPath(ovalIn: midRect.insetBy(dx: 0.5, dy: 0.5))
+                midBorder.lineWidth = 1.5
+                midBorder.stroke()
+            }
 
             // Delete button near endPoint
             let btnSize: CGFloat = 20
@@ -6587,6 +6628,20 @@ class OverlayView: NSView {
                 needsDisplay = true
             }
             return
+        }
+
+        // Control-click on line/arrow: add anchor point (same as right-click)
+        if event.modifierFlags.contains(.control) && state == .selected {
+            if let ann = selectedAnnotation ?? hoveredAnnotation,
+               (ann.tool == .arrow || ann.tool == .line || ann.tool == .measure) {
+                let canvasPoint = viewToCanvas(point)
+                if ann.hitTest(point: canvasPoint) {
+                    addAnchorPoint(to: ann, at: canvasPoint)
+                    cachedCompositedImage = nil
+                    needsDisplay = true
+                    return
+                }
+            }
         }
 
         // Barcode bar button hit-test
@@ -7524,8 +7579,9 @@ class OverlayView: NSView {
 
                 let shiftHeld = event.modifierFlags.contains(.shift)
 
-                // Arrow/line/measure: .bottomLeft = startPoint, .topRight = endPoint, .top = controlPoint
+                // Arrow/line/measure: .bottomLeft = startPoint, .topRight = endPoint, others = anchor points
                 if annotation.tool == .arrow || annotation.tool == .line || annotation.tool == .measure {
+                    let newPt = NSPoint(x: annotationResizeOrigControlPoint.x + dx, y: annotationResizeOrigControlPoint.y + dy)
                     switch annotationResizeHandle {
                     case .bottomLeft:
                         var newStart = NSPoint(x: origStart.x + dx, y: origStart.y + dy)
@@ -7539,6 +7595,10 @@ class OverlayView: NSView {
                             newStart = NSPoint(x: anchor.x + dist * cos(snapped), y: anchor.y + dist * sin(snapped))
                         }
                         annotation.startPoint = newStart
+                        if var anchors = annotation.anchorPoints, !anchors.isEmpty {
+                            anchors[0] = newStart
+                            annotation.anchorPoints = anchors
+                        }
                     case .topRight:
                         var newEnd = NSPoint(x: origEnd.x + dx, y: origEnd.y + dy)
                         if shiftHeld {
@@ -7551,10 +7611,24 @@ class OverlayView: NSView {
                             newEnd = NSPoint(x: anchor.x + dist * cos(snapped), y: anchor.y + dist * sin(snapped))
                         }
                         annotation.endPoint = newEnd
-                    case .top:
-                        annotation.controlPoint = NSPoint(x: annotationResizeOrigControlPoint.x + dx, y: annotationResizeOrigControlPoint.y + dy)
+                        if var anchors = annotation.anchorPoints, anchors.count >= 2 {
+                            anchors[anchors.count - 1] = newEnd
+                            annotation.anchorPoints = anchors
+                        }
                     default:
-                        break
+                        // Dragging an anchor point (multi-anchor or legacy controlPoint)
+                        if annotationResizeAnchorIndex >= 0, var anchors = annotation.anchorPoints {
+                            if annotationResizeAnchorIndex < anchors.count {
+                                anchors[annotationResizeAnchorIndex] = newPt
+                                annotation.anchorPoints = anchors
+                                // Keep start/end in sync
+                                annotation.startPoint = anchors.first!
+                                annotation.endPoint = anchors.last!
+                            }
+                        } else {
+                            // Legacy single controlPoint
+                            annotation.controlPoint = newPt
+                        }
                     }
                 } else {
                 // Work in bounding-rect space so resize is correct regardless of draw direction
@@ -7881,6 +7955,20 @@ class OverlayView: NSView {
                 }
                 // Record button right-click removed — toggles are in recording toolbar
                 return
+            }
+        }
+
+        // Right-click on a selected/hovered line/arrow: add anchor point
+        if state == .selected {
+            if let ann = selectedAnnotation ?? hoveredAnnotation,
+               (ann.tool == .arrow || ann.tool == .line || ann.tool == .measure) {
+                let canvasPoint = viewToCanvas(point)
+                if ann.hitTest(point: canvasPoint) {
+                    addAnchorPoint(to: ann, at: canvasPoint)
+                    cachedCompositedImage = nil
+                    needsDisplay = true
+                    return
+                }
             }
         }
 
@@ -8423,7 +8511,8 @@ class OverlayView: NSView {
                 } else {
                     handleTestPoint = point
                 }
-                for (handle, rect) in annotationResizeHandleRects {
+                for (handleIdx, handleEntry) in annotationResizeHandleRects.enumerated() {
+                    let (handle, rect) = handleEntry
                     if rect.insetBy(dx: -4, dy: -4).contains(handleTestPoint) {
                         isResizingAnnotation = true
                         annotationResizeHandle = handle
@@ -8431,8 +8520,16 @@ class OverlayView: NSView {
                         annotationResizeOrigEnd = selected.endPoint
                         annotationResizeOrigTextOrigin = selected.textDrawRect.origin
                         annotationResizeMouseStart = point
-                        // For control point handle: capture current cp or visual midpoint
-                        if handle == .top {
+                        // For multi-anchor: handleIdx 0=start, 1=end, 2+=intermediate anchors
+                        annotationResizeAnchorIndex = -1
+                        if let anchors = selected.anchorPoints, anchors.count >= 3, handleIdx >= 2 {
+                            let anchorIdx = handleIdx - 2 + 1  // anchors[0]=start, so intermediate starts at 1
+                            if anchorIdx > 0 && anchorIdx < anchors.count - 1 {
+                                annotationResizeAnchorIndex = anchorIdx
+                                annotationResizeOrigControlPoint = anchors[anchorIdx]
+                            }
+                        } else if handle != .bottomLeft && handle != .topRight {
+                            // Legacy single controlPoint
                             annotationResizeOrigControlPoint = selected.controlPoint ?? NSPoint(
                                 x: (selected.startPoint.x + selected.endPoint.x) / 2,
                                 y: (selected.startPoint.y + selected.endPoint.y) / 2
@@ -8477,7 +8574,8 @@ class OverlayView: NSView {
                 hoverHandlePoint = point
             }
             // Check resize handles of the hovered annotation (populated by drawAnnotationControls)
-            for (handle, rect) in annotationResizeHandleRects {
+            for (handleIdx, handleEntry) in annotationResizeHandleRects.enumerated() {
+                let (handle, rect) = handleEntry
                 if rect.insetBy(dx: -4, dy: -4).contains(hoverHandlePoint) {
                     selectedAnnotation = hovered
                     isResizingAnnotation = true
@@ -8486,7 +8584,15 @@ class OverlayView: NSView {
                     annotationResizeOrigEnd = hovered.endPoint
                     annotationResizeOrigTextOrigin = hovered.textDrawRect.origin
                     annotationResizeMouseStart = point
-                    if handle == .top {
+                    // Capture anchor index for multi-anchor drag
+                    annotationResizeAnchorIndex = -1
+                    if let anchors = hovered.anchorPoints, anchors.count >= 3, handleIdx >= 2 {
+                        let anchorIdx = handleIdx - 2 + 1
+                        if anchorIdx > 0 && anchorIdx < anchors.count - 1 {
+                            annotationResizeAnchorIndex = anchorIdx
+                            annotationResizeOrigControlPoint = anchors[anchorIdx]
+                        }
+                    } else if handle != .bottomLeft && handle != .topRight {
                         annotationResizeOrigControlPoint = hovered.controlPoint ?? NSPoint(
                             x: (hovered.startPoint.x + hovered.endPoint.x) / 2,
                             y: (hovered.startPoint.y + hovered.endPoint.y) / 2
@@ -9090,6 +9196,50 @@ class OverlayView: NSView {
     }
 
     // MARK: - Context Menu Actions
+
+    /// Add an anchor point to a line/arrow annotation at the position closest to `canvasPoint`.
+    /// Inserts the point between the two nearest existing waypoints.
+    private func addAnchorPoint(to annotation: Annotation, at canvasPoint: NSPoint) {
+        var pts = annotation.waypoints
+
+        // Find which segment the point is closest to, and insert there
+        var bestIdx = 1
+        var bestDist = CGFloat.greatestFiniteMagnitude
+        for i in 1..<pts.count {
+            let d = distanceToSegment(point: canvasPoint, from: pts[i-1], to: pts[i])
+            if d < bestDist {
+                bestDist = d
+                bestIdx = i
+            }
+        }
+
+        // Project the point onto the segment for exact placement
+        let a = pts[bestIdx - 1]
+        let b = pts[bestIdx]
+        let dx = b.x - a.x, dy = b.y - a.y
+        let lenSq = dx * dx + dy * dy
+        let t: CGFloat = lenSq < 0.001 ? 0.5 : max(0.05, min(0.95, ((canvasPoint.x - a.x) * dx + (canvasPoint.y - a.y) * dy) / lenSq))
+        let projected = NSPoint(x: a.x + t * dx, y: a.y + t * dy)
+
+        pts.insert(projected, at: bestIdx)
+
+        // Store as anchorPoints, update startPoint/endPoint to match
+        annotation.anchorPoints = pts
+        annotation.startPoint = pts.first!
+        annotation.endPoint = pts.last!
+        // Clear legacy controlPoint since we're using anchorPoints now
+        annotation.controlPoint = nil
+    }
+
+    private func distanceToSegment(point: NSPoint, from a: NSPoint, to b: NSPoint) -> CGFloat {
+        let dx = b.x - a.x, dy = b.y - a.y
+        let lenSq = dx * dx + dy * dy
+        if lenSq < 0.001 { return hypot(point.x - a.x, point.y - a.y) }
+        var t = ((point.x - a.x) * dx + (point.y - a.y) * dy) / lenSq
+        t = max(0, min(1, t))
+        let proj = NSPoint(x: a.x + t * dx, y: a.y + t * dy)
+        return hypot(point.x - proj.x, point.y - proj.y)
+    }
 
     @objc private func saveAsMenuAction() {
         overlayDelegate?.overlayViewDidRequestSave()

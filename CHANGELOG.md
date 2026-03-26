@@ -1,5 +1,20 @@
 # Changelog
 
+## [3.2.4] - 2026-03-26
+
+### Added
+- **Multi-anchor lines & arrows** — right-click (or Control-click) any line or arrow annotation to add anchor points. Drag individual anchors to create complex curves through multiple waypoints. Smooth Catmull-Rom spline rendering through all points.
+- **Share button** — new share button in the right toolbar opens the native macOS sharing menu (AirDrop, Messages, Mail, etc.)
+- **Number format options** — number annotations now support four formats: numeric (1, 2, 3), uppercase Roman (I, II, III), uppercase letters (A, B, C), and lowercase letters (a, b, c). Start-at value adjustable via stepper in the options row.
+- **"Right-click to add points" hint** — subtle hint text in the secondary toolbar when line or arrow tools are selected
+
+### Changed
+- **Loupe performance** — loupe annotations now use the raw screenshot instead of the composited image, eliminating O(n²) re-rendering lag when placing multiple loupes
+- **Delay capture moved to menu bar** — the per-capture delay toolbar button has been removed. Delay is now a persistent setting in the menu bar only.
+
+### Fixed
+- **Annotation bounding rect** — bounding rectangle now accounts for all anchor points and control points, fixing hit-testing and selection for complex curved annotations
+
 ## [3.2.3] - 2026-03-26
 
 ### Added

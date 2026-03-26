@@ -166,7 +166,23 @@ class Annotation {
             return false
         }
     }
-    var controlPoint: NSPoint? = nil  // optional bend point for line/arrow
+    var controlPoint: NSPoint? = nil  // optional bend point for line/arrow (legacy single bend)
+    /// Ordered waypoints for multi-anchor lines/arrows: [start, anchor1, anchor2, ..., end].
+    /// When set, overrides startPoint/endPoint/controlPoint for rendering.
+    var anchorPoints: [NSPoint]?
+
+    /// Returns the full ordered path: anchorPoints if set, otherwise [start, end].
+    /// Legacy controlPoint is NOT included — it uses the original bezier rendering.
+    var waypoints: [NSPoint] {
+        if let anchors = anchorPoints, anchors.count >= 2 {
+            return anchors
+        }
+        return [startPoint, endPoint]
+    }
+
+    /// Whether this annotation uses multi-anchor points (vs legacy single bend).
+    var hasMultiAnchor: Bool { anchorPoints != nil && (anchorPoints?.count ?? 0) >= 3 }
+
     var isRounded: Bool = false       // legacy — kept for compat, see rectCornerRadius
     var rectCornerRadius: CGFloat = 0 // 0..30, actual corner radius for rect tools
     var lineStyle: LineStyle = .solid // line/arrow/rect/ellipse stroke style
@@ -205,6 +221,7 @@ class Annotation {
         c.isStrikethrough = isStrikethrough
         c.rotation = rotation
         c.controlPoint = controlPoint
+        c.anchorPoints = anchorPoints
         c.isRounded = isRounded
         c.rectCornerRadius = rectCornerRadius
         c.lineStyle = lineStyle
@@ -220,12 +237,21 @@ class Annotation {
     }
 
     var boundingRect: NSRect {
-        return NSRect(
-            x: min(startPoint.x, endPoint.x),
-            y: min(startPoint.y, endPoint.y),
-            width: abs(endPoint.x - startPoint.x),
-            height: abs(endPoint.y - startPoint.y)
-        )
+        var minX = min(startPoint.x, endPoint.x)
+        var minY = min(startPoint.y, endPoint.y)
+        var maxX = max(startPoint.x, endPoint.x)
+        var maxY = max(startPoint.y, endPoint.y)
+        if let anchors = anchorPoints {
+            for p in anchors {
+                minX = min(minX, p.x); minY = min(minY, p.y)
+                maxX = max(maxX, p.x); maxY = max(maxY, p.y)
+            }
+        }
+        if let cp = controlPoint {
+            minX = min(minX, cp.x); minY = min(minY, cp.y)
+            maxX = max(maxX, cp.x); maxY = max(maxY, cp.y)
+        }
+        return NSRect(x: minX, y: minY, width: maxX - minX, height: maxY - minY)
     }
 
     /// Whether this annotation type can be moved
@@ -250,21 +276,29 @@ class Annotation {
             }
             return false
         case .line, .measure:
+            if hasMultiAnchor {
+                return distanceToPolyline(point: point, waypoints: waypoints) < threshold
+            }
             if let cp = controlPoint {
                 return distanceToQuadCurve(point: point, from: startPoint, control: cp, to: endPoint) < threshold
             }
             return distanceToLineSegment(point: point, from: startPoint, to: endPoint) < threshold
         case .arrow:
             if arrowStyle == .thick {
-                // Use distance to the center line with a threshold based on the shape width
                 let totalLen = hypot(endPoint.x - startPoint.x, endPoint.y - startPoint.y)
                 let sizeScale = min(1.0, max(0.2, totalLen / 120))
-                let shapeWidth = max(6, strokeWidth * 2.5) * sizeScale * 2.2  // headHalf
+                let shapeWidth = max(6, strokeWidth * 2.5) * sizeScale * 2.2
                 let hitThreshold = max(threshold, shapeWidth)
+                if hasMultiAnchor {
+                    return distanceToPolyline(point: point, waypoints: waypoints) < hitThreshold
+                }
                 if let cp = controlPoint {
                     return distanceToQuadCurve(point: point, from: startPoint, control: cp, to: endPoint) < hitThreshold
                 }
                 return distanceToLineSegment(point: point, from: startPoint, to: endPoint) < hitThreshold
+            }
+            if hasMultiAnchor {
+                return distanceToPolyline(point: point, waypoints: waypoints) < threshold
             }
             if let cp = controlPoint {
                 return distanceToQuadCurve(point: point, from: startPoint, control: cp, to: endPoint) < threshold
@@ -333,6 +367,13 @@ class Annotation {
         if var cp = controlPoint {
             cp.x += dx; cp.y += dy
             controlPoint = cp
+        }
+        if var anchors = anchorPoints {
+            for i in 0..<anchors.count {
+                anchors[i].x += dx
+                anchors[i].y += dy
+            }
+            anchorPoints = anchors
         }
         // If it's a loupe, we need to clear the baked image so it re-renders the new magnified area
         if tool == .loupe {
@@ -416,6 +457,43 @@ class Annotation {
         t = max(0, min(1, t))
         let proj = NSPoint(x: a.x + t * dx, y: a.y + t * dy)
         return hypot(point.x - proj.x, point.y - proj.y)
+    }
+
+    /// Minimum distance from a point to the smooth curve through waypoints.
+    private func distanceToPolyline(point: NSPoint, waypoints pts: [NSPoint]) -> CGFloat {
+        guard pts.count >= 2 else { return .greatestFiniteMagnitude }
+        if pts.count == 2 {
+            return distanceToLineSegment(point: point, from: pts[0], to: pts[1])
+        }
+        // Sample the Catmull-Rom spline for distance check
+        let steps = pts.count * 15
+        var minDist = CGFloat.greatestFiniteMagnitude
+        var prev = pts[0]
+        for s in 1...steps {
+            let t = CGFloat(s) / CGFloat(steps)
+            let totalSegments = CGFloat(pts.count - 1)
+            let segF = t * totalSegments
+            let seg = min(Int(segF), pts.count - 2)
+            let localT = segF - CGFloat(seg)
+
+            let p0 = seg > 0 ? pts[seg - 1] : pts[seg]
+            let p1 = pts[seg]
+            let p2 = pts[seg + 1]
+            let p3 = seg + 2 < pts.count ? pts[seg + 2] : pts[seg + 1]
+
+            let cp1 = NSPoint(x: p1.x + (p2.x - p0.x) / 6, y: p1.y + (p2.y - p0.y) / 6)
+            let cp2 = NSPoint(x: p2.x - (p3.x - p1.x) / 6, y: p2.y - (p3.y - p1.y) / 6)
+
+            let u = 1 - localT
+            let px = u*u*u*p1.x + 3*u*u*localT*cp1.x + 3*u*localT*localT*cp2.x + localT*localT*localT*p2.x
+            let py = u*u*u*p1.y + 3*u*u*localT*cp1.y + 3*u*localT*localT*cp2.y + localT*localT*localT*p2.y
+            let cur = NSPoint(x: px, y: py)
+
+            let d = distanceToLineSegment(point: point, from: prev, to: cur)
+            if d < minDist { minDist = d }
+            prev = cur
+        }
+        return minDist
     }
 
     func draw(in context: NSGraphicsContext) {
@@ -546,7 +624,82 @@ class Annotation {
         ctx.setAlpha(1.0)
     }
 
+    /// Build a smooth Catmull-Rom spline path through the given points.
+    /// For 2 points: straight line. For 3+: smooth curves through all points.
+    private static func smoothPath(through pts: [NSPoint]) -> NSBezierPath {
+        let path = NSBezierPath()
+        guard pts.count >= 2 else { return path }
+        path.move(to: pts[0])
+        if pts.count == 2 {
+            path.line(to: pts[1])
+            return path
+        }
+        // Catmull-Rom → cubic Bezier conversion
+        // For each segment i→i+1, compute control points from surrounding points
+        for i in 0..<(pts.count - 1) {
+            let p0 = i > 0 ? pts[i - 1] : pts[i]
+            let p1 = pts[i]
+            let p2 = pts[i + 1]
+            let p3 = i + 2 < pts.count ? pts[i + 2] : pts[i + 1]
+
+            let cp1 = NSPoint(x: p1.x + (p2.x - p0.x) / 6, y: p1.y + (p2.y - p0.y) / 6)
+            let cp2 = NSPoint(x: p2.x - (p3.x - p1.x) / 6, y: p2.y - (p3.y - p1.y) / 6)
+            path.curve(to: p2, controlPoint1: cp1, controlPoint2: cp2)
+        }
+        return path
+    }
+
+    /// Approximate length of a smooth path through waypoints.
+    private static func smoothPathLength(_ pts: [NSPoint]) -> CGFloat {
+        guard pts.count >= 2 else { return 0 }
+        if pts.count == 2 {
+            return hypot(pts[1].x - pts[0].x, pts[1].y - pts[0].y)
+        }
+        // Sample the Catmull-Rom spline
+        let steps = pts.count * 20
+        var length: CGFloat = 0
+        var prev = pts[0]
+        for s in 1...steps {
+            let t = CGFloat(s) / CGFloat(steps)
+            let totalSegments = CGFloat(pts.count - 1)
+            let segF = t * totalSegments
+            let seg = min(Int(segF), pts.count - 2)
+            let localT = segF - CGFloat(seg)
+
+            let p0 = seg > 0 ? pts[seg - 1] : pts[seg]
+            let p1 = pts[seg]
+            let p2 = pts[seg + 1]
+            let p3 = seg + 2 < pts.count ? pts[seg + 2] : pts[seg + 1]
+
+            let cp1 = NSPoint(x: p1.x + (p2.x - p0.x) / 6, y: p1.y + (p2.y - p0.y) / 6)
+            let cp2 = NSPoint(x: p2.x - (p3.x - p1.x) / 6, y: p2.y - (p3.y - p1.y) / 6)
+
+            let u = 1 - localT
+            let px = u*u*u*p1.x + 3*u*u*localT*cp1.x + 3*u*localT*localT*cp2.x + localT*localT*localT*p2.x
+            let py = u*u*u*p1.y + 3*u*u*localT*cp1.y + 3*u*localT*localT*cp2.y + localT*localT*localT*p2.y
+            let cur = NSPoint(x: px, y: py)
+            length += hypot(cur.x - prev.x, cur.y - prev.y)
+            prev = cur
+        }
+        return length
+    }
+
     private func drawStraightLine() {
+        // Multi-anchor: smooth Catmull-Rom spline
+        if hasMultiAnchor {
+            let pts = waypoints
+            let path = Self.smoothPath(through: pts)
+            path.lineWidth = strokeWidth
+            path.lineCapStyle = .round
+            if lineStyle != .solid {
+                lineStyle.applyFitted(to: path, pathLength: Self.smoothPathLength(pts))
+            }
+            color.setStroke()
+            path.stroke()
+            return
+        }
+
+        // Legacy: straight line or single bezier bend
         let path = NSBezierPath()
         path.lineWidth = strokeWidth
         path.lineCapStyle = .round
@@ -576,66 +729,84 @@ class Annotation {
             return
         }
 
+        let pts = waypoints
+        guard pts.count >= 2 else { return }
+        let firstPt = pts.first!
+        let lastPt = pts.last!
+
         let fullArrowLen: CGFloat = max(14, strokeWidth * 5)
-        let totalLen = hypot(endPoint.x - startPoint.x, endPoint.y - startPoint.y)
+        let totalLen = hypot(lastPt.x - firstPt.x, lastPt.y - firstPt.y)
         let maxHead = totalLen * 0.45
         let arrowLen: CGFloat = min(fullArrowLen, max(4, maxHead))
         let arrowAngle: CGFloat = .pi / 6
 
-        // End arrowhead geometry
+        // End arrowhead angle
         let endAngle: CGFloat
-        if let cp = controlPoint {
-            endAngle = atan2(endPoint.y - cp.y, endPoint.x - cp.x)
+        if hasMultiAnchor {
+            let preLast = pts.count >= 2 ? pts[pts.count - 2] : firstPt
+            endAngle = atan2(lastPt.y - preLast.y, lastPt.x - preLast.x)
+        } else if let cp = controlPoint {
+            endAngle = atan2(lastPt.y - cp.y, lastPt.x - cp.x)
         } else {
-            endAngle = atan2(endPoint.y - startPoint.y, endPoint.x - startPoint.x)
+            endAngle = atan2(lastPt.y - firstPt.y, lastPt.x - firstPt.x)
         }
-        let ep1 = NSPoint(x: endPoint.x - arrowLen * cos(endAngle - arrowAngle),
-                           y: endPoint.y - arrowLen * sin(endAngle - arrowAngle))
-        let ep2 = NSPoint(x: endPoint.x - arrowLen * cos(endAngle + arrowAngle),
-                           y: endPoint.y - arrowLen * sin(endAngle + arrowAngle))
+        let ep1 = NSPoint(x: lastPt.x - arrowLen * cos(endAngle - arrowAngle),
+                           y: lastPt.y - arrowLen * sin(endAngle - arrowAngle))
+        let ep2 = NSPoint(x: lastPt.x - arrowLen * cos(endAngle + arrowAngle),
+                           y: lastPt.y - arrowLen * sin(endAngle + arrowAngle))
         let endBase = NSPoint(x: (ep1.x + ep2.x) / 2, y: (ep1.y + ep2.y) / 2)
 
         // Start arrowhead geometry (for double style)
-        var startBase = startPoint
-        var sp1 = startPoint, sp2 = startPoint
+        var startBase = firstPt
+        var sp1 = firstPt, sp2 = firstPt
         if arrowStyle == .double {
             let startAngle: CGFloat
-            if let cp = controlPoint {
-                startAngle = atan2(startPoint.y - cp.y, startPoint.x - cp.x)
+            if hasMultiAnchor {
+                let postFirst = pts.count >= 2 ? pts[1] : lastPt
+                startAngle = atan2(firstPt.y - postFirst.y, firstPt.x - postFirst.x)
+            } else if let cp = controlPoint {
+                startAngle = atan2(firstPt.y - cp.y, firstPt.x - cp.x)
             } else {
-                startAngle = atan2(startPoint.y - endPoint.y, startPoint.x - endPoint.x)
+                startAngle = atan2(firstPt.y - lastPt.y, firstPt.x - lastPt.x)
             }
-            sp1 = NSPoint(x: startPoint.x - arrowLen * cos(startAngle - arrowAngle),
-                           y: startPoint.y - arrowLen * sin(startAngle - arrowAngle))
-            sp2 = NSPoint(x: startPoint.x - arrowLen * cos(startAngle + arrowAngle),
-                           y: startPoint.y - arrowLen * sin(startAngle + arrowAngle))
+            sp1 = NSPoint(x: firstPt.x - arrowLen * cos(startAngle - arrowAngle),
+                           y: firstPt.y - arrowLen * sin(startAngle - arrowAngle))
+            sp2 = NSPoint(x: firstPt.x - arrowLen * cos(startAngle + arrowAngle),
+                           y: firstPt.y - arrowLen * sin(startAngle + arrowAngle))
             startBase = NSPoint(x: (sp1.x + sp2.x) / 2, y: (sp1.y + sp2.y) / 2)
         }
 
         // Tail circle radius
         let tailRadius: CGFloat = max(4, strokeWidth * 2)
-        let lineStart = arrowStyle == .double ? startBase : startPoint
+        let lineStart = arrowStyle == .double ? startBase : firstPt
 
         // Draw the line shaft
-        let path = NSBezierPath()
+        let path: NSBezierPath
+        if hasMultiAnchor {
+            // Multi-anchor: smooth Catmull-Rom spline
+            var shaftPts = pts
+            shaftPts[0] = lineStart
+            shaftPts[shaftPts.count - 1] = endBase
+            path = Self.smoothPath(through: shaftPts)
+        } else {
+            // Legacy: straight or single bezier bend
+            path = NSBezierPath()
+            path.move(to: lineStart)
+            if let cp = controlPoint {
+                path.curve(to: endBase, controlPoint1: cp, controlPoint2: cp)
+            } else {
+                path.line(to: endBase)
+            }
+        }
         path.lineWidth = strokeWidth
         path.lineCapStyle = .round
         if lineStyle != .solid {
-            let length: CGFloat
-            if let cp = controlPoint {
-                length = Annotation.approxBezierLength(from: lineStart, cp1: cp, cp2: cp, to: endBase)
-            } else {
-                length = hypot(endBase.x - lineStart.x, endBase.y - lineStart.y)
-            }
+            let length = hasMultiAnchor ? Self.smoothPathLength(pts) :
+                (controlPoint != nil ? Annotation.approxBezierLength(from: lineStart, cp1: controlPoint!, cp2: controlPoint!, to: endBase) :
+                 hypot(endBase.x - lineStart.x, endBase.y - lineStart.y))
             lineStyle.applyFitted(to: path, pathLength: length)
         }
         color.setStroke()
-        path.move(to: lineStart)
-        if let cp = controlPoint {
-            path.curve(to: endBase, controlPoint1: cp, controlPoint2: cp)
-        } else {
-            path.line(to: endBase)
-        }
         path.stroke()
 
         // Draw arrowhead(s)
@@ -644,20 +815,20 @@ class Annotation {
         switch arrowStyle {
         case .single, .tail:
             let head = NSBezierPath()
-            head.move(to: endPoint)
+            head.move(to: lastPt)
             head.line(to: ep1)
             head.line(to: ep2)
             head.close()
             head.fill()
         case .double:
             let endHead = NSBezierPath()
-            endHead.move(to: endPoint)
+            endHead.move(to: lastPt)
             endHead.line(to: ep1)
             endHead.line(to: ep2)
             endHead.close()
             endHead.fill()
             let startHead = NSBezierPath()
-            startHead.move(to: startPoint)
+            startHead.move(to: firstPt)
             startHead.line(to: sp1)
             startHead.line(to: sp2)
             startHead.close()
@@ -668,7 +839,7 @@ class Annotation {
             head.lineCapStyle = .round
             head.lineJoinStyle = .round
             head.move(to: ep1)
-            head.line(to: endPoint)
+            head.line(to: lastPt)
             head.line(to: ep2)
             head.stroke()
         case .thick:
@@ -677,29 +848,82 @@ class Annotation {
 
         // Tail: circle at start
         if arrowStyle == .tail {
-            let circleRect = NSRect(x: startPoint.x - tailRadius, y: startPoint.y - tailRadius,
+            let circleRect = NSRect(x: firstPt.x - tailRadius, y: firstPt.y - tailRadius,
                                     width: tailRadius * 2, height: tailRadius * 2)
             NSBezierPath(ovalIn: circleRect).fill()
         }
     }
 
+    /// Sample a point and tangent along the annotation's curve at parameter t (0..1).
+    /// Works for legacy bezier (controlPoint) and multi-anchor (Catmull-Rom).
+    /// Returns (position, tangent) where tangent is unnormalized.
+    private func sampleCurve(t: CGFloat, from start: NSPoint, to end: NSPoint) -> (pos: NSPoint, tan: NSPoint) {
+        if hasMultiAnchor {
+            let pts = waypoints
+            let totalSegs = CGFloat(pts.count - 1)
+            let segF = t * totalSegs
+            let seg = min(Int(segF), pts.count - 2)
+            let lt = segF - CGFloat(seg)
+
+            let p0 = seg > 0 ? pts[seg - 1] : pts[seg]
+            let p1 = pts[seg]
+            let p2 = pts[seg + 1]
+            let p3 = seg + 2 < pts.count ? pts[seg + 2] : pts[seg + 1]
+
+            let cp1 = NSPoint(x: p1.x + (p2.x - p0.x) / 6, y: p1.y + (p2.y - p0.y) / 6)
+            let cp2 = NSPoint(x: p2.x - (p3.x - p1.x) / 6, y: p2.y - (p3.y - p1.y) / 6)
+
+            let u = 1 - lt
+            let px = u*u*u*p1.x + 3*u*u*lt*cp1.x + 3*u*lt*lt*cp2.x + lt*lt*lt*p2.x
+            let py = u*u*u*p1.y + 3*u*u*lt*cp1.y + 3*u*lt*lt*cp2.y + lt*lt*lt*p2.y
+            // Derivative of cubic bezier
+            let tx = 3*u*u*(cp1.x-p1.x) + 6*u*lt*(cp2.x-cp1.x) + 3*lt*lt*(p2.x-cp2.x)
+            let ty = 3*u*u*(cp1.y-p1.y) + 6*u*lt*(cp2.y-cp1.y) + 3*lt*lt*(p2.y-cp2.y)
+            return (NSPoint(x: px, y: py), NSPoint(x: tx, y: ty))
+        } else if let cp = controlPoint {
+            // Legacy quadratic bezier (cp1 == cp2)
+            let mt = 1 - t
+            let bx = mt * mt * start.x + 2 * mt * t * cp.x + t * t * end.x
+            let by = mt * mt * start.y + 2 * mt * t * cp.y + t * t * end.y
+            let tx = 2 * mt * (cp.x - start.x) + 2 * t * (end.x - cp.x)
+            let ty = 2 * mt * (cp.y - start.y) + 2 * t * (end.y - cp.y)
+            return (NSPoint(x: bx, y: by), NSPoint(x: tx, y: ty))
+        } else {
+            // Straight line
+            let bx = start.x + t * (end.x - start.x)
+            let by = start.y + t * (end.y - start.y)
+            let tx = end.x - start.x
+            let ty = end.y - start.y
+            return (NSPoint(x: bx, y: by), NSPoint(x: tx, y: ty))
+        }
+    }
+
     private func drawThickArrow() {
-        let totalLen = hypot(endPoint.x - startPoint.x, endPoint.y - startPoint.y)
+        let pts = waypoints
+        let firstPt = pts.first ?? startPoint
+        let lastPt = pts.last ?? endPoint
+        let totalLen = hasMultiAnchor ? Self.smoothPathLength(pts) : hypot(lastPt.x - firstPt.x, lastPt.y - firstPt.y)
         guard totalLen > 1 else { return }
 
-        // Arrival angle at endPoint (accounts for bend)
+        // End angle: direction of the last segment approaching the tip
+        let preLast = pts.count >= 2 ? pts[pts.count - 2] : firstPt
         let endAngle: CGFloat
-        if let cp = controlPoint {
-            endAngle = atan2(endPoint.y - cp.y, endPoint.x - cp.x)
+        if hasMultiAnchor {
+            endAngle = atan2(lastPt.y - preLast.y, lastPt.x - preLast.x)
+        } else if let cp = controlPoint {
+            endAngle = atan2(lastPt.y - cp.y, lastPt.x - cp.x)
         } else {
-            endAngle = atan2(endPoint.y - startPoint.y, endPoint.x - startPoint.x)
+            endAngle = atan2(lastPt.y - firstPt.y, lastPt.x - firstPt.x)
         }
         let epx = -sin(endAngle), epy = cos(endAngle)
 
-        // Departure angle at startPoint
+        // Start angle: direction leaving the tail
+        let postFirst = pts.count >= 2 ? pts[1] : lastPt
         let startAngle: CGFloat
-        if let cp = controlPoint {
-            startAngle = atan2(cp.y - startPoint.y, cp.x - startPoint.x)
+        if hasMultiAnchor {
+            startAngle = atan2(postFirst.y - firstPt.y, postFirst.x - firstPt.x)
+        } else if let cp = controlPoint {
+            startAngle = atan2(cp.y - firstPt.y, cp.x - firstPt.x)
         } else {
             startAngle = endAngle
         }
@@ -714,30 +938,51 @@ class Annotation {
         let r: CGFloat = min(headLen * 0.22, headHalf * 0.3)  // corner rounding
 
         // Head base point
-        let headBase = NSPoint(x: endPoint.x - headLen * cos(endAngle),
-                               y: endPoint.y - headLen * sin(endAngle))
+        let headBase = NSPoint(x: lastPt.x - headLen * cos(endAngle),
+                               y: lastPt.y - headLen * sin(endAngle))
 
         // Sample points along the shaft (tail → headBase), offset perpendicular for taper
-        // Works for both straight and bent arrows
-        let steps = 64
+        // More samples for multi-anchor curves to avoid self-intersection at tight bends
+        let steps = hasMultiAnchor ? max(64, pts.count * 32) : 64
         var leftPts: [NSPoint] = []
         var rightPts: [NSPoint] = []
 
         for i in 0...steps {
             let t = CGFloat(i) / CGFloat(steps)
             let bx, by, tx, ty: CGFloat
-            if let cp = controlPoint {
+
+            if hasMultiAnchor {
+                // Sample a modified curve where the last point is headBase
+                var shaftPts = pts
+                shaftPts[shaftPts.count - 1] = headBase
+                let totalSegs = CGFloat(shaftPts.count - 1)
+                let segF = t * totalSegs
+                let seg = min(Int(segF), shaftPts.count - 2)
+                let lt = segF - CGFloat(seg)
+                let p0 = seg > 0 ? shaftPts[seg - 1] : shaftPts[seg]
+                let p1 = shaftPts[seg]
+                let p2 = shaftPts[seg + 1]
+                let p3 = seg + 2 < shaftPts.count ? shaftPts[seg + 2] : shaftPts[seg + 1]
+                let cp1 = NSPoint(x: p1.x + (p2.x - p0.x) / 6, y: p1.y + (p2.y - p0.y) / 6)
+                let cp2 = NSPoint(x: p2.x - (p3.x - p1.x) / 6, y: p2.y - (p3.y - p1.y) / 6)
+                let u = 1 - lt
+                bx = u*u*u*p1.x + 3*u*u*lt*cp1.x + 3*u*lt*lt*cp2.x + lt*lt*lt*p2.x
+                by = u*u*u*p1.y + 3*u*u*lt*cp1.y + 3*u*lt*lt*cp2.y + lt*lt*lt*p2.y
+                tx = 3*u*u*(cp1.x-p1.x) + 6*u*lt*(cp2.x-cp1.x) + 3*lt*lt*(p2.x-cp2.x)
+                ty = 3*u*u*(cp1.y-p1.y) + 6*u*lt*(cp2.y-cp1.y) + 3*lt*lt*(p2.y-cp2.y)
+            } else if let cp = controlPoint {
                 let mt = 1.0 - t
-                bx = mt * mt * startPoint.x + 2 * mt * t * cp.x + t * t * headBase.x
-                by = mt * mt * startPoint.y + 2 * mt * t * cp.y + t * t * headBase.y
-                tx = 2 * (1 - t) * (cp.x - startPoint.x) + 2 * t * (headBase.x - cp.x)
-                ty = 2 * (1 - t) * (cp.y - startPoint.y) + 2 * t * (headBase.y - cp.y)
+                bx = mt * mt * firstPt.x + 2 * mt * t * cp.x + t * t * headBase.x
+                by = mt * mt * firstPt.y + 2 * mt * t * cp.y + t * t * headBase.y
+                tx = 2 * (1 - t) * (cp.x - firstPt.x) + 2 * t * (headBase.x - cp.x)
+                ty = 2 * (1 - t) * (cp.y - firstPt.y) + 2 * t * (headBase.y - cp.y)
             } else {
-                bx = startPoint.x + t * (headBase.x - startPoint.x)
-                by = startPoint.y + t * (headBase.y - startPoint.y)
-                tx = headBase.x - startPoint.x
-                ty = headBase.y - startPoint.y
+                bx = firstPt.x + t * (headBase.x - firstPt.x)
+                by = firstPt.y + t * (headBase.y - firstPt.y)
+                tx = headBase.x - firstPt.x
+                ty = headBase.y - firstPt.y
             }
+
             let tLen = max(hypot(tx, ty), 0.001)
             let nx = -ty / tLen, ny = tx / tLen
             let half = tailHalf + (shaftHalf - tailHalf) * t
@@ -746,6 +991,7 @@ class Annotation {
         }
 
         // Head wing points (the 3 triangle corners)
+        let endPoint = lastPt
         let headLeft  = NSPoint(x: headBase.x + epx * headHalf, y: headBase.y + epy * headHalf)
         let headRight = NSPoint(x: headBase.x - epx * headHalf, y: headBase.y - epy * headHalf)
         let shaftLeftEnd  = leftPts.last!
