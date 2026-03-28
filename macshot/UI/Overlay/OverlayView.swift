@@ -165,50 +165,7 @@ class OverlayView: NSView {
     // Text editing — state managed by TextEditingController
     let textEditor = TextEditingController()
     var textEditView: NSTextView? { textEditor.textView }
-    var textFontSize: CGFloat {
-        get { textEditor.fontSize }
-        set { textEditor.fontSize = newValue }
-    }
-    var textBold: Bool {
-        get { textEditor.bold }
-        set { textEditor.bold = newValue }
-    }
-    var textItalic: Bool {
-        get { textEditor.italic }
-        set { textEditor.italic = newValue }
-    }
-    var textUnderline: Bool {
-        get { textEditor.underline }
-        set { textEditor.underline = newValue }
-    }
-    var textStrikethrough: Bool {
-        get { textEditor.strikethrough }
-        set { textEditor.strikethrough = newValue }
-    }
-    var textFontFamily: String {
-        get { textEditor.fontFamily }
-        set { textEditor.fontFamily = newValue }
-    }
-    var textAlignment: NSTextAlignment {
-        get { textEditor.alignment }
-        set { textEditor.alignment = newValue }
-    }
-    var textBgEnabled: Bool {
-        get { textEditor.bgEnabled }
-        set { textEditor.bgEnabled = newValue }
-    }
-    var textOutlineEnabled: Bool {
-        get { textEditor.outlineEnabled }
-        set { textEditor.outlineEnabled = newValue }
-    }
-    private var textBgColorValue: NSColor {
-        get { textEditor.bgColor }
-        set { textEditor.bgColor = newValue }
-    }
-    private var textOutlineColorValue: NSColor {
-        get { textEditor.outlineColor }
-        set { textEditor.outlineColor = newValue }
-    }
+
     // Text box resize state (stays here — tied to mouse drag handling)
     private var isResizingTextBox: Bool = false
     private var textBoxResizeHandle: ResizeHandle = .none
@@ -1041,7 +998,7 @@ class OverlayView: NSView {
 
         // In editor mode: dark background, draw image centered at natural size (no stretch).
         // selectionRect stays at (0, 0, imgW, imgH) — annotations always use image-relative coords.
-                if isEditorMode {
+        if isEditorMode {
             drawEditorBackground(context: context)
         } else if isScrollCapturing {
             // During scroll capture: make the entire window transparent so the user sees
@@ -1296,14 +1253,14 @@ class OverlayView: NSView {
                 let cornerR: CGFloat = 4
 
                 // Background fill
-                if textBgEnabled {
-                    textBgColorValue.setFill()
+                if textEditor.bgEnabled {
+                    textEditor.bgColor.setFill()
                     NSBezierPath(roundedRect: pillRect, xRadius: cornerR, yRadius: cornerR).fill()
                 }
 
                 // Text outline
-                if textOutlineEnabled {
-                    textOutlineColorValue.setStroke()
+                if textEditor.outlineEnabled {
+                    textEditor.outlineColor.setStroke()
                     let outlinePath = NSBezierPath(
                         roundedRect: pillRect, xRadius: cornerR, yRadius: cornerR)
                     outlinePath.lineWidth = 2
@@ -2768,7 +2725,7 @@ class OverlayView: NSView {
         let canvasUnderCursor = viewToCanvas(cursorView)
         zoomLevel = max(zoomMin, min(zoomMax, level))
         // After zoom change, pin that canvas point to the cursor's view position.
-                // because applyZoomTransform runs after the editor translate.
+        // because applyZoomTransform runs after the editor translate.
         zoomAnchorCanvas = canvasUnderCursor
         zoomAnchorView = cursorView
         clampZoomAnchor()
@@ -3991,7 +3948,7 @@ class OverlayView: NSView {
             let orig = textBoxOrigFrame
             var newFrame = orig
             let minW: CGFloat = 60
-            let minH: CGFloat = max(28, textFontSize + 12)
+            let minH: CGFloat = max(28, textEditor.fontSize + 12)
 
             switch textBoxResizeHandle {
             case .right: newFrame.size.width = max(minW, orig.width + dx)
@@ -4846,12 +4803,12 @@ class OverlayView: NSView {
                 if annotationEditButtonRect != .zero && annotationEditButtonRect.contains(point) {
                     let frame = selected.textDrawRect
                     // Restore formatting state from the annotation
-                    textFontSize = selected.fontSize
-                    textBold = selected.isBold
-                    textItalic = selected.isItalic
-                    textUnderline = selected.isUnderline
-                    textStrikethrough = selected.isStrikethrough
-                    textFontFamily = selected.fontFamilyName ?? "System"
+                    textEditor.fontSize = selected.fontSize
+                    textEditor.bold = selected.isBold
+                    textEditor.italic = selected.isItalic
+                    textEditor.underline = selected.isUnderline
+                    textEditor.strikethrough = selected.isStrikethrough
+                    textEditor.fontFamily = selected.fontFamilyName ?? "System"
                     if let idx = annotations.firstIndex(where: { $0 === selected }) {
                         annotations.remove(at: idx)
                         selectedAnnotation = nil
@@ -5054,17 +5011,17 @@ class OverlayView: NSView {
                 }
                 editingAnnotation = existingAnn
                 // Restore text formatting state
-                textFontSize = existingAnn.fontSize
-                textBold = existingAnn.isBold
-                textItalic = existingAnn.isItalic
-                textUnderline = existingAnn.isUnderline
-                textStrikethrough = existingAnn.isStrikethrough
-                textFontFamily = existingAnn.fontFamilyName ?? "System"
-                textAlignment = existingAnn.textAlignment
-                textBgEnabled = existingAnn.textBgColor != nil
-                if let bg = existingAnn.textBgColor { textBgColorValue = bg }
-                textOutlineEnabled = existingAnn.textOutlineColor != nil
-                if let ol = existingAnn.textOutlineColor { textOutlineColorValue = ol }
+                textEditor.fontSize = existingAnn.fontSize
+                textEditor.bold = existingAnn.isBold
+                textEditor.italic = existingAnn.isItalic
+                textEditor.underline = existingAnn.isUnderline
+                textEditor.strikethrough = existingAnn.isStrikethrough
+                textEditor.fontFamily = existingAnn.fontFamilyName ?? "System"
+                textEditor.alignment = existingAnn.textAlignment
+                textEditor.bgEnabled = existingAnn.textBgColor != nil
+                if let bg = existingAnn.textBgColor { textEditor.bgColor = bg }
+                textEditor.outlineEnabled = existingAnn.textOutlineColor != nil
+                if let ol = existingAnn.textOutlineColor { textEditor.outlineColor = ol }
                 showTextField(
                     at: existingAnn.textDrawRect.origin,
                     existingText: existingAnn.attributedText,
@@ -5249,7 +5206,7 @@ class OverlayView: NSView {
         if existingFrame != .zero {
             viewFrame = NSRect(origin: canvasToView(existingFrame.origin), size: existingFrame.size)
         } else {
-            let height = max(28, textFontSize + 12)
+            let height = max(28, textEditor.fontSize + 12)
             viewFrame = NSRect(x: viewPt.x, y: viewPt.y - height, width: 200, height: height)
         }
         textEditor.createTextView(
@@ -5263,14 +5220,14 @@ class OverlayView: NSView {
     private func currentTextFont() -> NSFont {
         let fm = NSFontManager.shared
         let baseFont: NSFont
-        if textFontFamily == "System" {
-            baseFont = NSFont.systemFont(ofSize: textFontSize, weight: textBold ? .bold : .regular)
-        } else if let font = NSFont(name: textFontFamily, size: textFontSize) {
-            baseFont = textBold ? fm.convert(font, toHaveTrait: .boldFontMask) : font
+        if textEditor.fontFamily == "System" {
+            baseFont = NSFont.systemFont(ofSize: textEditor.fontSize, weight: textEditor.bold ? .bold : .regular)
+        } else if let font = NSFont(name: textEditor.fontFamily, size: textEditor.fontSize) {
+            baseFont = textEditor.bold ? fm.convert(font, toHaveTrait: .boldFontMask) : font
         } else {
-            baseFont = NSFont.systemFont(ofSize: textFontSize, weight: textBold ? .bold : .regular)
+            baseFont = NSFont.systemFont(ofSize: textEditor.fontSize, weight: textEditor.bold ? .bold : .regular)
         }
-        if textItalic {
+        if textEditor.italic {
             return fm.convert(baseFont, toHaveTrait: .italicFontMask)
         }
         return baseFont
@@ -5285,18 +5242,18 @@ class OverlayView: NSView {
 
     func toggleTextBold() {
         guard let tv = textEditView, let ts = tv.textStorage else {
-            textBold.toggle()
+            textEditor.bold.toggle()
             needsDisplay = true
             return
         }
-        textBold.toggle()
+        textEditor.bold.toggle()
         let range = selectedOrAllRange()
         if range.length > 0 {
             ts.beginEditing()
             ts.enumerateAttribute(.font, in: range) { value, attrRange, _ in
                 if let font = value as? NSFont {
                     let newFont = self.applyBoldItalic(
-                        to: font, bold: self.textBold, italic: self.textItalic)
+                        to: font, bold: self.textEditor.bold, italic: self.textEditor.italic)
                     ts.addAttribute(.font, value: newFont, range: attrRange)
                 }
             }
@@ -5309,18 +5266,18 @@ class OverlayView: NSView {
 
     func toggleTextItalic() {
         guard let tv = textEditView, let ts = tv.textStorage else {
-            textItalic.toggle()
+            textEditor.italic.toggle()
             needsDisplay = true
             return
         }
-        textItalic.toggle()
+        textEditor.italic.toggle()
         let range = selectedOrAllRange()
         if range.length > 0 {
             ts.beginEditing()
             ts.enumerateAttribute(.font, in: range) { value, attrRange, _ in
                 if let font = value as? NSFont {
                     let newFont = self.applyBoldItalic(
-                        to: font, bold: self.textBold, italic: self.textItalic)
+                        to: font, bold: self.textEditor.bold, italic: self.textEditor.italic)
                     ts.addAttribute(.font, value: newFont, range: attrRange)
                 }
             }
@@ -5337,7 +5294,7 @@ class OverlayView: NSView {
         let familyName = font.familyName ?? "System"
 
         // System font: use NSFont.systemFont directly (NSFontManager can't convert SF traits)
-        if familyName.hasPrefix(".") || familyName == "System" || textFontFamily == "System" {
+        if familyName.hasPrefix(".") || familyName == "System" || textEditor.fontFamily == "System" {
             var base: NSFont
             if bold && italic {
                 base = NSFont.systemFont(ofSize: size, weight: .bold)
@@ -5374,7 +5331,7 @@ class OverlayView: NSView {
 
     func toggleTextUnderline() {
         guard let tv = textEditView, let ts = tv.textStorage else {
-            textUnderline.toggle()
+            textEditor.underline.toggle()
             needsDisplay = true
             return
         }
@@ -5392,8 +5349,8 @@ class OverlayView: NSView {
             }
             ts.endEditing()
         }
-        textUnderline.toggle()
-        if textUnderline {
+        textEditor.underline.toggle()
+        if textEditor.underline {
             tv.typingAttributes[.underlineStyle] = NSUnderlineStyle.single.rawValue
         } else {
             tv.typingAttributes.removeValue(forKey: .underlineStyle)
@@ -5404,7 +5361,7 @@ class OverlayView: NSView {
 
     func toggleTextStrikethrough() {
         guard let tv = textEditView, let ts = tv.textStorage else {
-            textStrikethrough.toggle()
+            textEditor.strikethrough.toggle()
             needsDisplay = true
             return
         }
@@ -5423,8 +5380,8 @@ class OverlayView: NSView {
             }
             ts.endEditing()
         }
-        textStrikethrough.toggle()
-        if textStrikethrough {
+        textEditor.strikethrough.toggle()
+        if textEditor.strikethrough {
             tv.typingAttributes[.strikethroughStyle] = NSUnderlineStyle.single.rawValue
         } else {
             tv.typingAttributes.removeValue(forKey: .strikethroughStyle)
@@ -5437,11 +5394,11 @@ class OverlayView: NSView {
         guard let tv = textEditView, let ts = tv.textStorage else { return }
         let range = NSRange(location: 0, length: ts.length)
         let paraStyle = NSMutableParagraphStyle()
-        paraStyle.alignment = textAlignment
+        paraStyle.alignment = textEditor.alignment
         ts.beginEditing()
         ts.addAttribute(.paragraphStyle, value: paraStyle, range: range)
         ts.endEditing()
-        tv.alignment = textAlignment
+        tv.alignment = textEditor.alignment
         tv.typingAttributes[.paragraphStyle] = paraStyle
         window?.makeFirstResponder(tv)
     }
@@ -5494,15 +5451,15 @@ class OverlayView: NSView {
                 strokeWidth: currentStrokeWidth)
             annotation.attributedText = attrStr
             annotation.text = text
-            annotation.fontSize = textFontSize
-            annotation.isBold = textBold
-            annotation.isItalic = textItalic
-            annotation.isUnderline = textUnderline
-            annotation.isStrikethrough = textStrikethrough
-            annotation.fontFamilyName = textFontFamily == "System" ? nil : textFontFamily
-            annotation.textBgColor = textBgEnabled ? textBgColorValue : nil
-            annotation.textOutlineColor = textOutlineEnabled ? textOutlineColorValue : nil
-            annotation.textAlignment = textAlignment
+            annotation.fontSize = textEditor.fontSize
+            annotation.isBold = textEditor.bold
+            annotation.isItalic = textEditor.italic
+            annotation.isUnderline = textEditor.underline
+            annotation.isStrikethrough = textEditor.strikethrough
+            annotation.fontFamilyName = textEditor.fontFamily == "System" ? nil : textEditor.fontFamily
+            annotation.textBgColor = textEditor.bgEnabled ? textEditor.bgColor : nil
+            annotation.textOutlineColor = textEditor.outlineEnabled ? textEditor.outlineColor : nil
+            annotation.textAlignment = textEditor.alignment
             annotation.textImage = img
             annotation.textDrawRect = canvasFrame
             annotations.append(annotation)
@@ -6224,7 +6181,7 @@ class OverlayView: NSView {
             ? tv.selectedRange() : NSRange(location: 0, length: tv.textStorage?.length ?? 0)
         tv.textStorage?.addAttribute(
             .font,
-            value: NSFont.systemFont(ofSize: textFontSize, weight: textBold ? .bold : .regular),
+            value: NSFont.systemFont(ofSize: textEditor.fontSize, weight: textEditor.bold ? .bold : .regular),
             range: range)
         needsDisplay = true
     }
@@ -6403,8 +6360,8 @@ class OverlayView: NSView {
         let panel = NSColorPanel.shared
         switch target {
         case .drawColor: panel.color = currentColor
-        case .textBg: panel.color = textBgColorValue ?? .clear
-        case .textOutline: panel.color = textOutlineColorValue ?? .clear
+        case .textBg: panel.color = textEditor.bgColor ?? .clear
+        case .textOutline: panel.color = textEditor.outlineColor ?? .clear
         }
         panel.showsAlpha = true
         panel.setTarget(self)
@@ -6420,14 +6377,14 @@ class OverlayView: NSView {
             applyColorToTextIfEditing()
             applyColorToSelectedAnnotation()
         case .textBg:
-            textBgColorValue = color
+            textEditor.bgColor = color
             if let data = try? NSKeyedArchiver.archivedData(
                 withRootObject: color, requiringSecureCoding: false)
             {
                 UserDefaults.standard.set(data, forKey: "textBgColor")
             }
         case .textOutline:
-            textOutlineColorValue = color
+            textEditor.outlineColor = color
             if let data = try? NSKeyedArchiver.archivedData(
                 withRootObject: color, requiringSecureCoding: false)
             {
@@ -6577,7 +6534,7 @@ extension OverlayView: NSTextViewDelegate {
         let usedRect = layoutManager.usedRect(for: textContainer)
         let extraHeight = layoutManager.extraLineFragmentRect.height
 
-        let minH = max(28, textFontSize + 12)
+        let minH = max(28, textEditor.fontSize + 12)
         let inset = tv.textContainerInset
         let newHeight = max(minH, ceil(usedRect.height + extraHeight) + inset.height * 2)
         let width = sv.frame.width  // keep width fixed

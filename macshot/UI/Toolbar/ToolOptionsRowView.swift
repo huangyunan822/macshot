@@ -260,7 +260,7 @@ class ToolOptionsRowView: NSView {
         var curX = x
 
         // Font family dropdown
-        let displayName = ov.textFontFamily == "System" ? "System" : ov.textFontFamily
+        let displayName = ov.textEditor.fontFamily == "System" ? "System" : ov.textEditor.fontFamily
         let fontBtn = NSButton(title: "\(displayName) ▾", target: self, action: #selector(fontFamilyClicked(_:)))
         fontBtn.bezelStyle = .recessed
         fontBtn.font = NSFont.systemFont(ofSize: 10, weight: .medium)
@@ -271,10 +271,10 @@ class ToolOptionsRowView: NSView {
 
         // Bold / Italic / Underline / Strikethrough
         let textStyles: [(String, String, Bool, Selector)] = [
-            ("bold", "B", ov.textBold, #selector(boldToggled)),
-            ("italic", "I", ov.textItalic, #selector(italicToggled)),
-            ("underline", "U", ov.textUnderline, #selector(underlineToggled)),
-            ("strikethrough", "S", ov.textStrikethrough, #selector(strikethroughToggled)),
+            ("bold", "B", ov.textEditor.bold, #selector(boldToggled)),
+            ("italic", "I", ov.textEditor.italic, #selector(italicToggled)),
+            ("underline", "U", ov.textEditor.underline, #selector(underlineToggled)),
+            ("strikethrough", "S", ov.textEditor.strikethrough, #selector(strikethroughToggled)),
         ]
         for (_, label, isOn, sel) in textStyles {
             let btn = NSButton(title: label, target: self, action: sel)
@@ -298,7 +298,7 @@ class ToolOptionsRowView: NSView {
             btn.isBordered = false
             btn.image = NSImage(systemSymbolName: symbol, accessibilityDescription: nil)?
                 .withSymbolConfiguration(.init(pointSize: 12, weight: .medium))
-            btn.state = ov.textAlignment == alignment ? .on : .off
+            btn.state = ov.textEditor.alignment == alignment ? .on : .off
             btn.setButtonType(.toggle)
             btn.tag = alignment.rawValue
             btn.target = self
@@ -317,7 +317,7 @@ class ToolOptionsRowView: NSView {
         addSubview(minusBtn)
         curX += 20
 
-        let sizeLabel = NSTextField(labelWithString: "\(Int(ov.textFontSize))")
+        let sizeLabel = NSTextField(labelWithString: "\(Int(ov.textEditor.fontSize))")
         sizeLabel.font = NSFont.monospacedDigitSystemFont(ofSize: 10, weight: .medium)
         sizeLabel.textColor = NSColor.white.withAlphaComponent(0.7)
         sizeLabel.alignment = .center
@@ -335,7 +335,7 @@ class ToolOptionsRowView: NSView {
 
         // Fill / Outline toggles
         let fillBtn = NSButton(checkboxWithTitle: "Fill", target: self, action: #selector(textBgToggled(_:)))
-        fillBtn.state = ov.textBgEnabled ? .on : .off
+        fillBtn.state = ov.textEditor.bgEnabled ? .on : .off
         fillBtn.font = NSFont.systemFont(ofSize: 10, weight: .medium)
         fillBtn.sizeToFit()
         fillBtn.frame.origin = NSPoint(x: curX, y: (rowHeight - fillBtn.frame.height) / 2)
@@ -343,7 +343,7 @@ class ToolOptionsRowView: NSView {
         curX += fillBtn.frame.width + 4
 
         let outlineBtn = NSButton(checkboxWithTitle: "Outline", target: self, action: #selector(textOutlineToggled(_:)))
-        outlineBtn.state = ov.textOutlineEnabled ? .on : .off
+        outlineBtn.state = ov.textEditor.outlineEnabled ? .on : .off
         outlineBtn.font = NSFont.systemFont(ofSize: 10, weight: .medium)
         outlineBtn.sizeToFit()
         outlineBtn.frame.origin = NSPoint(x: curX, y: (rowHeight - outlineBtn.frame.height) / 2)
@@ -639,7 +639,7 @@ class ToolOptionsRowView: NSView {
 
     @objc private func fontSizeChanged(_ sender: NSStepper) {
         guard let ov = overlayView else { return }
-        ov.textFontSize = CGFloat(sender.integerValue)
+        ov.textEditor.fontSize = CGFloat(sender.integerValue)
         UserDefaults.standard.set(sender.doubleValue, forKey: "fontSize")
         if let label = viewWithTag(998) as? NSTextField {
             label.stringValue = "\(sender.integerValue)pt"
@@ -696,11 +696,11 @@ class ToolOptionsRowView: NSView {
         let families = TextEditingController.fontFamilies
         let picker = ListPickerView()
         picker.items = families.map { family in
-            .init(title: family, isSelected: family == ov.textFontFamily)
+            .init(title: family, isSelected: family == ov.textEditor.fontFamily)
         }
         picker.onSelect = { [weak ov] idx in
             guard let ov = ov else { return }
-            ov.textFontFamily = families[idx]
+            ov.textEditor.fontFamily = families[idx]
             UserDefaults.standard.set(families[idx], forKey: "textFontFamily")
             ov.updateTextFontSize()
             ov.rebuildToolbarLayout()
@@ -714,7 +714,7 @@ class ToolOptionsRowView: NSView {
     @objc private func alignmentChanged(_ sender: NSButton) {
         guard let ov = overlayView else { return }
         if let align = NSTextAlignment(rawValue: sender.tag) {
-            ov.textAlignment = align
+            ov.textEditor.alignment = align
             ov.applyAlignmentToTextIfEditing()
             ov.needsDisplay = true
         }
@@ -722,31 +722,31 @@ class ToolOptionsRowView: NSView {
 
     @objc private func fontSizeDecreased() {
         guard let ov = overlayView else { return }
-        ov.textFontSize = max(8, ov.textFontSize - 1)
-        UserDefaults.standard.set(Double(ov.textFontSize), forKey: "textFontSize")
+        ov.textEditor.fontSize = max(8, ov.textEditor.fontSize - 1)
+        UserDefaults.standard.set(Double(ov.textEditor.fontSize), forKey: "textFontSize")
         ov.updateTextFontSize()
-        if let label = viewWithTag(998) as? NSTextField { label.stringValue = "\(Int(ov.textFontSize))" }
+        if let label = viewWithTag(998) as? NSTextField { label.stringValue = "\(Int(ov.textEditor.fontSize))" }
     }
 
     @objc private func fontSizeIncreased() {
         guard let ov = overlayView else { return }
-        ov.textFontSize = min(200, ov.textFontSize + 1)
-        UserDefaults.standard.set(Double(ov.textFontSize), forKey: "textFontSize")
+        ov.textEditor.fontSize = min(200, ov.textEditor.fontSize + 1)
+        UserDefaults.standard.set(Double(ov.textEditor.fontSize), forKey: "textFontSize")
         ov.updateTextFontSize()
-        if let label = viewWithTag(998) as? NSTextField { label.stringValue = "\(Int(ov.textFontSize))" }
+        if let label = viewWithTag(998) as? NSTextField { label.stringValue = "\(Int(ov.textEditor.fontSize))" }
     }
 
     @objc private func textBgToggled(_ sender: NSButton) {
         guard let ov = overlayView else { return }
-        ov.textBgEnabled = sender.state == .on
-        UserDefaults.standard.set(ov.textBgEnabled, forKey: "textBgEnabled")
+        ov.textEditor.bgEnabled = sender.state == .on
+        UserDefaults.standard.set(ov.textEditor.bgEnabled, forKey: "textBgEnabled")
         ov.needsDisplay = true
     }
 
     @objc private func textOutlineToggled(_ sender: NSButton) {
         guard let ov = overlayView else { return }
-        ov.textOutlineEnabled = sender.state == .on
-        UserDefaults.standard.set(ov.textOutlineEnabled, forKey: "textOutlineEnabled")
+        ov.textEditor.outlineEnabled = sender.state == .on
+        UserDefaults.standard.set(ov.textEditor.outlineEnabled, forKey: "textOutlineEnabled")
         ov.needsDisplay = true
     }
 
