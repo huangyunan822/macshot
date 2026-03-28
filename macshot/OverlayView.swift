@@ -358,10 +358,6 @@ class OverlayView: NSView {
     // Upload confirm picker (toggle setting via right-click)
 
     // Upload confirm dialog (inline confirmation before uploading)
-    private var showUploadConfirmDialog: Bool = false
-    private var uploadConfirmDialogRect: NSRect = .zero
-    private var uploadConfirmOKRect: NSRect = .zero
-    private var uploadConfirmCancelRect: NSRect = .zero
 
     // Redact type picker
 
@@ -961,7 +957,6 @@ class OverlayView: NSView {
         
         
         
-        if showUploadConfirmDialog && uploadConfirmDialogRect.contains(point) { NSCursor.arrow.set(); return }
         if showFontPicker && fontPickerRect.contains(point) { NSCursor.arrow.set(); return }
         if updateCursorForChrome(at: point) { return }
         if sizeLabelRect.contains(point) && sizeInputField == nil { NSCursor.pointingHand.set(); return }
@@ -1539,9 +1534,6 @@ class OverlayView: NSView {
         }
 
         // Upload confirm dialog — drawn on top of everything
-        if showUploadConfirmDialog {
-            drawUploadConfirmDialog()
-        }
 
         // Overlay error message
         if let errorMsg = overlayErrorMessage {
@@ -3707,86 +3699,6 @@ class OverlayView: NSView {
 
     // MARK: - Upload Confirm Picker
     // MARK: - Upload Confirm Dialog
-
-    private func drawUploadConfirmDialog() {
-        let dialogW: CGFloat = 280
-        let dialogH: CGFloat = 110
-        let dialogX = bounds.midX - dialogW / 2
-        let dialogY = bounds.midY - dialogH / 2
-        let dialogRect = NSRect(x: dialogX, y: dialogY, width: dialogW, height: dialogH)
-        uploadConfirmDialogRect = dialogRect
-
-        // Dim the rest of the overlay
-        NSColor.black.withAlphaComponent(0.45).setFill()
-        NSBezierPath(rect: bounds).fill()
-
-        // Dialog background
-        ToolbarLayout.bgColor.setFill()
-        NSBezierPath(roundedRect: dialogRect, xRadius: 10, yRadius: 10).fill()
-
-        // Title
-        let titleAttrs: [NSAttributedString.Key: Any] = [
-            .font: NSFont.systemFont(ofSize: 13, weight: .semibold),
-            .foregroundColor: NSColor.white,
-        ]
-        let provider = UserDefaults.standard.string(forKey: "uploadProvider") ?? "imgbb"
-        let titleText: String
-        switch provider {
-        case "gdrive": titleText = "Upload to Google Drive?"
-        case "s3": titleText = "Upload to S3?"
-        default: titleText = "Upload to imgbb.com?"
-        }
-        let title = titleText as NSString
-        let titleSize = title.size(withAttributes: titleAttrs)
-        title.draw(at: NSPoint(x: dialogRect.midX - titleSize.width / 2, y: dialogRect.maxY - 30), withAttributes: titleAttrs)
-
-        // Subtitle
-        let subAttrs: [NSAttributedString.Key: Any] = [
-            .font: NSFont.systemFont(ofSize: 11, weight: .regular),
-            .foregroundColor: NSColor.white.withAlphaComponent(0.6),
-        ]
-        let subText: String
-        switch provider {
-        case "gdrive": subText = "Your screenshot will be saved to your Google Drive"
-        case "s3": subText = "Your screenshot will be uploaded to your S3 bucket"
-        default: subText = "Your screenshot will be sent to imgbb.com"
-        }
-        let sub = subText as NSString
-        let subSize = sub.size(withAttributes: subAttrs)
-        sub.draw(at: NSPoint(x: dialogRect.midX - subSize.width / 2, y: dialogRect.maxY - 52), withAttributes: subAttrs)
-
-        // Buttons
-        let btnW: CGFloat = 100
-        let btnH: CGFloat = 28
-        let btnY = dialogRect.minY + 16
-        let cancelRect = NSRect(x: dialogRect.midX - btnW - 6, y: btnY, width: btnW, height: btnH)
-        let okRect = NSRect(x: dialogRect.midX + 6, y: btnY, width: btnW, height: btnH)
-        uploadConfirmCancelRect = cancelRect
-        uploadConfirmOKRect = okRect
-
-        // Cancel button
-        NSColor.white.withAlphaComponent(0.12).setFill()
-        NSBezierPath(roundedRect: cancelRect, xRadius: 6, yRadius: 6).fill()
-        let cancelAttrs: [NSAttributedString.Key: Any] = [
-            .font: NSFont.systemFont(ofSize: 12, weight: .medium),
-            .foregroundColor: NSColor.white,
-        ]
-        let cancelLabel = "Cancel" as NSString
-        let cancelSize = cancelLabel.size(withAttributes: cancelAttrs)
-        cancelLabel.draw(at: NSPoint(x: cancelRect.midX - cancelSize.width / 2, y: cancelRect.midY - cancelSize.height / 2), withAttributes: cancelAttrs)
-
-        // Upload button
-        ToolbarLayout.accentColor.setFill()
-        NSBezierPath(roundedRect: okRect, xRadius: 6, yRadius: 6).fill()
-        let okAttrs: [NSAttributedString.Key: Any] = [
-            .font: NSFont.systemFont(ofSize: 12, weight: .semibold),
-            .foregroundColor: NSColor.white,
-        ]
-        let okLabel = "Upload" as NSString
-        let okSize = okLabel.size(withAttributes: okAttrs)
-        okLabel.draw(at: NSPoint(x: okRect.midX - okSize.width / 2, y: okRect.midY - okSize.height / 2), withAttributes: okAttrs)
-    }
-
     // MARK: - Redact Type Picker
     // MARK: - Loupe Size Picker
 
@@ -5593,18 +5505,6 @@ class OverlayView: NSView {
 
         let isTextEditing = textEditView != nil
 
-        // Upload confirm dialog
-        if showUploadConfirmDialog {
-            if uploadConfirmOKRect.contains(point) {
-                showUploadConfirmDialog = false
-                needsDisplay = true
-                overlayDelegate?.overlayViewDidRequestUpload()
-            } else {
-                showUploadConfirmDialog = false
-                needsDisplay = true
-            }
-            return
-        }
 
 
 
@@ -6729,8 +6629,22 @@ class OverlayView: NSView {
         case .upload:
             let confirmEnabled = UserDefaults.standard.bool(forKey: "uploadConfirmEnabled")
             if confirmEnabled {
-                showUploadConfirmDialog = true
-                needsDisplay = true
+                let provider = UserDefaults.standard.string(forKey: "uploadProvider") ?? "imgbb"
+                let title: String
+                switch provider {
+                case "gdrive": title = "Upload to Google Drive?"
+                case "s3": title = "Upload to S3?"
+                default: title = "Upload to imgbb.com?"
+                }
+                let alert = NSAlert()
+                alert.messageText = title
+                alert.informativeText = "Your screenshot will be uploaded."
+                alert.addButton(withTitle: "Upload")
+                alert.addButton(withTitle: "Cancel")
+                alert.alertStyle = .informational
+                if alert.runModal() == .alertFirstButtonReturn {
+                    overlayDelegate?.overlayViewDidRequestUpload()
+                }
             } else {
                 overlayDelegate?.overlayViewDidRequestUpload()
             }
@@ -7802,9 +7716,6 @@ class OverlayView: NSView {
                 window?.makeFirstResponder(self)
         
                 needsDisplay = true
-            } else if showUploadConfirmDialog {
-                showUploadConfirmDialog = false
-                needsDisplay = true
             } else if PopoverHelper.isVisible {
                 PopoverHelper.dismiss()
             } else {
@@ -8821,10 +8732,7 @@ class OverlayView: NSView {
         currentAnnotation = nil
         numberCounter = 0
         showToolbars = false
-        showUploadConfirmDialog = false
-        uploadConfirmDialogRect = .zero
-        uploadConfirmOKRect = .zero
-        uploadConfirmCancelRect = .zero
+        PopoverHelper.dismiss()
         stopMouseHighlightMonitor()
         isTranslating = false
         translateEnabled = false
