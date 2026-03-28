@@ -593,6 +593,9 @@ class OverlayView: NSView {
             needsDisplay = true
         }
 
+        // Update cursor on every mouse move
+        updateCursorForPoint(point)
+
         // Font picker hover tracking
         if showFontPicker {
             NSCursor.arrow.set()
@@ -4773,6 +4776,9 @@ class OverlayView: NSView {
                 isResizingSelection = false
                 resizeHandle = .none
                 scheduleBarcodeDetection()
+                if let win = window {
+                    updateCursorForPoint(convert(win.mouseLocationOutsideOfEventStream, from: nil))
+                }
                 needsDisplay = true
             } else if let annotation = currentAnnotation {
                 finishAnnotation(annotation)
