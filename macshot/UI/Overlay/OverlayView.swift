@@ -208,17 +208,12 @@ class OverlayView: NSView {
         get { textEditor.outlineColor }
         set { textEditor.outlineColor = newValue }
     }
-    private var textFontDropdownRect: NSRect = .zero
     // Text box resize state (stays here — tied to mouse drag handling)
     private var isResizingTextBox: Bool = false
     private var textBoxResizeHandle: ResizeHandle = .none
     private var textBoxResizeStart: NSPoint = .zero
     private var textBoxOrigFrame: NSRect = .zero
     private var editingAnnotation: Annotation?
-    private var showFontPicker: Bool = false
-    private var fontPickerRect: NSRect = .zero
-    private var fontPickerItemRects: [NSRect] = []
-    private var hoveredFontIndex: Int = -1
 
     // Toolbars (drawn inline)
     var bottomButtons: [ToolbarButton] = []
@@ -370,11 +365,6 @@ class OverlayView: NSView {
 
     // Redact options in blur/pixelate options row
     // Editor top bar
-    var editorTopBarRect: NSRect = .zero
-    var editorCropBtnRect: NSRect = .zero
-    var editorFlipHBtnRect: NSRect = .zero
-    var editorFlipVBtnRect: NSRect = .zero
-    var editorResetZoomBtnRect: NSRect = .zero
     var cachedCompositedImage: NSImage? = nil  // invalidated when annotations change
 
     // Translate language picker popover
@@ -591,20 +581,7 @@ class OverlayView: NSView {
         // Update cursor on every mouse move
         updateCursorForPoint(point)
 
-        // Font picker hover tracking
-        if showFontPicker {
-            NSCursor.arrow.set()
-            var newIdx = -1
-            for (i, itemRect) in fontPickerItemRects.enumerated() {
-                if itemRect.contains(point) { newIdx = i; break }
-            }
-            if newIdx != hoveredFontIndex {
-                hoveredFontIndex = newIdx
-                needsDisplay = true
-            }
-        } else if hoveredFontIndex != -1 {
-            hoveredFontIndex = -1
-        }
+
 
         // Window snap: highlight hovered window in idle state.
         // CGWindowListCopyWindowInfo is expensive — run it on a background thread,
@@ -876,7 +853,6 @@ class OverlayView: NSView {
             if let strip = rightStripView, !strip.isHidden, strip.frame.contains(point) { return true }
             if let row = toolOptionsRowView, !row.isHidden, row.frame.contains(point) { return true }
         }
-        if showFontPicker && fontPickerRect.contains(point) { return true }
         if updateCursorForChrome(at: point) { return true }
         if sizeLabelRect.contains(point) && sizeInputField == nil { return true }
         if zoomLabelRect.contains(point) && zoomLabelOpacity > 0 && zoomInputField == nil { return true }
@@ -954,14 +930,7 @@ class OverlayView: NSView {
     /// Override to control size label drawing. Base returns true when not recording/scrolling/editing.
     func shouldDrawSizeLabel() -> Bool { !isRecording && !isScrollCapturing && !isEditorMode }
 
-    /// Override to draw top chrome (e.g. editor top bar). Base draws editor top bar when in editor mode.
-    func drawTopChrome() {
-        if isEditorMode {
-            drawEditorTopBar()
-        }
-    }
-
-    /// Override to adjust a view-space point for editor canvas offset. Base returns point unchanged.
+    /// Override to draw top chrome (e.g. editor top bar). Base draws editor top bar when in editor mode.    /// Override to adjust a view-space point for editor canvas offset. Base returns point unchanged.
     func adjustPointForEditor(_ p: NSPoint) -> NSPoint {
         if isEditorMode {
             return NSPoint(x: p.x - editorCanvasOffset.x, y: p.y - editorCanvasOffset.y)
@@ -1012,28 +981,8 @@ class OverlayView: NSView {
     /// Override to position toolbars for editor mode. Base pins bottom bar centered at bottom, right bar at top-right.    /// Override to control whether detach (open in editor) is allowed. Base returns true when not in editor mode.
     func shouldAllowDetach() -> Bool { !isEditorMode }
 
-    /// Override to handle clicks on the top chrome area. Base handles editor top bar buttons. Returns true if click was consumed.
-    func handleTopChromeClick(at point: NSPoint) -> Bool {
-        guard isEditorMode && editorTopBarRect.contains(point) else { return false }
-        if editorCropBtnRect.contains(point) {
-            if currentTool == .crop {
-                currentTool = .arrow
-            } else {
-                currentTool = .crop
-            }
-            needsDisplay = true
-            return true
-        }
-        if editorFlipHBtnRect.contains(point) {
-            flipImageHorizontally()
-            return true
-        }
-        if editorFlipVBtnRect.contains(point) {
-            flipImageVertically()
-            return true
-        }
-        return true  // click was on top bar but not on a button — consume it
-    }
+    /// Override to handle clicks on chrome areas. Base returns false.
+    func handleTopChromeClick(at point: NSPoint) -> Bool { false }
 
     // MARK: - Drawing
 
@@ -1384,10 +1333,6 @@ class OverlayView: NSView {
                 // Tooltips handled by ToolbarButtonView.toolTip
             }
 
-            // Editor top bar — skip in scroll view mode (drawn in canvas coords which get magnified)
-            if !isInsideScrollView {
-                drawTopChrome()
-            }
 
             // Radial color wheel
             if colorWheel.isVisible {
@@ -2056,263 +2001,8 @@ class OverlayView: NSView {
             self.needsDisplay = true
         }
     }
-    @discardableResult
-    private func drawTextStyleToggle(label: String, color: NSColor, enabled: Bool,
-                                     x: CGFloat, rowRect: NSRect, targetRect: inout NSRect) -> CGFloat {
-        let btnH: CGFloat = 20
-        let swatchSize: CGFloat = 12
-        let labelAttrs: [NSAttributedString.Key: Any] = [
-            .font: NSFont.systemFont(ofSize: 9.5, weight: .medium),
-            .foregroundColor: NSColor.white.withAlphaComponent(enabled ? 0.85 : 0.35),
-        ]
-        let labelStr = label as NSString
-        let labelSize = labelStr.size(withAttributes: labelAttrs)
-        let btnW = swatchSize + 4 + labelSize.width + 8
-        let btnRect = NSRect(x: x, y: rowRect.midY - btnH / 2, width: btnW, height: btnH)
-        targetRect = btnRect
 
-        // Button background
-        let bgAlpha: CGFloat = enabled ? 0.15 : 0.06
-        NSColor.white.withAlphaComponent(bgAlpha).setFill()
-        NSBezierPath(roundedRect: btnRect, xRadius: 4, yRadius: 4).fill()
-
-        // Color swatch
-        let swatchRect = NSRect(x: btnRect.minX + 4, y: btnRect.midY - swatchSize / 2,
-                                width: swatchSize, height: swatchSize)
-        if enabled {
-            color.setFill()
-            NSBezierPath(roundedRect: swatchRect, xRadius: 2, yRadius: 2).fill()
-        } else {
-            NSColor.white.withAlphaComponent(0.1).setFill()
-            NSBezierPath(roundedRect: swatchRect, xRadius: 2, yRadius: 2).fill()
-            // Diagonal line through swatch
-            NSColor.white.withAlphaComponent(0.25).setStroke()
-            let strike = NSBezierPath()
-            strike.lineWidth = 1
-            strike.move(to: NSPoint(x: swatchRect.minX + 2, y: swatchRect.minY + 2))
-            strike.line(to: NSPoint(x: swatchRect.maxX - 2, y: swatchRect.maxY - 2))
-            strike.stroke()
-        }
-
-        // Label
-        labelStr.draw(at: NSPoint(x: swatchRect.maxX + 4, y: btnRect.midY - labelSize.height / 2),
-                       withAttributes: labelAttrs)
-
-        return x + btnW
-    }
-
-    private func drawTextFormatButton(rect: NSRect, label: String, font: NSFont, active: Bool,
-                                      activeColor: NSColor, inactiveColor: NSColor) {
-        if active {
-            activeColor.withAlphaComponent(0.3).setFill()
-            NSBezierPath(roundedRect: rect, xRadius: 4, yRadius: 4).fill()
-        }
-        let color = active ? activeColor : inactiveColor
-        let attrs: [NSAttributedString.Key: Any] = [.font: font, .foregroundColor: color]
-        let size = (label as NSString).size(withAttributes: attrs)
-        (label as NSString).draw(at: NSPoint(x: rect.midX - size.width / 2, y: rect.midY - size.height / 2), withAttributes: attrs)
-    }
-
-    private func drawTextFormatButtonAttributed(rect: NSRect, label: String, font: NSFont, active: Bool,
-                                                activeColor: NSColor, inactiveColor: NSColor,
-                                                extraAttrs: [NSAttributedString.Key: Any]) {
-        if active {
-            activeColor.withAlphaComponent(0.3).setFill()
-            NSBezierPath(roundedRect: rect, xRadius: 4, yRadius: 4).fill()
-        }
-        let color = active ? activeColor : inactiveColor
-        var attrs: [NSAttributedString.Key: Any] = [.font: font, .foregroundColor: color]
-        for (k, v) in extraAttrs { attrs[k] = v }
-        let str = NSAttributedString(string: label, attributes: attrs)
-        let size = str.size()
-        str.draw(at: NSPoint(x: rect.midX - size.width / 2, y: rect.midY - size.height / 2))
-    }
-
-    private func drawFontPickerDropdown() {
-        let families = TextEditingController.fontFamilies
-        let itemH: CGFloat = 24
-        let pickerW: CGFloat = 180
-        let pickerH = CGFloat(families.count) * itemH + 8
-        let pickerX = textFontDropdownRect.minX
-        let pickerY: CGFloat
-        if bottomBarRect.midY < selectionRect.midY {
-            // Toolbar is below selection — try opening downward
-            let downY = (toolOptionsRowView?.frame.minY ?? 0) - pickerH - 2
-            pickerY = downY >= bounds.minY + 4 ? downY : (toolOptionsRowView?.frame.maxY ?? 0) + 2
-        } else {
-            // Toolbar is above selection — try opening upward
-            let upY = (toolOptionsRowView?.frame.maxY ?? 0) + 2
-            pickerY = (upY + pickerH) <= bounds.maxY - 4 ? upY : (toolOptionsRowView?.frame.minY ?? 0) - pickerH - 2
-        }
-
-        let pRect = NSRect(x: pickerX, y: pickerY, width: pickerW, height: pickerH)
-        fontPickerRect = pRect
-
-        // Background
-        NSColor(white: 0.10, alpha: 0.95).setFill()
-        NSBezierPath(roundedRect: pRect, xRadius: 6, yRadius: 6).fill()
-        // Border
-        NSColor.white.withAlphaComponent(0.1).setStroke()
-        let borderPath = NSBezierPath(roundedRect: pRect, xRadius: 6, yRadius: 6)
-        borderPath.lineWidth = 0.5
-        borderPath.stroke()
-
-        fontPickerItemRects = []
-        for (i, family) in families.enumerated() {
-            let itemY = pRect.maxY - 4 - CGFloat(i + 1) * itemH
-            let itemRect = NSRect(x: pRect.minX + 4, y: itemY, width: pickerW - 8, height: itemH)
-            fontPickerItemRects.append(itemRect)
-
-            let isSelected = family == textFontFamily
-            let isHovered = i == hoveredFontIndex
-
-            if isSelected {
-                ToolbarLayout.accentColor.withAlphaComponent(0.25).setFill()
-                NSBezierPath(roundedRect: itemRect, xRadius: 4, yRadius: 4).fill()
-            } else if isHovered {
-                NSColor.white.withAlphaComponent(0.08).setFill()
-                NSBezierPath(roundedRect: itemRect, xRadius: 4, yRadius: 4).fill()
-            }
-
-            // Use the actual font family for the label so users see a preview
-            let previewFont: NSFont
-            if family == "System" {
-                previewFont = NSFont.systemFont(ofSize: 11)
-            } else {
-                previewFont = NSFont(name: family, size: 11) ?? NSFont.systemFont(ofSize: 11)
-            }
-            let textColor: NSColor = isSelected ? ToolbarLayout.accentColor : (isHovered ? NSColor.white : NSColor.white.withAlphaComponent(0.8))
-            let attrs: [NSAttributedString.Key: Any] = [
-                .font: previewFont,
-                .foregroundColor: textColor,
-            ]
-            let nameSize = (family as NSString).size(withAttributes: attrs)
-            (family as NSString).draw(
-                at: NSPoint(x: itemRect.minX + 8, y: itemRect.midY - nameSize.height / 2),
-                withAttributes: attrs)
-
-            // Check mark for selected
-            if isSelected {
-                let checkAttrs: [NSAttributedString.Key: Any] = [
-                    .font: NSFont.systemFont(ofSize: 10, weight: .bold),
-                    .foregroundColor: ToolbarLayout.accentColor,
-                ]
-                let checkStr = "✓" as NSString
-                let checkSize = checkStr.size(withAttributes: checkAttrs)
-                checkStr.draw(at: NSPoint(x: itemRect.maxX - checkSize.width - 6, y: itemRect.midY - checkSize.height / 2), withAttributes: checkAttrs)
-            }
-        }
-    }
-
-    /// Draws a macOS-style pill toggle (like iOS switches but smaller)
-    @discardableResult    private func drawArrowStylePreview(style: ArrowStyle, in rect: NSRect, active: Bool) {
-        let color = NSColor.white.withAlphaComponent(active ? 0.9 : 0.35)
-        let inset: CGFloat = 7
-        let left = NSPoint(x: rect.minX + inset, y: rect.midY)
-        let right = NSPoint(x: rect.maxX - inset, y: rect.midY)
-        let headLen: CGFloat = 6
-        let headAngle: CGFloat = .pi / 5
-
-        // Shaft
-        let shaft = NSBezierPath()
-        shaft.lineWidth = 1.5
-        shaft.lineCapStyle = .round
-        color.setStroke()
-        color.setFill()
-
-        switch style {
-        case .single:
-            let base = NSPoint(x: right.x - headLen * cos(0), y: right.y)
-            shaft.move(to: left)
-            shaft.line(to: base)
-            shaft.stroke()
-            let head = NSBezierPath()
-            head.move(to: right)
-            head.line(to: NSPoint(x: right.x - headLen * cos(headAngle), y: right.y + headLen * sin(headAngle)))
-            head.line(to: NSPoint(x: right.x - headLen * cos(headAngle), y: right.y - headLen * sin(headAngle)))
-            head.close()
-            head.fill()
-
-        case .thick:
-            let tailHalf: CGFloat = 1.5
-            let shaftHalf: CGFloat = 3
-            let headHalf: CGFloat = 7
-            let headW: CGFloat = 8
-            let headBaseX = right.x - headW
-            let ctrlX = left.x + (headBaseX - left.x) * 0.6
-            let path = NSBezierPath()
-            // Left side: narrow tail -> wide shaft (curve)
-            path.move(to: NSPoint(x: left.x, y: left.y + tailHalf))
-            path.curve(to: NSPoint(x: headBaseX, y: left.y + shaftHalf),
-                        controlPoint1: NSPoint(x: ctrlX, y: left.y + tailHalf),
-                        controlPoint2: NSPoint(x: headBaseX, y: left.y + shaftHalf))
-            // Left wing
-            path.curve(to: NSPoint(x: headBaseX, y: left.y + headHalf),
-                        controlPoint1: NSPoint(x: headBaseX - 2, y: left.y + shaftHalf),
-                        controlPoint2: NSPoint(x: headBaseX, y: left.y + headHalf))
-            path.line(to: right)
-            // Right wing
-            path.line(to: NSPoint(x: headBaseX, y: left.y - headHalf))
-            path.curve(to: NSPoint(x: headBaseX, y: left.y - shaftHalf),
-                        controlPoint1: NSPoint(x: headBaseX, y: left.y - headHalf),
-                        controlPoint2: NSPoint(x: headBaseX - 2, y: left.y - shaftHalf))
-            // Right side: wide shaft -> narrow tail (curve)
-            path.curve(to: NSPoint(x: left.x, y: left.y - tailHalf),
-                        controlPoint1: NSPoint(x: headBaseX, y: left.y - shaftHalf),
-                        controlPoint2: NSPoint(x: ctrlX, y: left.y - tailHalf))
-            path.close()
-            path.fill()
-
-        case .double:
-            let endBase = NSPoint(x: right.x - headLen, y: right.y)
-            let startBase = NSPoint(x: left.x + headLen, y: left.y)
-            shaft.move(to: startBase)
-            shaft.line(to: endBase)
-            shaft.stroke()
-            // End head
-            let endHead = NSBezierPath()
-            endHead.move(to: right)
-            endHead.line(to: NSPoint(x: right.x - headLen * cos(headAngle), y: right.y + headLen * sin(headAngle)))
-            endHead.line(to: NSPoint(x: right.x - headLen * cos(headAngle), y: right.y - headLen * sin(headAngle)))
-            endHead.close()
-            endHead.fill()
-            // Start head
-            let startHead = NSBezierPath()
-            startHead.move(to: left)
-            startHead.line(to: NSPoint(x: left.x + headLen * cos(headAngle), y: left.y + headLen * sin(headAngle)))
-            startHead.line(to: NSPoint(x: left.x + headLen * cos(headAngle), y: left.y - headLen * sin(headAngle)))
-            startHead.close()
-            startHead.fill()
-
-        case .open:
-            shaft.move(to: left)
-            shaft.line(to: right)
-            shaft.stroke()
-            let head = NSBezierPath()
-            head.lineWidth = 1.5
-            head.lineCapStyle = .round
-            head.lineJoinStyle = .round
-            head.move(to: NSPoint(x: right.x - headLen * cos(headAngle), y: right.y + headLen * sin(headAngle)))
-            head.line(to: right)
-            head.line(to: NSPoint(x: right.x - headLen * cos(headAngle), y: right.y - headLen * sin(headAngle)))
-            head.stroke()
-
-        case .tail:
-            let base = NSPoint(x: right.x - headLen, y: right.y)
-            shaft.move(to: left)
-            shaft.line(to: base)
-            shaft.stroke()
-            let head = NSBezierPath()
-            head.move(to: right)
-            head.line(to: NSPoint(x: right.x - headLen * cos(headAngle), y: right.y + headLen * sin(headAngle)))
-            head.line(to: NSPoint(x: right.x - headLen * cos(headAngle), y: right.y - headLen * sin(headAngle)))
-            head.close()
-            head.fill()
-            let r: CGFloat = 3
-            NSBezierPath(ovalIn: NSRect(x: left.x - r, y: left.y - r, width: r * 2, height: r * 2)).fill()
-        }
-    }
-    @discardableResult    private func startBeautifyToolbarAnimation() {
+    private func startBeautifyToolbarAnimation() {
         beautifyToolbarAnimProgress = 0
         beautifyToolbarAnimTarget = beautifyEnabled
         beautifyToolbarAnimTimer?.invalidate()
@@ -2430,119 +2120,7 @@ class OverlayView: NSView {
         return (color, hex)
     }
 
-    // MARK: - Editor Top Bar
-
-    func drawEditorTopBar() {
-        let barH: CGFloat = 32
-        let barRect = NSRect(x: 0, y: bounds.maxY - barH, width: bounds.width, height: barH)
-        editorTopBarRect = barRect
-
-        // Background — subtle dark bar
-        NSColor(white: 0.10, alpha: 1.0).setFill()
-        NSBezierPath(rect: barRect).fill()
-
-        // Bottom separator line
-        NSColor(white: 0.25, alpha: 1.0).setFill()
-        NSBezierPath(rect: NSRect(x: 0, y: barRect.minY, width: barRect.width, height: 0.5)).fill()
-
-        let btnH: CGFloat = 22
-        let btnY = barRect.midY - btnH / 2
-        let btnRadius: CGFloat = 4
-        var curX: CGFloat = 12
-
-        let labelFont = NSFont.systemFont(ofSize: 11, weight: .medium)
-        let labelColor = NSColor.white.withAlphaComponent(0.85)
-        let dimColor = NSColor.white.withAlphaComponent(0.45)
-
-        // ── Pixel size label ──
-        if let img = screenshotImage {
-            let scale = NSScreen.main?.backingScaleFactor ?? 2.0
-            let pw = Int(img.size.width * scale)
-            let ph = Int(img.size.height * scale)
-            let sizeStr = "\(pw) × \(ph)" as NSString
-            let sizeAttrs: [NSAttributedString.Key: Any] = [
-                .font: NSFont.monospacedDigitSystemFont(ofSize: 11, weight: .medium),
-                .foregroundColor: dimColor,
-            ]
-            let sizeSize = sizeStr.size(withAttributes: sizeAttrs)
-            sizeStr.draw(at: NSPoint(x: curX, y: barRect.midY - sizeSize.height / 2), withAttributes: sizeAttrs)
-            curX += sizeSize.width + 16
-        }
-
-        // ── Separator ──
-        NSColor.white.withAlphaComponent(0.15).setFill()
-        NSBezierPath(rect: NSRect(x: curX, y: barRect.minY + 7, width: 0.5, height: barH - 14)).fill()
-        curX += 12
-
-        // ── Crop button ──
-        let isCropActive = (currentTool == .crop)
-        let cropBtnW: CGFloat = btnH
-        let cropRect = NSRect(x: curX, y: btnY, width: cropBtnW, height: btnH)
-        editorCropBtnRect = cropRect
-
-        let cropBg = isCropActive ? ToolbarLayout.selectedBg : NSColor.white.withAlphaComponent(0.08)
-        cropBg.setFill()
-        NSBezierPath(roundedRect: cropRect, xRadius: btnRadius, yRadius: btnRadius).fill()
-        drawTopBarIcon("crop", in: cropRect, selected: isCropActive)
-        curX += cropBtnW + 4
-
-        // ── Flip Horizontal button ──
-        let flipHBtnW: CGFloat = btnH
-        let flipHRect = NSRect(x: curX, y: btnY, width: flipHBtnW, height: btnH)
-        editorFlipHBtnRect = flipHRect
-
-        NSColor.white.withAlphaComponent(0.08).setFill()
-        NSBezierPath(roundedRect: flipHRect, xRadius: btnRadius, yRadius: btnRadius).fill()
-        drawTopBarIcon("arrow.left.and.right.righttriangle.left.righttriangle.right", in: flipHRect, selected: false)
-        curX += flipHBtnW + 4
-
-        // ── Flip Vertical button ──
-        let flipVBtnW: CGFloat = btnH
-        let flipVRect = NSRect(x: curX, y: btnY, width: flipVBtnW, height: btnH)
-        editorFlipVBtnRect = flipVRect
-
-        NSColor.white.withAlphaComponent(0.08).setFill()
-        NSBezierPath(roundedRect: flipVRect, xRadius: btnRadius, yRadius: btnRadius).fill()
-        drawTopBarIcon("arrow.up.and.down.righttriangle.up.righttriangle.down", in: flipVRect, selected: false)
-
-        // ── Zoom label (right-aligned) ──
-        let zoomStr = "\(Int(zoomLevel * 100))%" as NSString
-        let zoomAttrs: [NSAttributedString.Key: Any] = [
-            .font: NSFont.monospacedDigitSystemFont(ofSize: 11, weight: .medium),
-            .foregroundColor: dimColor,
-        ]
-        let zoomSize = zoomStr.size(withAttributes: zoomAttrs)
-        let zoomX = barRect.maxX - zoomSize.width - 12
-        zoomStr.draw(at: NSPoint(x: zoomX, y: barRect.midY - zoomSize.height / 2),
-                     withAttributes: zoomAttrs)
-
-        // ── Reset zoom button (left of zoom %) ──
-        let resetBtnW: CGFloat = btnH
-        let resetRect = NSRect(x: zoomX - resetBtnW - 6, y: btnY, width: resetBtnW, height: btnH)
-        editorResetZoomBtnRect = resetRect
-        NSColor.white.withAlphaComponent(0.08).setFill()
-        NSBezierPath(roundedRect: resetRect, xRadius: btnRadius, yRadius: btnRadius).fill()
-        drawTopBarIcon("arrow.counterclockwise", in: resetRect, selected: false)
-    }
-
-    private func drawTopBarIcon(_ symbolName: String, in rect: NSRect, selected: Bool) {
-        let cfg = NSImage.SymbolConfiguration(pointSize: 14, weight: .medium)
-        guard let baseImg = NSImage(systemSymbolName: symbolName, accessibilityDescription: nil)?
-                .withSymbolConfiguration(cfg) else { return }
-        let tint: NSColor = selected ? .white : .white.withAlphaComponent(0.85)
-        let imgSize = baseImg.size
-        let tintedImg = NSImage(size: imgSize, flipped: false) { r in
-            baseImg.draw(in: r, from: .zero, operation: .sourceOver, fraction: 1.0)
-            tint.setFill()
-            r.fill(using: .sourceAtop)
-            return true
-        }
-        let iconRect = NSRect(x: rect.midX - imgSize.width / 2, y: rect.midY - imgSize.height / 2,
-                              width: imgSize.width, height: imgSize.height)
-        tintedImg.draw(in: iconRect, from: .zero, operation: .sourceOver, fraction: 1.0)
-    }
-
-    // MARK: - Editor Image Transforms
+    // MARK: - Editor Top Bar    // MARK: - Editor Image Transforms
 
     func flipImageHorizontally() {
         guard let original = screenshotImage,
@@ -4070,7 +3648,7 @@ class OverlayView: NSView {
 
         // Don't commit text if clicking on text formatting controls in the options row
         let isTextFormattingClick = textEditView != nil && currentTool == .text &&
-            ((toolOptionsRowView?.frame.contains(point) ?? false) || (showFontPicker && fontPickerRect.contains(point)))
+            ((toolOptionsRowView?.frame.contains(point) ?? false))
         if !isTextFormattingClick {
             commitTextFieldIfNeeded()
         }
@@ -4106,35 +3684,6 @@ class OverlayView: NSView {
             }
 
             if showToolbars {
-                // Font picker dropdown click handling
-                if showFontPicker {
-                    if fontPickerRect.contains(point) {
-                        for (i, itemRect) in fontPickerItemRects.enumerated() {
-                            if itemRect.contains(point) {
-                                let family = TextEditingController.fontFamilies[i]
-                                textFontFamily = family
-                                UserDefaults.standard.set(family, forKey: "textFontFamily")
-                                applyFontFamilyToSelection(family)
-                                showFontPicker = false
-                                if let tv = textEditView {
-                                    window?.makeFirstResponder(tv)
-                                }
-                                needsDisplay = true
-                                return
-                            }
-                        }
-                        return  // clicked in picker but not on an item
-                    } else {
-                        // Clicking the dropdown button again should just close the picker
-                        showFontPicker = false
-                        needsDisplay = true
-                        if textFontDropdownRect.contains(point) {
-                            return  // consumed — don't let the toggle re-open it
-                        }
-                        // fall through to handle click normally
-                    }
-                }
-
 
             }
 
@@ -4795,7 +4344,6 @@ class OverlayView: NSView {
             }
             commitTextFieldIfNeeded()
             showBeautifyInOptionsRow = false  // switch back to tool options
-            showFontPicker = false
             currentTool = tool
             // Auto-select first emoji when switching to stamp tool with nothing selected
             if tool == .stamp && currentStampImage == nil {
@@ -4864,7 +4412,6 @@ class OverlayView: NSView {
             invertImageColors()
         case .beautify:
             commitTextFieldIfNeeded()
-            showFontPicker = false
             stampPreviewPoint = nil
             loupeCursorPoint = .zero
             // Auto-enable beautify on first click in this session
@@ -5633,7 +5180,6 @@ class OverlayView: NSView {
         }
         textEditor.scrollView?.removeFromSuperview()
         textEditor.dismiss()
-        showFontPicker = false
         window?.makeFirstResponder(self)
 
         needsDisplay = true
@@ -5688,7 +5234,6 @@ class OverlayView: NSView {
         editingAnnotation = nil
         sv.removeFromSuperview()
         textEditor.dismiss()
-        showFontPicker = false
         window?.makeFirstResponder(self)
 
         needsDisplay = true
@@ -5866,7 +5411,6 @@ class OverlayView: NSView {
             if textEditView != nil {
                 textEditor.scrollView?.removeFromSuperview()
                 textEditor.dismiss()
-                showFontPicker = false
                 window?.makeFirstResponder(self)
         
                 needsDisplay = true
@@ -6593,7 +6137,6 @@ class OverlayView: NSView {
         currentRectCornerRadius = CGFloat(UserDefaults.standard.object(forKey: "currentRectCornerRadius") as? Double ?? 0)
         textEditor.scrollView?.removeFromSuperview()
         textEditor.dismiss()
-        showFontPicker = false
         sizeInputField?.removeFromSuperview()
         sizeInputField = nil
         isResizingAnnotation = false
@@ -6660,7 +6203,6 @@ extension OverlayView: NSTextViewDelegate {
         }
         if commandSelector == #selector(NSResponder.cancelOperation(_:)) {
             textEditor.dismiss()
-            showFontPicker = false
             window?.makeFirstResponder(self)
             needsDisplay = true
             return true

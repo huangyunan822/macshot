@@ -44,34 +44,5 @@ class EditorView: OverlayView {
 
     override var captureDrawRect: NSRect { selectionRect }
 
-    // MARK: - Top bar (drawn as custom draw — will be converted to NSView later)
-
-    override func drawTopChrome() {
-        drawEditorTopBar()
-    }
-
-    override func handleTopChromeClick(at point: NSPoint) -> Bool {
-        guard editorTopBarRect.contains(point) else { return false }
-        if editorCropBtnRect.contains(point) {
-            currentTool = currentTool == .crop ? .arrow : .crop
-            needsDisplay = true
-            return true
-        }
-        if editorFlipHBtnRect.contains(point) { flipImageHorizontally(); return true }
-        if editorFlipVBtnRect.contains(point) { flipImageVertically(); return true }
-        if editorResetZoomBtnRect.contains(point) {
-            enclosingScrollView?.magnification = 1.0
-            needsDisplay = true
-            return true
-        }
-        return true
-    }
-
-    override func updateCursorForChrome(at point: NSPoint) -> Bool {
-        if editorTopBarRect.contains(point) {
-            NSCursor.arrow.set()
-            return true
-        }
-        return false
-    }
+    // Top bar is handled by EditorTopBarView (real NSView in the container)
 }
