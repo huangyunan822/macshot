@@ -201,7 +201,9 @@ class OverlayView: NSView {
     var rightButtons: [ToolbarButton] = []
     var bottomBarRect: NSRect = .zero
     var rightBarRect: NSRect = .zero
-    var showToolbars: Bool = false
+    var showToolbars: Bool = false {
+        didSet { if showToolbars && !oldValue { rebuildToolbarLayout() } }
+    }
     private var bottomStripView: ToolbarStripView?
     private var rightStripView: ToolbarStripView?
     private var toolOptionsRowView: ToolOptionsRowView?
@@ -2289,42 +2291,7 @@ class OverlayView: NSView {
     }
 
     /// Draws a macOS-style pill toggle (like iOS switches but smaller)
-    @discardableResult
-    private func drawOptionsPillToggle(label: String, isOn: Bool, x: CGFloat, rowRect: NSRect, targetRect: inout NSRect) -> CGFloat {
-        let labelAttrs: [NSAttributedString.Key: Any] = [
-            .font: NSFont.systemFont(ofSize: 10, weight: .medium),
-            .foregroundColor: NSColor.white.withAlphaComponent(0.5),
-        ]
-        var curX = x
-        let lStr = label as NSString
-        let lSize = lStr.size(withAttributes: labelAttrs)
-        lStr.draw(at: NSPoint(x: curX, y: rowRect.midY - lSize.height / 2), withAttributes: labelAttrs)
-        curX += lSize.width + 5
-
-        // Pill switch
-        let pillW: CGFloat = 28
-        let pillH: CGFloat = 16
-        let pillRect = NSRect(x: curX, y: rowRect.midY - pillH / 2, width: pillW, height: pillH)
-        targetRect = pillRect
-
-        // Track
-        let trackColor = isOn ? ToolbarLayout.accentColor : NSColor.white.withAlphaComponent(0.15)
-        trackColor.setFill()
-        NSBezierPath(roundedRect: pillRect, xRadius: pillH / 2, yRadius: pillH / 2).fill()
-
-        // Knob
-        let knobInset: CGFloat = 2
-        let knobD = pillH - knobInset * 2
-        let knobX = isOn ? pillRect.maxX - knobD - knobInset : pillRect.minX + knobInset
-        let knobRect = NSRect(x: knobX, y: pillRect.minY + knobInset, width: knobD, height: knobD)
-        NSColor.white.setFill()
-        NSBezierPath(ovalIn: knobRect).fill()
-
-        curX += pillW + 10
-        return curX
-    }
-
-    private func drawArrowStylePreview(style: ArrowStyle, in rect: NSRect, active: Bool) {
+    @discardableResult    private func drawArrowStylePreview(style: ArrowStyle, in rect: NSRect, active: Bool) {
         let color = NSColor.white.withAlphaComponent(active ? 0.9 : 0.35)
         let inset: CGFloat = 7
         let left = NSPoint(x: rect.minX + inset, y: rect.midY)
@@ -2431,38 +2398,7 @@ class OverlayView: NSView {
             NSBezierPath(ovalIn: NSRect(x: left.x - r, y: left.y - r, width: r * 2, height: r * 2)).fill()
         }
     }
-    @discardableResult
-    private func drawOptionsToggle(label: String, isOn: Bool, x: CGFloat, rowRect: NSRect, targetRect: inout NSRect) -> CGFloat {
-        let labelAttrs: [NSAttributedString.Key: Any] = [
-            .font: NSFont.systemFont(ofSize: 10, weight: .medium),
-            .foregroundColor: NSColor.white.withAlphaComponent(0.7),
-        ]
-        var curX = x
-        let lStr = label as NSString
-        let lSize = lStr.size(withAttributes: labelAttrs)
-        lStr.draw(at: NSPoint(x: curX, y: rowRect.midY - lSize.height / 2), withAttributes: labelAttrs)
-        curX += lSize.width + 4
-
-        let checkSize: CGFloat = 14
-        let checkRect = NSRect(x: curX, y: rowRect.midY - checkSize / 2, width: checkSize, height: checkSize)
-        targetRect = checkRect
-
-        NSColor.white.withAlphaComponent(isOn ? 0.9 : 0.25).setFill()
-        NSBezierPath(roundedRect: checkRect, xRadius: 3, yRadius: 3).fill()
-        if isOn {
-            let tickAttrs: [NSAttributedString.Key: Any] = [
-                .font: NSFont.systemFont(ofSize: 10, weight: .bold),
-                .foregroundColor: NSColor.black,
-            ]
-            let tick = "✓" as NSString
-            let tickSize = tick.size(withAttributes: tickAttrs)
-            tick.draw(at: NSPoint(x: checkRect.midX - tickSize.width / 2, y: checkRect.midY - tickSize.height / 2), withAttributes: tickAttrs)
-        }
-        curX += checkSize + 10
-        return curX
-    }
-
-    private func startBeautifyToolbarAnimation() {
+    @discardableResult    private func startBeautifyToolbarAnimation() {
         beautifyToolbarAnimProgress = 0
         beautifyToolbarAnimTarget = beautifyEnabled
         beautifyToolbarAnimTimer?.invalidate()
@@ -4033,8 +3969,14 @@ class OverlayView: NSView {
 
         bottomStripView?.setButtons(bottomButtons)
         bottomStripView?.onClick = { [weak self] action in self?.handleToolbarAction(action) }
+        bottomStripView?.onRightClick = { [weak self] action, view in
+            self?.handleToolbarButtonRightClick(action, anchorView: view)
+        }
         rightStripView?.setButtons(rightButtons)
         rightStripView?.onClick = { [weak self] action in self?.handleToolbarAction(action) }
+        rightStripView?.onRightClick = { [weak self] action, view in
+            self?.handleToolbarButtonRightClick(action, anchorView: view)
+        }
 
         // Rebuild options row content
         if toolHasOptionsRow {
@@ -4797,44 +4739,7 @@ class OverlayView: NSView {
 
         // Text Fill/Outline color picking handled by ToolOptionsRowView
 
-        // Check toolbar button right-clicks first
-        if state == .selected && showToolbars {
-            if let action = ToolbarLayout.hitTest(point: point, buttons: bottomButtons) {
-                // Tool right-click menus removed — options now in the tool options row
-                if case .autoRedact = action {
-                    PopoverHelper.dismiss()
-                    let btnRect = bottomButtons.first { if case .autoRedact = $0.action { return true }; return false }?.rect ?? .zero
-                    showRedactTypePopover(anchorRect: btnRect)
-                    return
-                }
-                return
-            }
-            if let action = ToolbarLayout.hitTest(point: point, buttons: rightButtons) {
-                if case .save = action {
-                    let menu = NSMenu()
-                    let saveAsItem = NSMenuItem(title: "Save As...", action: #selector(saveAsMenuAction), keyEquivalent: "")
-                    saveAsItem.target = self
-                    menu.addItem(saveAsItem)
-                    NSMenu.popUpContextMenu(menu, with: event, for: self)
-                    return
-                }
-                if case .upload = action {
-                    PopoverHelper.dismiss()
-                    let btnRect = rightButtons.first { if case .upload = $0.action { return true }; return false }?.rect ?? .zero
-                    showUploadConfirmPopover(anchorRect: btnRect)
-                    return
-                }
-                if case .translate = action {
-                    PopoverHelper.dismiss()
-                    let btnRect = rightButtons.first { if case .translate = $0.action { return true }; return false }?.rect ?? .zero
-                    showTranslatePopover(anchorRect: btnRect)
-                    needsDisplay = true
-                    return
-                }
-                // Record button right-click removed — toggles are in recording toolbar
-                return
-            }
-        }
+        // Toolbar right-clicks handled by ToolbarButtonView.onRightClick → handleToolbarButtonRightClick
 
         // Right-click on a selected/hovered line/arrow: add anchor point
         if state == .selected {
@@ -4994,6 +4899,29 @@ class OverlayView: NSView {
     }
 
     // MARK: - Toolbar Actions
+
+    /// Handle right-click on a toolbar button (context menus, popovers).
+    private func handleToolbarButtonRightClick(_ action: ToolbarButtonAction, anchorView: NSView) {
+        switch action {
+        case .autoRedact:
+            PopoverHelper.dismiss()
+            showRedactTypePopover(anchorRect: anchorView.convert(anchorView.bounds, to: self))
+        case .save:
+            let menu = NSMenu()
+            let saveAsItem = NSMenuItem(title: "Save As...", action: #selector(saveAsMenuAction), keyEquivalent: "")
+            saveAsItem.target = self
+            menu.addItem(saveAsItem)
+            menu.popUp(positioning: nil, at: NSPoint(x: 0, y: anchorView.bounds.height), in: anchorView)
+        case .upload:
+            PopoverHelper.dismiss()
+            showUploadConfirmPopover(anchorRect: anchorView.convert(anchorView.bounds, to: self))
+        case .translate:
+            PopoverHelper.dismiss()
+            showTranslatePopover(anchorRect: anchorView.convert(anchorView.bounds, to: self))
+        default:
+            break
+        }
+    }
 
     func handleToolbarAction(_ action: ToolbarButtonAction, mousePoint: NSPoint = .zero) {
         // When recording but not in annotation mode, only allow recording-control actions
