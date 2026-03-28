@@ -82,6 +82,20 @@ class DetachedEditorWindowController: NSObject, NSWindowDelegate {
         container.autoresizingMask = [.width, .height]
         container.addSubview(scrollView)
 
+        // Top bar — real NSView pinned to top of container
+        let topBar = EditorTopBarView(frame: NSRect(x: 0, y: winH - 32, width: winW, height: 32))
+        topBar.overlayView = view
+        container.addSubview(topBar)
+        if let scale = NSScreen.main?.backingScaleFactor,
+           let cg = image.cgImage(forProposedRect: nil, context: nil, hints: nil) {
+            topBar.updateSizeLabel(width: cg.width, height: cg.height)
+        }
+
+        // Observe scroll view magnification for zoom label
+        NotificationCenter.default.addObserver(forName: NSScrollView.didEndLiveMagnifyNotification, object: scrollView, queue: .main) { [weak topBar, weak scrollView] _ in
+            if let mag = scrollView?.magnification { topBar?.updateZoom(mag) }
+        }
+
         // Set chrome parent BEFORE applySelection so toolbars are added to container, not documentView
         view.chromeParentView = container
 

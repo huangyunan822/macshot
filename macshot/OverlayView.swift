@@ -4043,7 +4043,9 @@ class OverlayView: NSView {
         if isEditorMode {
             let cb = chromeParentView?.bounds ?? bounds
             bottomStrip.frame.origin = NSPoint(x: cb.midX - bottomSize.width / 2, y: 6)
+            bottomStrip.autoresizingMask = [.minXMargin, .maxXMargin, .maxYMargin]
             rightStrip.frame.origin = NSPoint(x: cb.maxX - rightSize.width - 6, y: cb.maxY - rightSize.height - 36)
+            rightStrip.autoresizingMask = [.minXMargin, .minYMargin]
         } else {
             var bx = anchorRect.midX - bottomSize.width / 2
             var by = anchorRect.minY - bottomSize.height - 6
