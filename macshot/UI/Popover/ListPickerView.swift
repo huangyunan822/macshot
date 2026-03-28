@@ -27,7 +27,7 @@ class ListPickerView: NSView {
         for rv in rowViews { rv.removeFromSuperview() }
         rowViews.removeAll()
 
-        let width: CGFloat = frame.width > 0 ? frame.width : 140
+        let width: CGFloat = max(frame.width, 140)
         var y = CGFloat(items.count) * rowHeight + padding  // start from top
 
         for (i, item) in items.enumerated() {
@@ -48,9 +48,26 @@ class ListPickerView: NSView {
 
     /// Preferred size for the popover.
     var preferredSize: NSSize {
-        let w: CGFloat = 140
+        let w: CGFloat = 160
         let h = CGFloat(items.count) * rowHeight + padding * 2
         return NSSize(width: w, height: h)
+    }
+
+    /// Scroll the enclosing scroll view so the selected item is visible.
+    func scrollToSelected() {
+        guard let scrollView = enclosingScrollView else { return }
+        for rv in rowViews where rv.isItemSelected {
+            scrollView.contentView.scrollToVisible(rv.frame.insetBy(dx: 0, dy: -rowHeight))
+            return
+        }
+    }
+
+    /// Update row widths when placed in a scroll view that's wider.
+    override func setFrameSize(_ newSize: NSSize) {
+        super.setFrameSize(newSize)
+        for rv in rowViews {
+            rv.frame.size.width = newSize.width
+        }
     }
 }
 
@@ -98,7 +115,10 @@ private class ListPickerRowView: NSView {
     override func updateTrackingAreas() {
         super.updateTrackingAreas()
         if let ta = trackingArea { removeTrackingArea(ta) }
-        trackingArea = NSTrackingArea(rect: bounds, options: [.mouseEnteredAndExited, .activeInActiveApp], owner: self, userInfo: nil)
+        trackingArea = NSTrackingArea(
+            rect: bounds,
+            options: [.mouseEnteredAndExited, .activeAlways],
+            owner: self, userInfo: nil)
         addTrackingArea(trackingArea!)
     }
 

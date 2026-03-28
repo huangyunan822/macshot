@@ -21,37 +21,94 @@ Menu bar agent app. No main window. Global hotkey (Cmd+Shift+X) or menu bar clic
 
 ```
 macshot/
-├── main.swift                         # App entry point
-├── AppDelegate.swift                  # App lifecycle, status bar, hotkey, capture orchestration
-├── ScreenCaptureManager.swift         # Multi-screen capture via ScreenCaptureKit (async/await)
-├── OverlayWindowController.swift      # One per screen: fullscreen borderless overlay window
-├── OverlayView.swift                  # Base canvas: selection, drawing, annotation, toolbars (shared by overlay + editor)
-├── EditorView.swift                   # Editor subclass of OverlayView: centering, zoom 0.1x, crop, flip, no selection chrome
-├── AnnotationToolbar.swift            # Toolbar button definitions, layout constants, drawing helpers
-├── Annotation.swift                   # Data model + drawing for all annotation types
-├── DetachedEditorWindowController.swift  # Standalone editor window (resizable, titled), uses EditorView
-├── PinWindowController.swift          # Floating always-on-top pinned screenshot
-├── FloatingThumbnailController.swift  # Auto-dismiss thumbnail after capture (right edge)
-├── PreferencesWindowController.swift  # Settings: General, Tools, Recording tabs
-├── HotkeyManager.swift               # Global keyboard shortcut (Carbon RegisterEventHotKey)
-├── RecordingEngine.swift              # Screen recording (MP4 via AVAssetWriter, GIF via GIFEncoder)
-├── RecordingControlView.swift         # Click-through recording control overlay
-├── RecordingToastView.swift           # Toast notification after recording completes
-├── ScrollCaptureController.swift      # Scroll capture with SAD-based stitching
-├── OCRResultController.swift          # Text recognition results window with translation
-├── TranslationService.swift           # Google Translate API wrapper
-├── BeautifyRenderer.swift             # Gradient frame / background beautification (linear + mesh gradients)
-├── ImageEncoder.swift                 # PNG/JPEG/HEIC/WebP encoding, clipboard copy, resolution scaling
-├── ImgurUploader.swift                # imgbb image upload
-├── GoogleDriveUploader.swift          # Google Drive OAuth2 upload
-├── UploadToastController.swift        # Upload progress/success toast
-├── ScreenshotHistory.swift            # Local history in ~/Library/Application Support/
-├── HistoryOverlayController.swift     # Recent captures visual overlay panel
-├── VideoEditorWindowController.swift  # Standalone video editor (trim, export, upload)
-├── GIFEncoder.swift                   # Animated GIF from video frames
-├── CountdownView.swift                # Delay capture countdown display
-├── PermissionOnboardingController.swift  # First-run permission guide
-├── ViewController.swift               # Unused default (minimal)
+├── main.swift                          # App entry point
+├── AppDelegate.swift                   # App lifecycle, status bar, hotkey, capture orchestration
+│
+├── Model/
+│   └── Annotation.swift                # Data model + drawing for all annotation types
+│
+├── Capture/
+│   ├── ScreenCaptureManager.swift      # Multi-screen capture via ScreenCaptureKit (async/await)
+│   ├── RecordingEngine.swift           # Screen recording (MP4 via AVAssetWriter, GIF via GIFEncoder)
+│   ├── ScrollCaptureController.swift   # Scroll capture with SAD-based stitching
+│   └── GIFEncoder.swift               # Animated GIF from video frames
+│
+├── Services/
+│   ├── ImageEncoder.swift              # PNG/JPEG/HEIC/WebP encoding, clipboard copy, resolution scaling
+│   ├── BeautifyRenderer.swift          # Gradient frame / background beautification (linear + mesh gradients)
+│   ├── AutoRedactor.swift              # PII regex detection + Vision OCR → redaction annotations
+│   ├── BarcodeDetector.swift           # Async Vision barcode/QR scanning, badge drawing, hit-testing
+│   ├── TranslationOverlay.swift        # OCR → translate → overlay annotations
+│   ├── TranslationService.swift        # Google Translate API wrapper
+│   ├── VisionOCR.swift                 # Vision text recognition request factory
+│   ├── HotkeyManager.swift            # Global keyboard shortcut (Carbon RegisterEventHotKey)
+│   ├── ScreenshotHistory.swift         # Local history in ~/Library/Application Support/
+│   └── SaveDirectoryAccess.swift       # Security-scoped bookmark for save directory
+│
+├── Upload/
+│   ├── ImgbbUploader.swift             # imgbb image upload
+│   ├── GoogleDriveUploader.swift       # Google Drive OAuth2 upload
+│   └── S3Uploader.swift               # S3-compatible upload
+│
+├── UI/
+│   ├── Overlay/
+│   │   ├── OverlayView.swift           # Base canvas: selection, drawing, annotation rendering, input routing
+│   │   ├── OverlayView+Popovers.swift  # Popover factories + auto-redact/translate action helpers
+│   │   ├── OverlayView+Recording.swift # Recording HUD, mouse highlight monitor
+│   │   ├── OverlayView+ScrollCaptureHUD.swift  # Scroll capture progress bar + stop button
+│   │   ├── OverlayView+WindowSnapping.swift    # Window detection + snap highlight drawing
+│   │   ├── OverlayWindowController.swift       # One per screen: fullscreen borderless overlay window
+│   │   └── ColorWheelRenderer.swift    # Radial color wheel for right-click quick color pick
+│   │
+│   ├── Editor/
+│   │   ├── EditorView.swift            # OverlayView subclass: NSScrollView mode, no selection chrome
+│   │   ├── DetachedEditorWindowController.swift  # Standalone editor window (resizable, titled)
+│   │   ├── EditorTopBarView.swift      # NSView with crop, flip, zoom buttons
+│   │   ├── CenteringClipView.swift     # NSClipView subclass that centers document when smaller than clip
+│   │   └── VideoEditorWindowController.swift  # Standalone video editor (trim, export, upload)
+│   │
+│   ├── Toolbar/
+│   │   ├── ToolbarDefinitions.swift    # ToolbarButtonAction enum, ToolbarButton struct, ToolbarLayout constants
+│   │   ├── ToolbarButtonView.swift     # NSView for a single toolbar button (hover, press, selection states)
+│   │   ├── ToolbarStripView.swift      # NSView container for horizontal/vertical button rows
+│   │   └── ToolOptionsRowView.swift    # NSView-based tool options bar (sliders, segments, text formatting)
+│   │
+│   ├── Tools/
+│   │   ├── AnnotationToolHandler.swift # AnnotationToolHandler + AnnotationCanvas protocols, shared helpers
+│   │   ├── PencilToolHandler.swift     # Freeform draw with Chaikin smoothing
+│   │   ├── MarkerToolHandler.swift     # Highlighter (semi-transparent wide stroke)
+│   │   ├── LineToolHandler.swift       # Straight line with 45° snap
+│   │   ├── ArrowToolHandler.swift      # Arrow with styles (single, thick, double, open, tail)
+│   │   ├── RectangleToolHandler.swift  # Rectangle with corner radius, fill style, line style
+│   │   ├── FilledRectangleToolHandler.swift  # Opaque filled rectangle (redact)
+│   │   ├── EllipseToolHandler.swift    # Ellipse with fill style
+│   │   ├── PixelateToolHandler.swift   # Pixelate region
+│   │   ├── BlurToolHandler.swift       # Gaussian blur region
+│   │   ├── LoupeToolHandler.swift      # Click-to-place 2x magnifier
+│   │   ├── MeasureToolHandler.swift    # Pixel ruler with 45° snap
+│   │   ├── NumberToolHandler.swift     # Auto-incrementing numbered circle
+│   │   ├── StampToolHandler.swift      # Emoji/image stamp + StampEmojis data
+│   │   └── TextEditingController.swift # Text tool: NSTextView lifecycle, formatting, commit, cancel
+│   │
+│   ├── Popover/
+│   │   ├── PopoverHelper.swift         # Static helper for showing/dismissing NSPopovers
+│   │   ├── ColorPickerView.swift       # Custom color picker: swatches, HSB gradient, opacity, custom slots
+│   │   ├── ListPickerView.swift        # Reusable list picker with checkmark selection
+│   │   ├── EmojiPickerView.swift       # Emoji grid with category tabs
+│   │   └── GradientPickerView.swift    # Beautify gradient style swatch grid
+│   │
+│   └── Windows/
+│       ├── PinWindowController.swift          # Floating always-on-top pinned screenshot
+│       ├── FloatingThumbnailController.swift  # Auto-dismiss thumbnail after capture
+│       ├── PreferencesWindowController.swift  # Settings: General, Tools, Recording tabs
+│       ├── OCRResultController.swift          # Text recognition results window with translation
+│       ├── HistoryOverlayController.swift     # Recent captures visual overlay panel
+│       ├── UploadToastController.swift        # Upload progress/success toast
+│       ├── RecordingControlView.swift         # Click-through recording control overlay
+│       ├── RecordingToastView.swift           # Toast notification after recording completes
+│       ├── CountdownView.swift                # Delay capture countdown display
+│       └── PermissionOnboardingController.swift  # First-run permission guide
+│
 ├── Info.plist
 ├── Assets.xcassets/
 └── Base.lproj/Main.storyboard
@@ -66,59 +123,47 @@ macshot/
 - Implements `OverlayWindowControllerDelegate` — handles confirm, cancel, pin, OCR, recording, scroll capture, upload, delay
 - Manages: `overlayControllers[]`, `thumbnailControllers[]`, `pinControllers[]`, `ocrController`, `recordingEngine`, `scrollCaptureController`
 
-#### ScreenCaptureManager
-- Async/await with TaskGroup for concurrent multi-display capture
-- `SCShareableContent.getExcludingDesktopWindows` + `SCScreenshotManager.captureImage`
-- Returns `[(NSScreen, CGImage)]` pairs
-- CPU-backed blit of GPU-sourced IOSurface images on capture thread (avoids main thread GPU stall)
-
-#### OverlayWindowController — One Per Screen
-- `NSWindow` level `.statusBar + 1`, borderless, transparent
-- Content view is OverlayView with the frozen screenshot
-- Implements `OverlayViewDelegate` — bridges view events to AppDelegate
-- Handles detach: crops screenshot to selection, clones annotations with coordinate shift, opens DetachedEditorWindowController
-
-#### OverlayView — The Main Interaction Surface (~6000 lines)
-The core of the app. Handles selection, annotation, rendering, and all user interaction.
+#### OverlayView — The Main Interaction Surface
+The core canvas view. Handles selection state machine, annotation rendering, input routing, and toolbar positioning. Tool-specific creation/update/finish logic is delegated to `AnnotationToolHandler` implementations in `UI/Tools/`.
 
 **State machine:** `idle` → `selecting` → `selected`
 
 **Zoom system:** 0.1x–8x (min 1.0x in overlay, 0.1x in editor), scroll/pinch to zoom, pan while zoomed, clickable zoom label
 
-**Toolbars:** Two bars drawn inline in `draw(_:)` (not separate windows), draggable:
-- **Bottom bar:** Drawing tools, color picker, stroke width, undo/redo
-- **Right bar:** Output actions (copy, save, pin, OCR, upload, etc.), cancel, move selection, editor, delay, record, scroll capture
+**Toolbars:** Real NSView-based toolbar strips (`ToolbarStripView` + `ToolbarButtonView`) positioned by OverlayView. Tool-specific options in `ToolOptionsRowView` with real NSSlider/NSSegmentedControl/NSButton controls. Popovers use `NSPopover` via `PopoverHelper`.
 
-**Editor mode (EditorView subclass):** `EditorView` is a subclass of `OverlayView` that overrides behavior via clean override points. It hides overlay-only buttons (cancel, move, delay, record, scroll capture), pins toolbars to window edges, dark background, image centered at natural size, no selection border/handles, no new-selection on click outside. The old `isDetached` flag is removed — use `isEditorMode` computed property instead.
+**Editor mode (EditorView subclass):** `EditorView` is a subclass of `OverlayView` that overrides behavior via clean override points. Uses NSScrollView for zoom/pan/centering. The old `isDetached` flag is removed — use `isEditorMode` computed property instead.
 
 **CRITICAL — Overlay vs Editor coordinate rules:**
 - **Never use `bounds` for image-to-pixel mapping.** Always use `captureDrawRect` (returns `bounds` in overlay, `selectionRect` in editor).
-- **Never use raw view-space points for annotation positions.** Always convert via `viewToCanvas()` first. In the editor, this subtracts `editorCanvasOffset`.
+- **Never use raw view-space points for annotation positions.** Always convert via `viewToCanvas()` first.
 - **Never call `viewToCanvas()` on a point that's already in canvas space.** `startAnnotation(at:)` receives canvas-space points — don't double-convert inside it.
 - **When positioning NSViews (e.g. NSTextView for text tool),** convert canvas coords back to view coords via `canvasToView()`.
 - **`compositedImage()`** renders at `captureDrawRect.size`, not `bounds.size`.
 - **`sourceImageBounds`** for pixelate/blur/loupe must be set to `captureDrawRect`, not `bounds`.
 - **For Vision API region crops** (OCR, barcode, auto-redact), draw the screenshot at `captureDrawRect` size, not `bounds` size.
-- **Cursor management** is fully imperative (no cursor rects) via `updateCursorForPoint()` + a 30fps timer. Each window only sets cursors when the mouse is actually over it (prevents cross-window flicker on multi-monitor).
+- **Cursor management** is fully imperative (no cursor rects) via `updateCursorForPoint()` + `mouseMoved`. Each window only sets cursors when the mouse is actually over it (prevents cross-window flicker on multi-monitor).
 
 **Drawing pipeline in `draw(_:)`:**
-1. Background: screenshot image (full-screen in overlay, centered with `editorCanvasOffset` in editor)
+1. Background: screenshot image (full-screen in overlay, centered in editor via NSScrollView)
 2. Dark overlay mask (except inside selection) — skipped in editor
 3. Selection rectangle with 8 resize handles — skipped in editor
 4. Annotations rendered with cached composite when not actively drawing
-5. Toolbars (bottom + right bars) with hover/press states
-6. Popovers (color picker, stroke width)
-7. Zoom label (fades out)
-8. Recording indicators (elapsed time, controls)
+5. Toolbars positioned (real NSView subviews, not drawn inline)
+6. Zoom label (fades out)
+7. Recording/scroll capture HUD overlays
 
-**Text editing:** Inline NSTextView with rich formatting (bold, italic, underline, strikethrough, font size). Commits to `Annotation.textImage` snapshot on Enter.
+#### Tool Handler Architecture
+Each annotation tool's creation logic (start/update/finish) is extracted into an `AnnotationToolHandler` implementation. OverlayView dispatches through `toolHandlers[currentTool]` in `startAnnotation`, `updateAnnotation`, `finishAnnotation`.
 
-**Annotation selection:** Select tool picks existing annotations, 8-point resize handles, move without switching tools (hover detection), delete/edit buttons on selection.
+**`AnnotationCanvas` protocol** — the interface tool handlers use to access OverlayView state (colors, stroke width, annotations, undo stack, snap guides, etc.) without coupling to the full class.
 
-**Bend control point:** Lines and arrows support a draggable control point for curved paths (cubic bezier with cp1==cp2).
+**`TextEditingCanvas` protocol** — additional interface for `TextEditingController` to access coordinate transforms and commit annotations.
+
+Tools not extracted (handled directly in OverlayView): `select` (annotation interaction system), `colorSampler` (touches private color state), `crop` (editor-only image manipulation), `text` start/click detection (but all formatting/commit/cancel logic is in `TextEditingController`).
 
 #### Annotation — Data Model + Drawing
-Class (not struct) with `clone()` for safe copying.
+Class (not struct) with `clone()` for safe copying. Lives in `Model/Annotation.swift`.
 
 **Tools (AnnotationTool enum, 18 cases):**
 ```
@@ -127,47 +172,14 @@ text, number, stamp, pixelate, blur, measure, loupe, select,
 translateOverlay, crop, colorSampler
 ```
 
-**Key properties:** tool, startPoint, endPoint, color, strokeWidth, text, attributedText, number, points (freeform), bakedBlurNSImage (pixelate/blur result), textImage (text snapshot), textDrawRect, fontSize, isBold/isItalic/isUnderline/isStrikethrough, controlPoint (bend), rotation, groupID (batch undo for auto-redact), sourceImage (temporary, cleared after bake)
-
 **Each annotation draws itself** via `draw(in:)`. Has `hitTest(point:threshold:)`, `move(dx:dy:)`, `isMovable`, `boundingRect`, `drawSelectionHighlight()`.
 
 #### DetachedEditorWindowController — Standalone Editor
 - Opens from overlay ("Open in Editor Window" button) or from thumbnail/pin "Edit" action
-- Creates a titled, resizable NSWindow with OverlayView as content (isDetached=true)
-- Transfers annotations with coordinate shift (overlay coords → image-relative 0,0 origin)
-- `selectionRect == image bounds` — no coordinate offset
+- Creates: NSScrollView → CenteringClipView → EditorView (documentView)
+- Container view holds scroll view + EditorTopBarView
+- `chromeParentView` set BEFORE `applySelection` so toolbars go in container (not document view)
 - Static `activeControllers[]` array keeps instances alive; switches activation policy to `.regular` when open, `.accessory` when all closed
-- Implements `OverlayViewDelegate` for confirm/save/pin/OCR/upload/removeBackground
-
-#### AnnotationToolbar — Layout & Button Definitions
-- `ToolbarLayout` static class: `bottomButtons()` and `rightButtons()` factory methods
-- `ToolbarButton` struct: action, sfSymbol, label, tooltip, rect, isSelected, isHovered, isPressed, tintColor, bgColor, hasContextMenu
-- Theme: purple accent (`accentColor`), dark background, 32px buttons
-- Context menus: right-click on buttons for sub-options (redact patterns, delay seconds, beautify styles)
-- Tool enable/disable: reads `enabledTools` from UserDefaults, tracks `knownToolRawValues` to avoid re-enabling user-disabled tools on upgrade
-
-#### RecordingEngine
-- MP4 via AVAssetWriter + SCStream, GIF via GIFEncoder
-- Configurable FPS (default 30, capped at 15 for GIF)
-- Annotation mode: overlay stays visible during recording for live drawing
-- Output to temp files in Application Support directory
-
-#### ScrollCaptureController
-- Monitors scroll events, captures strips at intervals
-- SAD (Sum of Absolute Differences) template matching for sub-pixel registration
-- Scroll throttle 0.25s minimum, settlement timer 0.4s after scroll ends
-- Builds running stitched canvas, returns final tall CGImage
-
-#### FloatingThumbnailController
-- Appears on right edge after capture, auto-dismisses (configurable)
-- Stack mode (multiple thumbnails) or replace mode (single)
-- Quick actions: Copy, Save, Pin, Edit (opens editor), Upload
-- Draggable (NSDraggingSource) to save to filesystem
-
-#### PreferencesWindowController
-- **General tab:** Hotkey, save path, copy sound, thumbnails, history size
-- **Tools tab:** Per-tool enable/disable toggles
-- **Recording tab:** Format (MP4/GIF), FPS, on-stop action
 
 ### Protocols
 
@@ -175,15 +187,18 @@ translateOverlay, crop, colorSampler
 OverlayWindowControllerDelegate  — OverlayWindowController → AppDelegate
 OverlayViewDelegate              — OverlayView → OverlayWindowController / DetachedEditorWindowController
 PinWindowControllerDelegate      — PinWindowController → AppDelegate
+AnnotationToolHandler            — Tool creation/update/finish lifecycle
+AnnotationCanvas                 — OverlayView state interface for tool handlers
+TextEditingCanvas                — Coordinate transforms + annotation storage for TextEditingController
 ```
 
 ### Undo/Redo
 
-`UndoEntry` enum: `.added(Annotation)` and `.deleted(Annotation, Int)`. Stacks: `undoStack` / `redoStack`. Batch undo via `groupID` (e.g. auto-redact creates multiple annotations with same groupID, all undone together).
+`UndoEntry` enum: `.added(Annotation)`, `.deleted(Annotation, Int)`, `.imageTransform(...)`. Stacks: `undoStack` / `redoStack`. Batch undo via `groupID` (e.g. auto-redact creates multiple annotations with same groupID, all undone together).
 
 ### Coordinate Systems
 - **Overlay:** View coordinates = screen frame, bottom-left origin (AppKit)
-- **Detached editor:** selectionRect == image bounds, origin at (padLeft, padBottom) within view
+- **Editor:** EditorView inside NSScrollView — `isInsideScrollView` makes all transforms identity. NSScrollView handles zoom/pan/centering.
 - **ScreenCaptureKit:** Top-left origin, needs conversion from AppKit bottom-left for recording crop rects
 - **Annotation coords:** Always relative to the overlay/editor view — shifted when transferring between overlay and editor
 
@@ -231,7 +246,7 @@ Pencil, Line, Arrow, Rectangle, Filled Rectangle, Ellipse, Marker/Highlighter, T
 Copy to clipboard, Save to file (PNG/JPEG/HEIC/WebP), Pin (floating always-on-top), OCR with translation (30+ languages), Upload to imgbb or Google Drive (OAuth2), Remove background (VNGenerateForegroundInstanceMaskRequest), Open in editor, Beautify (30 gradient styles including 7 mesh gradients on macOS 15+), Flip horizontal/vertical
 
 ### Advanced
-- **Editor Window:** Standalone resizable window for post-capture editing, full annotation tools, zoom 0.1x–8x
+- **Editor Window:** Standalone resizable window for post-capture editing, full annotation tools, zoom 0.1x–8x via NSScrollView
 - **Video Editor:** Standalone video editor window for trimming, exporting, and uploading recorded videos
 - **Screen Recording:** MP4/GIF, annotation mode during recording, configurable FPS (up to 120fps), mouse click highlighting, system audio capture
 - **Scroll Capture:** Automatic scroll detection + stitching via SAD matching
@@ -240,7 +255,7 @@ Copy to clipboard, Save to file (PNG/JPEG/HEIC/WebP), Pin (floating always-on-to
 - **Floating Thumbnail:** Stackable, draggable, auto-dismiss, quick actions
 - **Screenshot History:** Local storage with thumbnails, "Recent Captures" menu, visual history overlay panel
 - **Delay Capture:** Configurable countdown (3s, 5s, 10s)
-- **Color Opacity:** Adjustable per annotation
+- **Color Opacity:** Adjustable per annotation via custom color picker
 - **Smooth Pencil Strokes:** Toggle in settings
 - **Zoom:** 0.1x–8x, scroll/pinch, pan, clickable label to edit percentage
 - **Sparkle Auto-Updates:** Automatic update checks via Sparkle framework
@@ -249,10 +264,10 @@ Copy to clipboard, Save to file (PNG/JPEG/HEIC/WebP), Pin (floating always-on-to
 ## Coding Conventions
 
 - Pure AppKit, no SwiftUI except `BeautifyRenderer` which uses SwiftUI `MeshGradient` + `ImageRenderer` for mesh gradient rendering (macOS 15+ only, guarded with `@available`)
+- **Use proper AppKit components:** NSPopover for popovers, NSView subclasses for toolbar buttons and strips, NSSlider/NSSegmentedControl/NSButton for controls, NSScrollView for editor zoom/pan, NSTextView for text editing. Avoid reimplementing standard UI components with manual `draw()` + coordinate hit-testing.
 - **Strict concurrency:** CI builds with Xcode 16+ and `-Owholemodule` which enforces strict Swift concurrency. Any code using `@MainActor`-isolated SwiftUI APIs (e.g. `ImageRenderer`) must itself be `@MainActor`. Always mark classes/functions that touch SwiftUI rendering with `@MainActor`. Local Debug builds may not catch these errors — always consider CI's stricter checking.
+- **Tool handler pattern:** New annotation tools should implement `AnnotationToolHandler` protocol in `UI/Tools/`, not add switch cases to OverlayView. The handler's `start`/`update`/`finish` methods use `AnnotationCanvas` to access shared state.
 - Apple frameworks: ScreenCaptureKit, Vision, CoreImage, AVFoundation + Sparkle for auto-updates + Swift-WebP for WebP encoding
-- All overlay/drawing in `draw(_:)` overrides via Core Graphics / NSBezierPath
-- Toolbars drawn inline in OverlayView (not separate NSPanel windows) — avoids z-order issues
 - SF Symbols for toolbar icons
 - Minimal allocations during mouse tracking (reuse paths, avoid per-mouseMoved object creation)
 - `[weak self]` in all closures to avoid retain cycles
@@ -260,6 +275,7 @@ Copy to clipboard, Save to file (PNG/JPEG/HEIC/WebP), Pin (floating always-on-to
 - UserDefaults for all preferences (no Core Data, no plist files)
 - Annotation is a class (reference type) for mutation during drag/resize — use `clone()` for safe copies
 - `autoreleasepool` for overlay teardown to prevent memory spikes
+- Extension files (`OverlayView+Feature.swift`) for self-contained feature code that accesses OverlayView state but is logically separate (recording overlays, scroll capture HUD, window snapping, popovers)
 
 ## Build & Run
 
@@ -278,4 +294,3 @@ When pushing a new version tag (e.g. `v2.6.0`):
 3. CI handles the rest: build (with `MARKETING_VERSION` injected from the tag), sign, notarize, DMG, GitHub Release, Sparkle appcast, Homebrew cask update.
 
 Note: `MARKETING_VERSION` in `project.pbxproj` is only used for local dev builds. CI always overrides it from the git tag.
-

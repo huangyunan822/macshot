@@ -108,9 +108,8 @@ class ToolbarButtonView: NSView {
         isPressed = true; needsDisplay = true
         if onMouseDown != nil {
             onMouseDown?(action)
-            if let target = dragForwardTarget {
+            if dragForwardTarget != nil {
                 forwardingDrag = true
-                target.mouseDown(with: event)
             }
             return
         }

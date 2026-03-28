@@ -83,4 +83,15 @@ class ToolbarStripView: NSView {
         ToolbarLayout.bgColor.setFill()
         NSBezierPath(roundedRect: bounds, xRadius: 6, yRadius: 6).fill()
     }
+
+    // Consume clicks on gaps between buttons so they don't fall through to OverlayView
+    override func hitTest(_ point: NSPoint) -> NSView? {
+        let local = convert(point, from: superview)
+        guard bounds.contains(local) else { return nil }
+        if let result = super.hitTest(point), result !== self { return result }
+        return self
+    }
+
+    override func mouseDown(with event: NSEvent) {}
+    override func mouseUp(with event: NSEvent) {}
 }

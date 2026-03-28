@@ -13,18 +13,55 @@ enum PopoverHelper {
         dismiss()
 
         let popover = NSPopover()
-        popover.behavior = .transient
+        popover.behavior = .semitransient
         popover.contentSize = size
         popover.animates = true
 
         let vc = NSViewController()
-        vc.view = contentView
+        vc.view = cursorWrapped(contentView)
         popover.contentViewController = vc
         popover.show(relativeTo: rect, of: view, preferredEdge: preferredEdge)
+
+        // Ensure popover appears above high-level overlay windows
+        if let popoverWindow = popover.contentViewController?.view.window {
+            let parentLevel = view.window?.level ?? .normal
+            if parentLevel.rawValue > NSWindow.Level.normal.rawValue {
+                popoverWindow.level = NSWindow.Level(parentLevel.rawValue + 1)
+            }
+        }
         activePopover = popover
     }
 
     /// Show a popover anchored to a specific point in a view (for overlay mode where buttons aren't real views).
+    /// Show a popover anchored to a rect in a parent view. The anchor view spans the full rect
+    /// so the popover arrow clears it whether opening above or below.
+    static func showAtRect(_ contentView: NSView, size: NSSize, rect: NSRect, in parentView: NSView, preferredEdge: NSRectEdge = .minY) {
+        dismiss()
+
+        let anchor = NSView(frame: rect)
+        parentView.addSubview(anchor)
+        anchorView = anchor
+
+        let popover = NSPopover()
+        popover.behavior = .semitransient
+        popover.contentSize = size
+        popover.animates = true
+
+        let vc = NSViewController()
+        vc.view = cursorWrapped(contentView)
+        popover.contentViewController = vc
+        popover.delegate = AnchorCleanupDelegate.shared
+        popover.show(relativeTo: anchor.bounds, of: anchor, preferredEdge: preferredEdge)
+
+        if let popoverWindow = popover.contentViewController?.view.window {
+            let parentLevel = parentView.window?.level ?? .normal
+            if parentLevel.rawValue > NSWindow.Level.normal.rawValue {
+                popoverWindow.level = NSWindow.Level(parentLevel.rawValue + 1)
+            }
+        }
+        activePopover = popover
+    }
+
     static func showAtPoint(_ contentView: NSView, size: NSSize, at point: NSPoint, in parentView: NSView, preferredEdge: NSRectEdge = .minY) {
         dismiss()
 
@@ -34,15 +71,23 @@ enum PopoverHelper {
         anchorView = anchor
 
         let popover = NSPopover()
-        popover.behavior = .transient
+        popover.behavior = .semitransient
         popover.contentSize = size
         popover.animates = true
 
         let vc = NSViewController()
-        vc.view = contentView
+        vc.view = cursorWrapped(contentView)
         popover.contentViewController = vc
         popover.delegate = AnchorCleanupDelegate.shared
         popover.show(relativeTo: anchor.bounds, of: anchor, preferredEdge: preferredEdge)
+
+        // Ensure popover appears above high-level overlay windows
+        if let popoverWindow = popover.contentViewController?.view.window {
+            let parentLevel = parentView.window?.level ?? .normal
+            if parentLevel.rawValue > NSWindow.Level.normal.rawValue {
+                popoverWindow.level = NSWindow.Level(parentLevel.rawValue + 1)
+            }
+        }
         activePopover = popover
     }
 
@@ -54,6 +99,21 @@ enum PopoverHelper {
     }
 
     static var isVisible: Bool { activePopover?.isShown == true }
+
+    /// Wrap content view so the popover always shows an arrow cursor regardless of active tool.
+    private static func cursorWrapped(_ contentView: NSView) -> NSView {
+        let wrapper = ArrowCursorView(frame: contentView.frame)
+        wrapper.addSubview(contentView)
+        contentView.frame.origin = .zero
+        return wrapper
+    }
+}
+
+/// NSView that forces the arrow cursor over its entire bounds.
+private class ArrowCursorView: NSView {
+    override func resetCursorRects() {
+        addCursorRect(bounds, cursor: .arrow)
+    }
 }
 
 // Cleans up the invisible anchor view when the popover closes

@@ -393,7 +393,9 @@ class Annotation {
                 minX = min(minX, p.x); minY = min(minY, p.y)
                 maxX = max(maxX, p.x); maxY = max(maxY, p.y)
             }
-            highlightRect = NSRect(x: minX, y: minY, width: maxX - minX, height: maxY - minY)
+            let strokePad = (tool == .marker ? strokeWidth * 6 : strokeWidth) / 2
+            highlightRect = NSRect(x: minX - strokePad, y: minY - strokePad,
+                                   width: maxX - minX + strokePad * 2, height: maxY - minY + strokePad * 2)
         case .text:
             highlightRect = textDrawRect != .zero ? textDrawRect : boundingRect
         case .number:
@@ -402,7 +404,9 @@ class Annotation {
         case .loupe:
             highlightRect = boundingRect
         default:
-            highlightRect = boundingRect
+            // Expand by half the stroke width so the highlight matches the visible shape
+            let strokePad = strokeWidth / 2
+            highlightRect = boundingRect.insetBy(dx: -strokePad, dy: -strokePad)
         }
 
         let padded = highlightRect.insetBy(dx: -4, dy: -4)

@@ -10,10 +10,22 @@ class ToolOptionsRowView: NSView {
     private let padding: CGFloat = 8
     private let accent = ToolbarLayout.accentColor
 
+    // Consume clicks on gaps between controls so they don't fall through to OverlayView
+    override func hitTest(_ point: NSPoint) -> NSView? {
+        let local = convert(point, from: superview)
+        guard bounds.contains(local) else { return nil }
+        if let result = super.hitTest(point), result !== self { return result }
+        return self
+    }
+
+    override func mouseDown(with event: NSEvent) {}
+    override func mouseUp(with event: NSEvent) {}
+
     /// Auto-tint controls to match toolbar accent color.
+    /// Buttons with tag 990+ are excluded (they have custom colors like red/green/white).
     override func addSubview(_ view: NSView) {
         super.addSubview(view)
-        if let btn = view as? NSButton { btn.contentTintColor = accent }
+        if let btn = view as? NSButton, btn.tag < 990 { btn.contentTintColor = accent }
         if let slider = view as? NSSlider { slider.trackFillColor = accent }
         if let seg = view as? NSSegmentedControl { seg.selectedSegmentBezelColor = accent }
     }
@@ -51,33 +63,39 @@ class ToolOptionsRowView: NSView {
         }
 
         // ── Line style (line, pencil, rectangle) ──
-        let hasLineStyle = [.line, .pencil, .rectangle].contains(tool)
+        let hasLineStyle = [.line, .pencil, .rectangle, .arrow, .ellipse].contains(tool)
         if hasLineStyle {
+            if hasStroke { curX = addSeparator(at: curX) }
             curX = addLineStyleSegment(at: curX, ov: ov)
         }
 
         // ── Arrow style ──
         if tool == .arrow {
+            curX = addSeparator(at: curX)
             curX = addArrowStyleSegment(at: curX, ov: ov)
         }
 
         // ── Shape fill style (rectangle, ellipse) ──
         if tool == .rectangle || tool == .ellipse {
+            curX = addSeparator(at: curX)
             curX = addShapeFillSegment(at: curX, tool: tool, ov: ov)
         }
 
         // ── Corner radius slider (rectangle) ──
         if tool == .rectangle {
+            curX = addSeparator(at: curX)
             curX = addCornerRadiusSlider(at: curX, ov: ov)
         }
 
         // ── Right-click hint for line/arrow ──
         if tool == .line || tool == .arrow {
+            curX += 8
             curX = addHintLabel(at: curX, text: "Right-click to add points")
         }
 
         // ── Pencil smooth toggle ──
         if tool == .pencil {
+            curX = addSeparator(at: curX)
             curX = addToggle(at: curX, title: "Smooth", isOn: ov.pencilSmoothEnabled) { [weak ov] isOn in
                 ov?.pencilSmoothEnabled = isOn
                 UserDefaults.standard.set(isOn, forKey: "pencilSmoothEnabled")
@@ -113,15 +131,40 @@ class ToolOptionsRowView: NSView {
         // Size the row
         let totalW = max(curX + padding, 200)
         frame.size = NSSize(width: totalW, height: rowHeight)
+
+        // Right-align cancel/confirm buttons for text tool
+        if let confirmBtn = viewWithTag(991) {
+            confirmBtn.frame.origin.x = totalW - padding - 28
+        }
+        if let cancelBtn = viewWithTag(990) {
+            cancelBtn.frame.origin.x = totalW - padding - 28 - 4 - 28
+        }
     }
 
     // MARK: - Section builders
 
+    private func addSeparator(at x: CGFloat) -> CGFloat {
+        let sep = NSView(frame: NSRect(x: x + 6, y: 8, width: 1, height: rowHeight - 16))
+        sep.wantsLayer = true
+        sep.layer?.backgroundColor = NSColor.white.withAlphaComponent(0.1).cgColor
+        addSubview(sep)
+        return x + 13
+    }
+
     private func addStrokeSlider(at x: CGFloat, tool: AnnotationTool, ov: OverlayView) -> CGFloat {
         var curX = x
+
+        let nameLabel = NSTextField(labelWithString: tool == .loupe ? "Size" : "Stroke")
+        nameLabel.font = NSFont.systemFont(ofSize: 9.5, weight: .medium)
+        nameLabel.textColor = NSColor.white.withAlphaComponent(0.4)
+        nameLabel.sizeToFit()
+        nameLabel.frame.origin = NSPoint(x: curX, y: (rowHeight - nameLabel.frame.height) / 2)
+        addSubview(nameLabel)
+        curX += nameLabel.frame.width + 4
+
         let sliderW: CGFloat = 100
         let slider = NSSlider(value: Double(ov.activeStrokeWidthForTool(tool)),
-                              minValue: 1, maxValue: tool == .loupe ? 320 : 20,
+                              minValue: tool == .loupe ? 40 : 1, maxValue: tool == .loupe ? 320 : 20,
                               target: self, action: #selector(strokeSliderChanged(_:)))
         slider.frame = NSRect(x: curX, y: (rowHeight - 20) / 2, width: sliderW, height: 20)
         slider.isContinuous = true
@@ -129,54 +172,230 @@ class ToolOptionsRowView: NSView {
         addSubview(slider)
         curX += sliderW + 4
 
-        let label = NSTextField(labelWithString: "\(Int(ov.activeStrokeWidthForTool(tool)))px")
+        let val = Int(ov.activeStrokeWidthForTool(tool))
+        let valStr = tool == .loupe ? "\(val)" : "\(val)px"
+        let labelW: CGFloat = tool == .loupe ? 32 : 28
+        let label = NSTextField(labelWithString: valStr)
         label.font = NSFont.monospacedDigitSystemFont(ofSize: 10, weight: .medium)
         label.textColor = NSColor.white.withAlphaComponent(0.6)
-        label.frame = NSRect(x: curX, y: (rowHeight - 14) / 2, width: 36, height: 14)
-        label.tag = 997  // stroke label
+        label.alignment = .right
+        label.frame = NSRect(x: curX, y: (rowHeight - 14) / 2, width: labelW, height: 14)
+        label.tag = 997  // stroke value label
         addSubview(label)
-        curX += 34
+        curX += labelW
 
         return curX
     }
 
     private func addLineStyleSegment(at x: CGFloat, ov: OverlayView) -> CGFloat {
         var curX = x
-        let styles = ["Solid", "Dash", "Dot"]
-        let seg = NSSegmentedControl(labels: styles, trackingMode: .selectOne,
-                                     target: self, action: #selector(lineStyleChanged(_:)))
+        let seg = NSSegmentedControl()
+        seg.segmentCount = LineStyle.allCases.count
+        seg.trackingMode = .selectOne
+        seg.target = self
+        seg.action = #selector(lineStyleChanged(_:))
+        for (i, style) in LineStyle.allCases.enumerated() {
+            seg.setImage(Self.lineStyleImage(style), forSegment: i)
+            seg.setWidth(36, forSegment: i)
+        }
         seg.selectedSegment = ov.currentLineStyle.rawValue
-        seg.frame = NSRect(x: curX, y: (rowHeight - 22) / 2, width: 120, height: 22)
+        let segW = CGFloat(LineStyle.allCases.count) * 36
+        seg.frame = NSRect(x: curX, y: (rowHeight - 22) / 2, width: segW, height: 22)
         (seg.cell as? NSSegmentedCell)?.segmentStyle = .roundRect
         addSubview(seg)
-        curX += 124
+        curX += segW
         return curX
     }
 
     private func addArrowStyleSegment(at x: CGFloat, ov: OverlayView) -> CGFloat {
         var curX = x
-        let styles = ["→", "⇒", "⇉", "▷", "↦"]
-        let seg = NSSegmentedControl(labels: styles, trackingMode: .selectOne,
-                                     target: self, action: #selector(arrowStyleChanged(_:)))
+        let seg = NSSegmentedControl()
+        seg.segmentCount = ArrowStyle.allCases.count
+        seg.trackingMode = .selectOne
+        seg.target = self
+        seg.action = #selector(arrowStyleChanged(_:))
+        for (i, style) in ArrowStyle.allCases.enumerated() {
+            seg.setImage(Self.arrowStyleImage(style), forSegment: i)
+            seg.setWidth(30, forSegment: i)
+        }
         seg.selectedSegment = ov.currentArrowStyle.rawValue
-        seg.frame = NSRect(x: curX, y: (rowHeight - 22) / 2, width: 140, height: 22)
+        let segW = CGFloat(ArrowStyle.allCases.count) * 30
+        seg.frame = NSRect(x: curX, y: (rowHeight - 22) / 2, width: segW, height: 22)
         (seg.cell as? NSSegmentedCell)?.segmentStyle = .roundRect
         addSubview(seg)
-        curX += 144
+        curX += segW
         return curX
     }
 
     private func addShapeFillSegment(at x: CGFloat, tool: AnnotationTool, ov: OverlayView) -> CGFloat {
         var curX = x
-        let styles = ["Stroke", "Fill+Stroke", "Fill"]
-        let seg = NSSegmentedControl(labels: styles, trackingMode: .selectOne,
-                                     target: self, action: #selector(shapeFillChanged(_:)))
+        let isOval = tool == .ellipse
+        let seg = NSSegmentedControl()
+        seg.segmentCount = RectFillStyle.allCases.count
+        seg.trackingMode = .selectOne
+        seg.target = self
+        seg.action = #selector(shapeFillChanged(_:))
+        for (i, style) in RectFillStyle.allCases.enumerated() {
+            seg.setImage(Self.shapeFillImage(style, oval: isOval), forSegment: i)
+            seg.setWidth(30, forSegment: i)
+        }
         seg.selectedSegment = ov.currentRectFillStyle.rawValue
-        seg.frame = NSRect(x: curX, y: (rowHeight - 22) / 2, width: 160, height: 22)
+        let segW = CGFloat(RectFillStyle.allCases.count) * 30
+        seg.frame = NSRect(x: curX, y: (rowHeight - 22) / 2, width: segW, height: 22)
         (seg.cell as? NSSegmentedCell)?.segmentStyle = .roundRect
         addSubview(seg)
-        curX += 164
+        curX += segW
         return curX
+    }
+
+    // MARK: - Segment preview images
+
+    private static func lineStyleImage(_ style: LineStyle) -> NSImage {
+        let size = NSSize(width: 28, height: 16)
+        return NSImage(size: size, flipped: false) { _ in
+            let path = NSBezierPath()
+            path.lineWidth = 2
+            path.lineCapStyle = .round
+            style.apply(to: path)
+            NSColor.white.setStroke()
+            path.move(to: NSPoint(x: 4, y: size.height / 2))
+            path.line(to: NSPoint(x: size.width - 4, y: size.height / 2))
+            path.stroke()
+            return true
+        }
+    }
+
+    private static func arrowStyleImage(_ style: ArrowStyle) -> NSImage {
+        let size = NSSize(width: 24, height: 16)
+        return NSImage(size: size, flipped: false) { _ in
+            let mid = size.height / 2
+            let from = NSPoint(x: 3, y: mid)
+            let to = NSPoint(x: size.width - 3, y: mid)
+            NSColor.white.setStroke()
+            NSColor.white.setFill()
+
+            switch style {
+            case .single:
+                let path = NSBezierPath()
+                path.lineWidth = 1.5
+                path.move(to: from)
+                path.line(to: NSPoint(x: to.x - 4, y: mid))
+                path.stroke()
+                let head = NSBezierPath()
+                head.move(to: to)
+                head.line(to: NSPoint(x: to.x - 5, y: mid + 3))
+                head.line(to: NSPoint(x: to.x - 5, y: mid - 3))
+                head.close()
+                head.fill()
+            case .thick:
+                // Thick shaft stops before the head
+                let path = NSBezierPath()
+                path.lineWidth = 2.5
+                path.move(to: from)
+                path.line(to: NSPoint(x: to.x - 6, y: mid))
+                path.stroke()
+                let head = NSBezierPath()
+                head.move(to: to)
+                head.line(to: NSPoint(x: to.x - 7, y: mid + 5))
+                head.line(to: NSPoint(x: to.x - 7, y: mid - 5))
+                head.close()
+                head.fill()
+            case .double:
+                let path = NSBezierPath()
+                path.lineWidth = 1.5
+                path.move(to: NSPoint(x: from.x + 4, y: mid))
+                path.line(to: NSPoint(x: to.x - 4, y: mid))
+                path.stroke()
+                // Left arrowhead (pointing left)
+                let headL = NSBezierPath()
+                headL.move(to: from)
+                headL.line(to: NSPoint(x: from.x + 5, y: mid + 3))
+                headL.line(to: NSPoint(x: from.x + 5, y: mid - 3))
+                headL.close()
+                headL.fill()
+                // Right arrowhead (pointing right)
+                let headR = NSBezierPath()
+                headR.move(to: to)
+                headR.line(to: NSPoint(x: to.x - 5, y: mid + 3))
+                headR.line(to: NSPoint(x: to.x - 5, y: mid - 3))
+                headR.close()
+                headR.fill()
+            case .open:
+                let path = NSBezierPath()
+                path.lineWidth = 1.5
+                path.move(to: from)
+                path.line(to: to)
+                path.move(to: NSPoint(x: to.x - 5, y: mid + 3))
+                path.line(to: to)
+                path.line(to: NSPoint(x: to.x - 5, y: mid - 3))
+                path.stroke()
+            case .tail:
+                let path = NSBezierPath()
+                path.lineWidth = 1.5
+                path.move(to: from)
+                path.line(to: NSPoint(x: to.x - 4, y: mid))
+                path.stroke()
+                // Tail crossbar — taller so it's clearly a line, not a dot
+                let tail = NSBezierPath()
+                tail.lineWidth = 1.5
+                tail.move(to: NSPoint(x: from.x, y: mid + 5))
+                tail.line(to: NSPoint(x: from.x, y: mid - 5))
+                tail.stroke()
+                let head = NSBezierPath()
+                head.move(to: to)
+                head.line(to: NSPoint(x: to.x - 5, y: mid + 3))
+                head.line(to: NSPoint(x: to.x - 5, y: mid - 3))
+                head.close()
+                head.fill()
+            }
+            return true
+        }
+    }
+
+    private static func shapeFillImage(_ style: RectFillStyle, oval: Bool) -> NSImage {
+        let size = NSSize(width: 22, height: 16)
+        return NSImage(size: size, flipped: false) { _ in
+            let r = NSRect(x: 3, y: 2, width: size.width - 6, height: size.height - 4)
+            let path = oval ? NSBezierPath(ovalIn: r) : NSBezierPath(roundedRect: r, xRadius: 2, yRadius: 2)
+            path.lineWidth = 1.5
+            switch style {
+            case .stroke:
+                NSColor.white.setStroke()
+                path.stroke()
+            case .strokeAndFill:
+                NSColor.white.withAlphaComponent(0.4).setFill()
+                path.fill()
+                NSColor.white.setStroke()
+                path.stroke()
+            case .fill:
+                NSColor.white.setFill()
+                path.fill()
+            }
+            return true
+        }
+    }
+
+    private static func gradientSwatchImage(styleIndex: Int, size: CGFloat) -> NSImage {
+        let styles = BeautifyRenderer.styles
+        guard styleIndex >= 0, styleIndex < styles.count else {
+            return NSImage(size: NSSize(width: size, height: size))
+        }
+        let style = styles[styleIndex]
+        return NSImage(size: NSSize(width: size, height: size), flipped: false) { _ in
+            let r = NSRect(x: 0, y: 0, width: size, height: size)
+            let path = NSBezierPath(roundedRect: r, xRadius: 4, yRadius: 4)
+            if let grad = NSGradient(
+                colors: style.stops.map { $0.0 },
+                atLocations: style.stops.map { $0.1 },
+                colorSpace: .deviceRGB)
+            {
+                grad.draw(in: path, angle: style.angle - 90)
+            }
+            NSColor.white.withAlphaComponent(0.3).setStroke()
+            path.lineWidth = 0.5
+            path.stroke()
+            return true
+        }
     }
 
     private func addCornerRadiusSlider(at x: CGFloat, ov: OverlayView) -> CGFloat {
@@ -195,7 +414,17 @@ class ToolOptionsRowView: NSView {
         slider.frame = NSRect(x: curX, y: (rowHeight - 20) / 2, width: 80, height: 20)
         slider.isContinuous = true
         addSubview(slider)
-        curX += 84
+        curX += 80 + 4
+
+        let valLabel = NSTextField(labelWithString: "\(Int(ov.currentRectCornerRadius))px")
+        valLabel.font = NSFont.monospacedDigitSystemFont(ofSize: 10, weight: .medium)
+        valLabel.textColor = NSColor.white.withAlphaComponent(0.6)
+        valLabel.alignment = .right
+        valLabel.frame = NSRect(x: curX, y: (rowHeight - 14) / 2, width: 28, height: 14)
+        valLabel.tag = 996  // corner radius value label
+        addSubview(valLabel)
+        curX += 28
+
         return curX
     }
 
@@ -225,7 +454,9 @@ class ToolOptionsRowView: NSView {
         seg.frame = NSRect(x: curX, y: (rowHeight - 22) / 2, width: 100, height: 22)
         (seg.cell as? NSSegmentedCell)?.segmentStyle = .roundRect
         addSubview(seg)
-        curX += 104
+        curX += 100
+
+        curX = addSeparator(at: curX)
 
         let startLabel = NSTextField(labelWithString: "Start:")
         startLabel.font = NSFont.systemFont(ofSize: 9.5, weight: .medium)
@@ -286,7 +517,8 @@ class ToolOptionsRowView: NSView {
             addSubview(btn)
             curX += 28
         }
-        curX += 4
+
+        curX = addSeparator(at: curX)
 
         // Alignment buttons
         let alignments: [(String, NSTextAlignment)] = [
@@ -307,7 +539,8 @@ class ToolOptionsRowView: NSView {
             addSubview(btn)
             curX += 28
         }
-        curX += 4
+
+        curX = addSeparator(at: curX)
 
         // Font size −/+
         let minusBtn = NSButton(title: "−", target: self, action: #selector(fontSizeDecreased))
@@ -333,6 +566,8 @@ class ToolOptionsRowView: NSView {
         addSubview(plusBtn)
         curX += 24
 
+        curX = addSeparator(at: curX)
+
         // Fill / Outline toggles
         let fillBtn = NSButton(checkboxWithTitle: "Fill", target: self, action: #selector(textBgToggled(_:)))
         fillBtn.state = ov.textEditor.bgEnabled ? .on : .off
@@ -348,27 +583,38 @@ class ToolOptionsRowView: NSView {
         outlineBtn.sizeToFit()
         outlineBtn.frame.origin = NSPoint(x: curX, y: (rowHeight - outlineBtn.frame.height) / 2)
         addSubview(outlineBtn)
-        curX += outlineBtn.frame.width + 8
+        curX += outlineBtn.frame.width
 
-        // Cancel / Confirm (only when editing text)
-        if ov.textEditView != nil {
+        // Cancel / Confirm — only when actively editing text, right-aligned
+        if ov.textEditor.isEditing {
             let cancelBtn = NSButton(title: "✕", target: self, action: #selector(textCancelClicked))
-            cancelBtn.bezelStyle = .recessed
-            cancelBtn.contentTintColor = .systemRed
-            cancelBtn.font = NSFont.systemFont(ofSize: 11, weight: .medium)
-            cancelBtn.frame = NSRect(x: curX, y: (rowHeight - 22) / 2, width: 24, height: 22)
+            cancelBtn.bezelStyle = .smallSquare
+            cancelBtn.isBordered = false
+            cancelBtn.wantsLayer = true
+            cancelBtn.layer?.backgroundColor = NSColor.systemRed.withAlphaComponent(0.8).cgColor
+            cancelBtn.layer?.cornerRadius = 4
+            cancelBtn.font = NSFont.systemFont(ofSize: 11, weight: .bold)
+            cancelBtn.attributedTitle = NSAttributedString(string: "✕", attributes: [
+                .foregroundColor: NSColor.white, .font: NSFont.systemFont(ofSize: 11, weight: .bold)])
+            cancelBtn.frame = NSRect(x: 0, y: (rowHeight - 22) / 2, width: 28, height: 22)
+            cancelBtn.tag = 990
             addSubview(cancelBtn)
-            curX += 26
 
             let confirmBtn = NSButton(title: "✓", target: self, action: #selector(textConfirmClicked))
-            confirmBtn.bezelStyle = .recessed
-            confirmBtn.contentTintColor = .systemGreen
-            confirmBtn.font = NSFont.systemFont(ofSize: 12, weight: .medium)
-            confirmBtn.frame = NSRect(x: curX, y: (rowHeight - 22) / 2, width: 24, height: 22)
+            confirmBtn.bezelStyle = .smallSquare
+            confirmBtn.isBordered = false
+            confirmBtn.wantsLayer = true
+            confirmBtn.layer?.backgroundColor = NSColor.systemGreen.withAlphaComponent(0.8).cgColor
+            confirmBtn.layer?.cornerRadius = 4
+            confirmBtn.font = NSFont.systemFont(ofSize: 12, weight: .bold)
+            confirmBtn.attributedTitle = NSAttributedString(string: "✓", attributes: [
+                .foregroundColor: NSColor.white, .font: NSFont.systemFont(ofSize: 12, weight: .bold)])
+            confirmBtn.frame = NSRect(x: 0, y: (rowHeight - 22) / 2, width: 28, height: 22)
+            confirmBtn.tag = 991
             addSubview(confirmBtn)
-            curX += 28
-        }
 
+            curX += 68  // reserve space for right-aligned buttons
+        }
         return curX
     }
 
@@ -390,7 +636,7 @@ class ToolOptionsRowView: NSView {
     private func addStampOptions(at x: CGFloat, ov: OverlayView) -> CGFloat {
         var curX = x
         // Quick emoji buttons
-        for emoji in OverlayView.commonEmojis {
+        for emoji in StampEmojis.common {
             let btn = NSButton(title: emoji, target: self, action: #selector(quickEmojiClicked(_:)))
             btn.bezelStyle = .recessed
             btn.isBordered = false
@@ -401,6 +647,8 @@ class ToolOptionsRowView: NSView {
         }
         curX += 4
 
+        curX = addSeparator(at: curX)
+
         let moreBtn = NSButton()
         moreBtn.bezelStyle = .recessed
         moreBtn.isBordered = false
@@ -408,9 +656,10 @@ class ToolOptionsRowView: NSView {
             .withSymbolConfiguration(.init(pointSize: 14, weight: .medium))
         moreBtn.toolTip = "More Emojis"
         moreBtn.target = self
-        moreBtn.action = #selector(moreEmojisClicked)
+        moreBtn.action = #selector(moreEmojisClicked(_:))
         moreBtn.frame = NSRect(x: curX, y: (rowHeight - 26) / 2, width: 28, height: 26)
         addSubview(moreBtn)
+        moreBtn.contentTintColor = .white  // after addSubview to override auto-tint
         curX += 30
 
         let loadBtn = NSButton()
@@ -423,6 +672,7 @@ class ToolOptionsRowView: NSView {
         loadBtn.action = #selector(loadImageClicked)
         loadBtn.frame = NSRect(x: curX, y: (rowHeight - 26) / 2, width: 28, height: 26)
         addSubview(loadBtn)
+        loadBtn.contentTintColor = .white  // after addSubview to override auto-tint
         curX += 30
 
         return curX
@@ -430,7 +680,9 @@ class ToolOptionsRowView: NSView {
 
     private func addRedactOptions(at x: CGFloat, ov: OverlayView) -> CGFloat {
         var curX = x
-        let allTextBtn = NSButton(title: "All Text", target: self, action: #selector(redactAllTextClicked))
+        let toolName = ov.currentTool == .blur ? "Blur" : "Pixelate"
+
+        let allTextBtn = NSButton(title: "\(toolName) All Text", target: self, action: #selector(redactAllTextClicked))
         allTextBtn.bezelStyle = .recessed
         allTextBtn.font = NSFont.systemFont(ofSize: 10, weight: .medium)
         allTextBtn.sizeToFit()
@@ -438,7 +690,7 @@ class ToolOptionsRowView: NSView {
         addSubview(allTextBtn)
         curX += allTextBtn.frame.width + 4
 
-        let piiBtn = NSButton(title: "PII", target: self, action: #selector(redactPIIClicked))
+        let piiBtn = NSButton(title: "\(toolName) PII", target: self, action: #selector(redactPIIClicked))
         piiBtn.bezelStyle = .recessed
         piiBtn.font = NSFont.systemFont(ofSize: 10, weight: .medium)
         piiBtn.sizeToFit()
@@ -446,7 +698,7 @@ class ToolOptionsRowView: NSView {
         addSubview(piiBtn)
         curX += piiBtn.frame.width + 4
 
-        let typeBtn = NSButton(title: "Types ▾", target: self, action: #selector(redactTypesClicked))
+        let typeBtn = NSButton(title: "Types ▾", target: self, action: #selector(redactTypesClicked(_:)))
         typeBtn.bezelStyle = .recessed
         typeBtn.font = NSFont.systemFont(ofSize: 10, weight: .medium)
         typeBtn.sizeToFit()
@@ -467,7 +719,9 @@ class ToolOptionsRowView: NSView {
         modeSeg.frame = NSRect(x: curX, y: (rowHeight - 22) / 2, width: 56, height: 22)
         (modeSeg.cell as? NSSegmentedCell)?.segmentStyle = .roundRect
         addSubview(modeSeg)
-        curX += 60
+        curX += 56
+
+        curX = addSeparator(at: curX)
 
         // Padding slider
         curX = addBeautifySlider(at: curX, label: "Pad", value: ov.beautifyPadding, min: 16, max: 96, action: #selector(beautifyPaddingChanged(_:)))
@@ -478,14 +732,35 @@ class ToolOptionsRowView: NSView {
         // Shadow slider
         curX = addBeautifySlider(at: curX, label: "Shadow", value: ov.beautifyShadowRadius, min: 0, max: 40, action: #selector(beautifyShadowChanged(_:)))
 
-        // Gradient picker button
-        let gradBtn = NSButton(title: "Style ▾", target: self, action: #selector(beautifyGradientClicked))
-        gradBtn.bezelStyle = .recessed
-        gradBtn.font = NSFont.systemFont(ofSize: 10, weight: .medium)
-        gradBtn.sizeToFit()
-        gradBtn.frame.origin = NSPoint(x: curX, y: (rowHeight - gradBtn.frame.height) / 2)
-        addSubview(gradBtn)
-        curX += gradBtn.frame.width + 8
+        curX = addSeparator(at: curX)
+
+        // Gradient style picker — swatch preview + dropdown arrow
+        curX += 2
+        let swatchSize: CGFloat = 22
+        let swatchBtn = NSButton(frame: NSRect(x: curX, y: (rowHeight - swatchSize) / 2, width: swatchSize, height: swatchSize))
+        swatchBtn.bezelStyle = .recessed
+        swatchBtn.isBordered = false
+        swatchBtn.image = Self.gradientSwatchImage(styleIndex: ov.beautifyStyleIndex, size: swatchSize)
+        swatchBtn.imageScaling = .scaleProportionallyUpOrDown
+        swatchBtn.target = self
+        swatchBtn.action = #selector(beautifyGradientClicked(_:))
+        swatchBtn.toolTip = "Gradient Style"
+        swatchBtn.tag = 995
+        addSubview(swatchBtn)
+        curX += swatchSize + 2
+
+        let arrowBtn = NSButton(frame: NSRect(x: curX, y: (rowHeight - 16) / 2, width: 14, height: 16))
+        arrowBtn.bezelStyle = .recessed
+        arrowBtn.isBordered = false
+        arrowBtn.image = NSImage(systemSymbolName: "chevron.down", accessibilityDescription: nil)?
+            .withSymbolConfiguration(.init(pointSize: 9, weight: .semibold))
+        arrowBtn.target = self
+        arrowBtn.action = #selector(beautifyGradientClicked(_:))
+        addSubview(arrowBtn)
+        arrowBtn.contentTintColor = .white.withAlphaComponent(0.6)
+        curX += 18
+
+        curX = addSeparator(at: curX)
 
         // On/off toggle
         let toggleBtn = NSButton(checkboxWithTitle: "On", target: self, action: #selector(beautifyToggleChanged(_:)))
@@ -549,9 +824,11 @@ class ToolOptionsRowView: NSView {
         ov.needsDisplay = true
     }
 
-    @objc private func beautifyGradientClicked() {
+    @objc private func beautifyGradientClicked(_ sender: NSButton) {
         guard let ov = overlayView else { return }
-        ov.showBeautifyGradientPopover(anchorRect: frame)
+        // Find the swatch button to anchor the popover to it
+        let swatchBtn = viewWithTag(995) as? NSButton ?? sender
+        ov.showBeautifyGradientPopover(anchorView: swatchBtn)
     }
 
     @objc private func beautifyToggleChanged(_ sender: NSButton) {
@@ -613,6 +890,9 @@ class ToolOptionsRowView: NSView {
         guard let ov = overlayView else { return }
         ov.currentRectCornerRadius = CGFloat(sender.floatValue)
         UserDefaults.standard.set(sender.doubleValue, forKey: "currentRectCornerRadius")
+        if let label = viewWithTag(996) as? NSTextField {
+            label.stringValue = "\(Int(sender.floatValue))px"
+        }
         ov.needsDisplay = true
     }
 
@@ -621,6 +901,11 @@ class ToolOptionsRowView: NSView {
         if let fmt = NumberFormat(rawValue: sender.selectedSegment) {
             ov.currentNumberFormat = fmt
             UserDefaults.standard.set(fmt.rawValue, forKey: "numberFormat")
+            // Update start value preview to match new format
+            if let label = viewWithTag(999) as? NSTextField {
+                label.stringValue = fmt.format(ov.numberStartAt)
+                label.sizeToFit()
+            }
             ov.needsDisplay = true
         }
     }
@@ -645,14 +930,14 @@ class ToolOptionsRowView: NSView {
             label.stringValue = "\(sender.integerValue)pt"
             label.sizeToFit()
         }
-        ov.updateTextFontSize()
+        ov.textEditor.applyFontSizeChange()
         ov.needsDisplay = true
     }
 
-    @objc private func boldToggled() { overlayView?.toggleTextBold(); overlayView.map { rebuild(for: $0.currentTool) } }
-    @objc private func italicToggled() { overlayView?.toggleTextItalic(); overlayView.map { rebuild(for: $0.currentTool) } }
-    @objc private func underlineToggled() { overlayView?.toggleTextUnderline(); overlayView.map { rebuild(for: $0.currentTool) } }
-    @objc private func strikethroughToggled() { overlayView?.toggleTextStrikethrough(); overlayView.map { rebuild(for: $0.currentTool) } }
+    @objc private func boldToggled() { overlayView?.textEditor.toggleBold(); overlayView.map { $0.needsDisplay = true; rebuild(for: $0.currentTool) } }
+    @objc private func italicToggled() { overlayView?.textEditor.toggleItalic(); overlayView.map { $0.needsDisplay = true; rebuild(for: $0.currentTool) } }
+    @objc private func underlineToggled() { overlayView?.textEditor.toggleUnderline(); overlayView.map { $0.needsDisplay = true; rebuild(for: $0.currentTool) } }
+    @objc private func strikethroughToggled() { overlayView?.textEditor.toggleStrikethrough(); overlayView.map { $0.needsDisplay = true; rebuild(for: $0.currentTool) } }
 
     @objc private func measureUnitChanged(_ sender: NSSegmentedControl) {
         guard let ov = overlayView else { return }
@@ -663,59 +948,66 @@ class ToolOptionsRowView: NSView {
 
     @objc private func quickEmojiClicked(_ sender: NSButton) {
         guard let ov = overlayView else { return }
-        ov.currentStampImage = ov.renderEmoji(sender.title)
+        ov.currentStampImage = StampEmojis.renderEmoji(sender.title)
         ov.currentStampEmoji = sender.title
         ov.needsDisplay = true
     }
 
-    @objc private func moreEmojisClicked() {
+    @objc private func moreEmojisClicked(_ sender: NSButton) {
         guard let ov = overlayView else { return }
-        ov.showEmojiPopover(anchorRect: frame)
+        ov.showEmojiPopover(anchorView: sender)
     }
 
     @objc private func loadImageClicked() {
         guard let ov = overlayView else { return }
-        ov.loadStampImage()
+        StampEmojis.loadStampImage { [weak ov] image in
+            ov?.currentStampImage = image
+            ov?.currentStampEmoji = nil
+            ov?.needsDisplay = true
+        }
     }
 
     @objc private func redactAllTextClicked() {
-        overlayView?.performAutoRedact()
+        overlayView?.performRedactAllText()
     }
 
     @objc private func redactPIIClicked() {
-        overlayView?.performAutoRedactPII()
+        overlayView?.performAutoRedact()
     }
 
-    @objc private func redactTypesClicked() {
+    @objc private func redactTypesClicked(_ sender: NSButton) {
         guard let ov = overlayView else { return }
-        ov.showRedactTypePopover(anchorRect: frame)
+        ov.showRedactTypePopover(anchorRect: .zero, anchorView: sender)
     }
 
     @objc private func fontFamilyClicked(_ sender: NSButton) {
-        guard let ov = overlayView else { return }
-        let families = TextEditingController.fontFamilies
-        let picker = ListPickerView()
-        picker.items = families.map { family in
-            .init(title: family, isSelected: family == ov.textEditor.fontFamily)
+        // Toggle: close if already open
+        if PopoverHelper.isVisible {
+            PopoverHelper.dismiss()
+            return
         }
-        picker.onSelect = { [weak ov] idx in
+        guard let ov = overlayView else { return }
+        let picker = FontPickerView(selectedFamily: ov.textEditor.fontFamily)
+        picker.onSelect = { [weak ov] family in
             guard let ov = ov else { return }
-            ov.textEditor.fontFamily = families[idx]
-            UserDefaults.standard.set(families[idx], forKey: "textFontFamily")
-            ov.updateTextFontSize()
+            ov.textEditor.fontFamily = family
+            UserDefaults.standard.set(family, forKey: "textFontFamily")
+            ov.textEditor.applyFontSizeChange()
             ov.rebuildToolbarLayout()
             ov.needsDisplay = true
             PopoverHelper.dismiss()
         }
-        let size = NSSize(width: 160, height: min(400, CGFloat(families.count) * 28 + 12))
-        PopoverHelper.show(picker, size: size, relativeTo: sender.bounds, of: sender, preferredEdge: .maxY)
+        PopoverHelper.show(picker, size: picker.preferredSize, relativeTo: sender.bounds, of: sender, preferredEdge: .maxY)
+        DispatchQueue.main.async {
+            picker.scrollToTop()
+        }
     }
 
     @objc private func alignmentChanged(_ sender: NSButton) {
         guard let ov = overlayView else { return }
         if let align = NSTextAlignment(rawValue: sender.tag) {
             ov.textEditor.alignment = align
-            ov.applyAlignmentToTextIfEditing()
+            ov.textEditor.applyAlignment()
             ov.needsDisplay = true
         }
     }
@@ -724,7 +1016,7 @@ class ToolOptionsRowView: NSView {
         guard let ov = overlayView else { return }
         ov.textEditor.fontSize = max(8, ov.textEditor.fontSize - 1)
         UserDefaults.standard.set(Double(ov.textEditor.fontSize), forKey: "textFontSize")
-        ov.updateTextFontSize()
+        ov.textEditor.applyFontSizeChange()
         if let label = viewWithTag(998) as? NSTextField { label.stringValue = "\(Int(ov.textEditor.fontSize))" }
     }
 
@@ -732,7 +1024,7 @@ class ToolOptionsRowView: NSView {
         guard let ov = overlayView else { return }
         ov.textEditor.fontSize = min(200, ov.textEditor.fontSize + 1)
         UserDefaults.standard.set(Double(ov.textEditor.fontSize), forKey: "textFontSize")
-        ov.updateTextFontSize()
+        ov.textEditor.applyFontSizeChange()
         if let label = viewWithTag(998) as? NSTextField { label.stringValue = "\(Int(ov.textEditor.fontSize))" }
     }
 

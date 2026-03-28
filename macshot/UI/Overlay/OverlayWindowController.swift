@@ -220,6 +220,7 @@ class OverlayWindowController {
     func updateScrollCaptureProgress(stripCount: Int, pixelSize: CGSize) {
         overlayView?.scrollCaptureStripCount = stripCount
         overlayView?.scrollCapturePixelSize  = pixelSize
+        overlayView?.updateScrollCaptureHUD()
         overlayView?.needsDisplay = true
     }
 

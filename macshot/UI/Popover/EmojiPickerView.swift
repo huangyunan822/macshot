@@ -11,7 +11,7 @@ class EmojiPickerView: NSView {
     private let padding: CGFloat = 8
     private let tabH: CGFloat = 30
 
-    private var categories: [(String, [String])] { OverlayView.emojiCategories }
+    private var categories: [(String, [String])] { StampEmojis.categories }
 
     init() {
         super.init(frame: .zero)
