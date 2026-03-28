@@ -249,17 +249,6 @@ class OverlayView: NSView {
     private var cursorTimer: Timer?
 
     var showBeautifyInOptionsRow: Bool = false
-    private var beautifyToggleRect: NSRect = .zero
-    private var beautifyGradientBtnRect: NSRect = .zero
-    private var beautifyModeWindowRect: NSRect = .zero
-    private var beautifyModeRoundedRect: NSRect = .zero
-    private var beautifyPaddingSliderRect: NSRect = .zero
-    private var beautifyCornerSliderRect: NSRect = .zero
-    private var beautifyShadowSliderRect: NSRect = .zero
-    private var beautifyBgRadiusSliderRect: NSRect = .zero
-    private var beautifySwatchRects: [NSRect] = []
-    private var textBgToggleRect: NSRect = .zero
-    private var textOutlineToggleRect: NSRect = .zero
 
     // Draggable toolbars
     private var bottomBarDragOffset: NSPoint = .zero
@@ -2018,15 +2007,6 @@ class OverlayView: NSView {
         }
         UserDefaults.standard.set(hexArray, forKey: "customColors")
     }
-
-    private func removeCustomColor(at index: Int) {
-        guard index >= 0 && index < customColors.count else { return }
-        customColors[index] = nil
-        saveCustomColors()
-    }
-
-
-
     /// Draw a gradient swatch — uses mesh rendering on macOS 15+ for mesh styles, linear otherwise.
     func drawStyleSwatch(style: BeautifyStyle, path: NSBezierPath, rect: NSRect) {
         if #available(macOS 15.0, *), let mesh = style.meshDef {
@@ -2652,37 +2632,6 @@ class OverlayView: NSView {
 
 
     // MARK: - Beautify Slider (used from options row)
-
-    private var isDraggingBeautifySlider: Bool = false
-    private var activeBeautifySlider: Int = -1
-
-    private func updateBeautifySlider(at point: NSPoint) {
-        let sliderRect: NSRect
-        let minVal: CGFloat
-        let maxVal: CGFloat
-        let key: String
-
-        switch activeBeautifySlider {
-        case 0: sliderRect = beautifyPaddingSliderRect; minVal = 16; maxVal = 96; key = "beautifyPadding"
-        case 1: sliderRect = beautifyCornerSliderRect; minVal = 0; maxVal = 30; key = "beautifyCornerRadius"
-        case 2: sliderRect = beautifyShadowSliderRect; minVal = 0; maxVal = 40; key = "beautifyShadowRadius"
-        default: return
-        }
-
-        let frac = max(0, min(1, (point.x - sliderRect.minX) / sliderRect.width))
-        let value = minVal + frac * (maxVal - minVal)
-        let rounded = (value * 2).rounded() / 2
-
-        switch activeBeautifySlider {
-        case 0: beautifyPadding = rounded
-        case 1: beautifyCornerRadius = rounded
-        case 2: beautifyShadowRadius = rounded
-        default: break
-        }
-
-        UserDefaults.standard.set(Double(rounded), forKey: key)
-        needsDisplay = true
-    }
 
     // MARK: - Upload Confirm Picker
     // MARK: - Upload Confirm Dialog
@@ -4798,11 +4747,6 @@ class OverlayView: NSView {
             return
         }
 
-        // Handle options row slider dragging
-        if isDraggingBeautifySlider {
-            updateBeautifySlider(at: point)
-            return
-        }
 
         switch state {
         case .selecting:
@@ -5042,11 +4986,6 @@ class OverlayView: NSView {
             isResizingTextBox = false
             return
         }
-        if isDraggingBeautifySlider {
-            isDraggingBeautifySlider = false
-            activeBeautifySlider = -1
-            return
-        }
         if isRotatingAnnotation {
             isRotatingAnnotation = false
             needsDisplay = true
@@ -5141,19 +5080,7 @@ class OverlayView: NSView {
     override func rightMouseDown(with event: NSEvent) {
         let point = convert(event.locationInWindow, from: nil)
 
-        // Right-click on text Fill/Outline swatches: open color picker targeting that property
-        if currentTool == .text {
-            if textBgToggleRect != .zero && textBgToggleRect.insetBy(dx: -2, dy: -2).contains(point) {
-                if !textBgEnabled { textBgEnabled = true; UserDefaults.standard.set(true, forKey: "textBgEnabled") }
-                showSystemColorPicker(target: .textBg)
-                return
-            }
-            if textOutlineToggleRect != .zero && textOutlineToggleRect.insetBy(dx: -2, dy: -2).contains(point) {
-                if !textOutlineEnabled { textOutlineEnabled = true; UserDefaults.standard.set(true, forKey: "textOutlineEnabled") }
-                showSystemColorPicker(target: .textOutline)
-                return
-            }
-        }
+        // Text Fill/Outline color picking handled by ToolOptionsRowView
 
         // Check toolbar button right-clicks first
         if state == .selected && showToolbars {
