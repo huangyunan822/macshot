@@ -38,6 +38,7 @@ final class ScrollCaptureController {
     var onStripAdded:  ((Int) -> Void)?
     var onSessionDone: ((NSImage?) -> Void)?
     var onAutoScrollStarted: (() -> Void)?
+    var onPreviewUpdated: ((NSImage) -> Void)?
 
     // MARK: - Config
 
@@ -70,14 +71,14 @@ final class ScrollCaptureController {
 
     // Capture timer (fires at controlled intervals during auto-scroll)
     private var captureTimer: Timer?
-    private let captureInterval: TimeInterval = 0.10  // ~10 fps, more overlap between frames for better stitching
+    private let captureInterval: TimeInterval = 0.04  // ~25 fps for fast scroll tracking
 
     // Manual scroll: throttle + settlement (kept as fallback when auto-scroll is off)
-    private let manualCaptureInterval: TimeInterval = 0.25
+    private let manualCaptureInterval: TimeInterval = 0.04
     private var lastCaptureTime: TimeInterval = 0
     private var pendingCaptureTask: Task<Void, Never>?
     private var settlementTimer: Timer?
-    private let settlementInterval: TimeInterval = 0.40
+    private let settlementInterval: TimeInterval = 0.10
 
     // Guard: only one capture at a time
     private var isCapturing: Bool = false
@@ -108,6 +109,9 @@ final class ScrollCaptureController {
 
     // Target app for scroll events
     private var targetAppPID: pid_t = 0
+
+    // Persistent capture stream — kept running throughout the session for instant, fresh frames
+    private var persistentStream: PersistentFrameStream?
 
 
     // MARK: - Init
@@ -152,8 +156,27 @@ final class ScrollCaptureController {
         // Find the target app under the capture region for re-activation during auto-scroll
         resolveTargetApp()
 
-        // Capture first strip
-        guard let firstCG = await captureStrip() else { onSessionDone?(nil); return }
+        // Start persistent capture stream for the entire session — avoids stale first-frame
+        // artifacts (black lines) from spinning up a new SCStream for each capture
+        let persistent = PersistentFrameStream()
+        self.persistentStream = persistent
+        let streamStarted = await persistent.start(
+            display: scDisplay!, excludedWindows: excludedSCWindows,
+            sourceRect: scSourceRect, captureSize: CGSize(
+                width: captureRect.width * backingScale,
+                height: captureRect.height * backingScale),
+            backingScale: backingScale)
+        guard streamStarted else { onSessionDone?(nil); return }
+
+        // Wait briefly for the stream to deliver its first few frames (discard initial stale frames)
+        try? await Task.sleep(nanoseconds: 100_000_000)  // 100ms
+
+        // Capture first strip from the running stream
+        guard let firstCG = await captureStrip() else {
+            await persistent.stop()
+            onSessionDone?(nil)
+            return
+        }
         let firstPtSize = CGSize(width: CGFloat(firstCG.width) / backingScale,
                                  height: CGFloat(firstCG.height) / backingScale)
 
@@ -194,6 +217,10 @@ final class ScrollCaptureController {
         if let m = scrollMonitorLocal  { NSEvent.removeMonitor(m); scrollMonitorLocal  = nil }
         autoScrollActive = false
 
+        // Stop persistent stream
+        Task { await persistentStream?.stop() }
+        persistentStream = nil
+
         // Batch stitch and deliver
         let finalImage = batchStitch()
         onSessionDone?(finalImage)
@@ -211,6 +238,9 @@ final class ScrollCaptureController {
         if let m = scrollMonitorGlobal { NSEvent.removeMonitor(m); scrollMonitorGlobal = nil }
         if let m = scrollMonitorLocal  { NSEvent.removeMonitor(m); scrollMonitorLocal  = nil }
         autoScrollActive = false
+
+        Task { await persistentStream?.stop() }
+        persistentStream = nil
     }
 
     // MARK: - Target app management
@@ -299,14 +329,13 @@ final class ScrollCaptureController {
             }
         }
 
-        // Wait for content to settle after scroll, then capture
-        // Wait for browser to finish rendering after scroll
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) { [weak self] in
+        // Wait briefly for content to render after scroll, then capture
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.06) { [weak self] in
             guard let self = self, self.isActive, self.autoScrollActive else { return }
             Task { @MainActor in
                 await self.captureAndProcess()
-                // Schedule next cycle
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak self] in
+                // Schedule next cycle immediately
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.02) { [weak self] in
                     self?.runScrollCaptureCycle(linesPerTick: linesPerTick, scrollBursts: scrollBursts)
                 }
             }
@@ -785,20 +814,24 @@ final class ScrollCaptureController {
         // Re-compute shifts between consecutive strips at pixel level.
         // Uses a robust row-matching approach: find the row in `current` that best matches
         // a reference row from `previous`, checking every pixel.
+        // Each offset is biased by -1px so strips overlap 1 extra row. Since later strips
+        // are drawn on top, this ensures no gap even with ±1px detection error — the worst
+        // case is 1 row of duplicated (newer) content, which is invisible.
         var refinedOffsets: [Int] = []
         for i in 1..<capturedStrips.count {
             let prev = capturedStrips[i - 1].image
             let curr = capturedStrips[i].image
             let coarse = i - 1 < stripOffsetsPx.count ? stripOffsetsPx[i - 1] : 0
+            let raw: Int
             if let exact = exactRowMatch(current: curr, previous: prev, estimate: coarse) {
-                refinedOffsets.append(max(0, min(exact, stripH)))
+                raw = exact
             } else if let refined = refineShift(current: curr, previous: prev,
                                                 estimate: coarse, searchRadius: 8) {
-                refinedOffsets.append(max(0, min(refined, stripH)))
+                raw = refined
             } else {
-                refinedOffsets.append(i - 1 < stripOffsetsPx.count
-                                      ? max(0, min(stripOffsetsPx[i - 1], stripH)) : 0)
+                raw = i - 1 < stripOffsetsPx.count ? stripOffsetsPx[i - 1] : 0
             }
+            refinedOffsets.append(max(0, min(raw, stripH)))
         }
 
         var totalPixelH: Int = stripH
@@ -813,22 +846,20 @@ final class ScrollCaptureController {
                                   bitsPerComponent: 8, bytesPerRow: stripW * 4,
                                   space: cs, bitmapInfo: bitmapInfo) else { return nil }
 
-        // Draw frame 0 at the top (CGContext has bottom-left origin, so "top" = highest y)
+        // Draw each full strip overlapping the previous one. Drawing full strips instead of
+        // cropping to exact new-content rows eliminates 1px black line gaps from rounding errors
+        // in offset calculation. Each strip's overlapping region naturally covers the previous one.
+        // CGContext has bottom-left origin, so "top of image" = highest y.
         var yOffset = totalPixelH - stripH
         ctx.draw(capturedStrips[0].image, in: CGRect(x: 0, y: yOffset, width: stripW, height: stripH))
 
-        // Draw subsequent frames: extract bottom `offsetPx` rows from each
         for i in 0..<refinedOffsets.count {
             let offPx = refinedOffsets[i]
             guard offPx > 0, i + 1 < capturedStrips.count else { continue }
 
-            let strip = capturedStrips[i + 1]
-            let cropRect = CGRect(x: 0, y: strip.image.height - offPx,
-                                  width: stripW, height: offPx)
-            guard let cropped = strip.image.cropping(to: cropRect) else { continue }
-
             yOffset -= offPx
-            ctx.draw(cropped, in: CGRect(x: 0, y: yOffset, width: stripW, height: offPx))
+            // Draw the full strip — the top portion overlaps (and overwrites) the previous strip's bottom.
+            ctx.draw(capturedStrips[i + 1].image, in: CGRect(x: 0, y: yOffset, width: stripW, height: stripH))
         }
 
         guard let finalCG = ctx.makeImage() else { return nil }
@@ -846,12 +877,16 @@ final class ScrollCaptureController {
     /// This is a fast incremental composite — the final batch stitch at the end is more accurate.
     private func updateLivePreview() {
         guard let first = capturedStrips.first else { return }
-        let scale = backingScale
 
         if capturedStrips.count == 1 {
             stitchedImage = first.image
             stitchedPixelSize = CGSize(width: CGFloat(first.image.width),
                                        height: CGFloat(first.image.height))
+            if let callback = onPreviewUpdated {
+                let ptSize = CGSize(width: CGFloat(first.image.width) / backingScale,
+                                    height: CGFloat(first.image.height) / backingScale)
+                callback(NSImage(cgImage: first.image, size: ptSize))
+            }
             return
         }
 
@@ -860,34 +895,98 @@ final class ScrollCaptureController {
         let totalNewPx = CGFloat(stripOffsetsPx.reduce(0, +))
         let totalH = stripPxH + totalNewPx
         stitchedPixelSize = CGSize(width: CGFloat(first.image.width), height: totalH)
-        // Don't actually composite for live preview — just track dimensions
+
+        // Generate a live preview image by compositing all strips
+        if let callback = onPreviewUpdated {
+            let stripW = first.image.width
+            let totalPixelH = Int(totalH)
+            guard totalPixelH > 0 else { return }
+
+            let cs = CGColorSpaceCreateDeviceRGB()
+            let bitmapInfo = CGImageAlphaInfo.premultipliedFirst.rawValue | CGBitmapInfo.byteOrder32Little.rawValue
+            guard let ctx = CGContext(data: nil, width: stripW, height: totalPixelH,
+                                      bitsPerComponent: 8, bytesPerRow: stripW * 4,
+                                      space: cs, bitmapInfo: bitmapInfo) else { return }
+
+            // Draw first strip at top
+            var yOffset = totalPixelH - first.image.height
+            ctx.draw(first.image, in: CGRect(x: 0, y: yOffset, width: stripW, height: first.image.height))
+
+            // Draw subsequent strips overlapping (same approach as batchStitch)
+            for i in 0..<stripOffsetsPx.count {
+                let offPx = stripOffsetsPx[i]
+                guard offPx > 0, i + 1 < capturedStrips.count else { continue }
+                yOffset -= offPx
+                let strip = capturedStrips[i + 1]
+                ctx.draw(strip.image, in: CGRect(x: 0, y: yOffset, width: stripW, height: strip.image.height))
+            }
+
+            if let previewCG = ctx.makeImage() {
+                let ptSize = CGSize(width: CGFloat(previewCG.width) / backingScale,
+                                    height: CGFloat(previewCG.height) / backingScale)
+                callback(NSImage(cgImage: previewCG, size: ptSize))
+            }
+        }
     }
 
     // MARK: - Strip capture
 
+    /// Capture a stable frame: read the latest frame, wait briefly, read again.
+    /// If both frames are identical (no tearing/mid-render), return it.
+    /// Retries up to 5 times to get a clean frame.
     private func captureStrip() async -> CGImage? {
-        guard let display = scDisplay else { return nil }
-        let filter = SCContentFilter(display: display, excludingWindows: excludedSCWindows)
-        let config = SCStreamConfiguration()
-        config.sourceRect        = scSourceRect
-        config.width             = Int(captureRect.width  * backingScale)
-        config.height            = Int(captureRect.height * backingScale)
-        config.showsCursor       = false
-        if #available(macOS 14.0, *) {
-            config.captureResolution = .best
+        guard let stream = persistentStream else { return nil }
+
+        for _ in 0..<5 {
+            guard let frame1 = stream.latestFrame else {
+                try? await Task.sleep(nanoseconds: 30_000_000)  // 30ms
+                continue
+            }
+            // Wait for the next frame to arrive (~1 frame at 120fps)
+            try? await Task.sleep(nanoseconds: 10_000_000)  // 10ms
+            guard let frame2 = stream.latestFrame else { continue }
+
+            // Quick check: compare a few sample rows between the two frames.
+            // If they match, the content has settled (no tearing).
+            if framesMatch(frame1, frame2) {
+                return copyToCPUBacked(frame2) ?? frame2
+            }
+            // Frames differ — content is still rendering. Wait and retry.
+            try? await Task.sleep(nanoseconds: 50_000_000)  // 50ms
         }
-        let handler = ScrollStripFrameHandler()
-        guard let stream = try? SCStream(filter: filter, configuration: config, delegate: nil) else { return nil }
-        do {
-            try stream.addStreamOutput(handler, type: .screen, sampleHandlerQueue: DispatchQueue(label: "macshot.scrollstrip"))
-            try await stream.startCapture()
-            let image = await handler.waitForFrame()
-            try? await stream.stopCapture()
-            guard let raw = image else { return nil }
-            return copyToCPUBacked(raw) ?? raw
-        } catch {
-            return nil
+
+        // Fallback: return whatever we have
+        guard let raw = stream.latestFrame else { return nil }
+        return copyToCPUBacked(raw) ?? raw
+    }
+
+    /// Quick comparison of two frames by sampling a few rows. Returns true if they're nearly identical.
+    private func framesMatch(_ a: CGImage, _ b: CGImage) -> Bool {
+        guard a.width == b.width, a.height == b.height else { return false }
+        guard let dataA = pixelData(for: a), let dataB = pixelData(for: b) else { return false }
+        let w = a.width
+        let h = a.height
+        let bytesPerRow = w * 4
+
+        // Sample 5 rows spread across the image
+        let maxIdx = h * bytesPerRow
+        var totalDiff: UInt64 = 0
+        var samples: Int = 0
+        for rowIdx in [h / 6, h / 3, h / 2, h * 2 / 3, h * 5 / 6] {
+            let off = rowIdx * bytesPerRow
+            // Sample every 8th pixel for speed
+            for col in stride(from: 0, to: w * 4, by: 32) {
+                let idx = off + col
+                guard idx + 2 < maxIdx else { continue }
+                totalDiff += UInt64(abs(Int(dataA[idx]) - Int(dataB[idx]))
+                                  + abs(Int(dataA[idx+1]) - Int(dataB[idx+1]))
+                                  + abs(Int(dataA[idx+2]) - Int(dataB[idx+2])))
+                samples += 1
+            }
         }
+        guard samples > 0 else { return false }
+        let avgDiff = totalDiff / UInt64(samples)
+        return avgDiff < 3  // nearly identical
     }
 
     private func copyToCPUBacked(_ src: CGImage) -> CGImage? {
@@ -902,44 +1001,69 @@ final class ScrollCaptureController {
     }
 }
 
-// MARK: - Single-frame handler for scroll capture strips
+// MARK: - Persistent capture stream
 
-private final class ScrollStripFrameHandler: NSObject, SCStreamOutput, @unchecked Sendable {
-    private var continuation: CheckedContinuation<CGImage?, Never>?
-    private var capturedImage: CGImage?
-    private var delivered = false
+/// Keeps an SCStream running for the duration of the scroll capture session.
+/// Continuously updates `latestFrame` with the most recent fully-rendered frame.
+/// This eliminates stale/partial first-frame artifacts (black lines) that occur when
+/// starting a new SCStream per capture.
+private final class PersistentFrameStream: NSObject, SCStreamOutput, @unchecked Sendable {
+    private var stream: SCStream?
     private let lock = NSLock()
+    private var _latestFrame: CGImage?
+    private let ciContext = CIContext()
 
-    func waitForFrame() async -> CGImage? {
-        await withCheckedContinuation { cont in
-            lock.lock()
-            if delivered {
-                let image = capturedImage
-                lock.unlock()
-                cont.resume(returning: image)
-            } else {
-                continuation = cont
-                lock.unlock()
-            }
+    /// The most recently captured frame. Always a complete, compositor-finished frame.
+    var latestFrame: CGImage? {
+        lock.lock()
+        let frame = _latestFrame
+        lock.unlock()
+        return frame
+    }
+
+    /// Start the persistent stream. Returns true on success.
+    func start(display: SCDisplay, excludedWindows: [SCWindow],
+               sourceRect: CGRect, captureSize: CGSize,
+               backingScale: CGFloat) async -> Bool {
+        let filter = SCContentFilter(display: display, excludingWindows: excludedWindows)
+        let config = SCStreamConfiguration()
+        config.sourceRect = sourceRect
+        config.width  = Int(captureSize.width)
+        config.height = Int(captureSize.height)
+        config.showsCursor = false
+        config.minimumFrameInterval = CMTime(value: 1, timescale: 120)  // 120fps for freshest possible frames
+        if #available(macOS 14.0, *) {
+            config.captureResolution = .best
+        }
+
+        guard let scStream = try? SCStream(filter: filter, configuration: config, delegate: nil) else { return false }
+        self.stream = scStream
+        do {
+            try scStream.addStreamOutput(self, type: .screen,
+                                          sampleHandlerQueue: DispatchQueue(label: "macshot.scrollstream"))
+            try await scStream.startCapture()
+            return true
+        } catch {
+            self.stream = nil
+            return false
         }
     }
 
+    func stop() async {
+        try? await stream?.stopCapture()
+        stream = nil
+    }
+
+    // SCStreamOutput — continuously update latest frame
     func stream(_ stream: SCStream, didOutputSampleBuffer sampleBuffer: CMSampleBuffer, of type: SCStreamOutputType) {
         guard type == .screen else { return }
         guard let pixelBuffer = sampleBuffer.imageBuffer else { return }
 
         let ciImage = CIImage(cvPixelBuffer: pixelBuffer)
-        let context = CIContext()
-        let cgImage = context.createCGImage(ciImage, from: ciImage.extent)
+        guard let cgImage = ciContext.createCGImage(ciImage, from: ciImage.extent) else { return }
 
         lock.lock()
-        guard !delivered else { lock.unlock(); return }
-        delivered = true
-        capturedImage = cgImage
-        let cont = continuation
-        continuation = nil
+        _latestFrame = cgImage
         lock.unlock()
-
-        cont?.resume(returning: cgImage)
     }
 }
