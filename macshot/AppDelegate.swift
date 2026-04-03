@@ -83,6 +83,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             name: NSWorkspace.activeSpaceDidChangeNotification, object: nil
         )
 
+        // Pin from history panel
+        NotificationCenter.default.addObserver(
+            self, selector: #selector(pinFromHistory(_:)),
+            name: .init("macshot.pinFromHistory"), object: nil
+        )
+
         // Check screen recording permission. If not yet granted, show the
         // custom onboarding window instead of letting macOS throw its own dialogs.
         PermissionOnboardingController.checkPermissionSync { [weak self] granted in
@@ -771,6 +777,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     func uploadImage(_ image: NSImage) {
         showUploadProgress(image: image)
+    }
+
+    @objc private func pinFromHistory(_ notification: Notification) {
+        guard let image = notification.object as? NSImage else { return }
+        showPin(image: image)
     }
 
     func showPin(image: NSImage) {

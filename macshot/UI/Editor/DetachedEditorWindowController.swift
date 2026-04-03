@@ -133,6 +133,11 @@ class DetachedEditorWindowController: NSObject, NSWindowDelegate {
         win.makeFirstResponder(view)
         NSApp.activate(ignoringOtherApps: true)
 
+        // Scroll to top so tall images start at the top, not the bottom
+        if let docView = scrollView.documentView {
+            docView.scroll(NSPoint(x: 0, y: docView.frame.maxY))
+        }
+
         self.window = win
         self.overlayView = view
     }

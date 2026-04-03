@@ -88,6 +88,8 @@ class ScreenshotHistory {
         // PNG encode + disk write on background thread (the expensive part)
         let fileURL = historyDir.appendingPathComponent("\(id).\(ext)")
         let thumbURL = historyDir.appendingPathComponent("\(id)_thumb.png")
+        let previewURL = historyDir.appendingPathComponent("\(id)_preview.png")
+        let preview = makePreview(image: image)
         DispatchQueue.global(qos: .utility).async {
             if let tiff = image.tiffRepresentation,
                let bitmap = NSBitmapImageRep(data: tiff),
@@ -98,6 +100,11 @@ class ScreenshotHistory {
                let thumbBitmap = NSBitmapImageRep(data: thumbTiff),
                let thumbPng = thumbBitmap.representation(using: .png, properties: [:]) {
                 try? thumbPng.write(to: thumbURL, options: .atomic)
+            }
+            if let prevTiff = preview.tiffRepresentation,
+               let prevBitmap = NSBitmapImageRep(data: prevTiff),
+               let prevPng = prevBitmap.representation(using: .png, properties: [:]) {
+                try? prevPng.write(to: previewURL, options: .atomic)
             }
         }
     }
@@ -134,15 +141,22 @@ class ScreenshotHistory {
         }
         saveIndex()
 
-        // Copy GIF + save thumbnail on background thread
+        // Copy GIF + save thumbnail + preview on background thread
         let destURL = historyDir.appendingPathComponent("\(id).\(ext)")
         let thumbURL = historyDir.appendingPathComponent("\(id)_thumb.png")
+        let previewURL = historyDir.appendingPathComponent("\(id)_preview.png")
+        let preview = makePreview(image: image)
         DispatchQueue.global(qos: .utility).async {
             try? FileManager.default.copyItem(at: url, to: destURL)
             if let thumbTiff = thumb.tiffRepresentation,
                let thumbBitmap = NSBitmapImageRep(data: thumbTiff),
                let thumbPng = thumbBitmap.representation(using: .png, properties: [:]) {
                 try? thumbPng.write(to: thumbURL, options: .atomic)
+            }
+            if let prevTiff = preview.tiffRepresentation,
+               let prevBitmap = NSBitmapImageRep(data: prevTiff),
+               let prevPng = prevBitmap.representation(using: .png, properties: [:]) {
+                try? prevPng.write(to: previewURL, options: .atomic)
             }
         }
     }
@@ -158,6 +172,13 @@ class ScreenshotHistory {
             }
             saveIndex()
         }
+    }
+
+    func removeEntry(id: String) {
+        guard let index = entries.firstIndex(where: { $0.id == id }) else { return }
+        let entry = entries.remove(at: index)
+        deleteFiles(for: entry.id, ext: entry.fileExtension)
+        saveIndex()
     }
 
     func clear() {
@@ -183,10 +204,49 @@ class ScreenshotHistory {
         return NSImage(data: data)
     }
 
+    func fileURL(for entry: HistoryEntry) -> URL {
+        historyDir.appendingPathComponent("\(entry.id).\(entry.fileExtension)")
+    }
+
     func loadThumbnail(for entry: HistoryEntry) -> NSImage? {
         if let thumb = entry.thumbnail { return thumb }
         let thumbURL = historyDir.appendingPathComponent("\(entry.id)_thumb.png")
         return NSImage(contentsOf: thumbURL)
+    }
+
+    /// Load a mid-size preview suitable for history panel cards (~240pt wide).
+    /// Falls back to disk thumbnail scaled up, or full image if needed.
+    func loadPreview(for entry: HistoryEntry) -> NSImage? {
+        // Try preview file first
+        let previewURL = historyDir.appendingPathComponent("\(entry.id)_preview.png")
+        if let preview = NSImage(contentsOf: previewURL) { return preview }
+
+        // Fall back to full image, scaled down
+        guard let full = loadImage(for: entry) else { return nil }
+        let preview = makePreview(image: full)
+
+        // Cache preview to disk for next time (fire and forget)
+        DispatchQueue.global(qos: .utility).async {
+            if let tiff = preview.tiffRepresentation,
+               let bitmap = NSBitmapImageRep(data: tiff),
+               let data = bitmap.representation(using: .png, properties: [:]) {
+                try? data.write(to: previewURL, options: .atomic)
+            }
+        }
+
+        return preview
+    }
+
+    private func makePreview(image: NSImage, maxDimension: CGFloat = 240) -> NSImage {
+        let size = image.size
+        guard size.width > 0, size.height > 0 else { return image }
+        let scale = min(maxDimension / size.width, maxDimension / size.height, 1.0)
+        let previewSize = NSSize(width: round(size.width * scale), height: round(size.height * scale))
+        let preview = NSImage(size: previewSize, flipped: false) { _ in
+            image.draw(in: NSRect(origin: .zero, size: previewSize), from: .zero, operation: .copy, fraction: 1.0)
+            return true
+        }
+        return preview
     }
 
     // MARK: - Persistence
@@ -238,8 +298,10 @@ class ScreenshotHistory {
     private func deleteFiles(for id: String, ext: String = "png") {
         let fileURL = historyDir.appendingPathComponent("\(id).\(ext)")
         let thumbURL = historyDir.appendingPathComponent("\(id)_thumb.png")
+        let previewURL = historyDir.appendingPathComponent("\(id)_preview.png")
         try? FileManager.default.removeItem(at: fileURL)
         try? FileManager.default.removeItem(at: thumbURL)
+        try? FileManager.default.removeItem(at: previewURL)
     }
 
     private func makeThumbnail(image: NSImage, maxWidth: CGFloat) -> NSImage {
