@@ -6,6 +6,10 @@ class ToolOptionsRowView: NSView {
 
     weak var overlayView: OverlayView?
     private(set) var currentTool: AnnotationTool?
+    /// When set, the options row edits this annotation's properties instead of global tool state.
+    private(set) var editingAnnotation: Annotation?
+    /// Snapshot taken before the first property edit, for undo.
+    private var editingSnapshot: Annotation?
     private let rowHeight: CGFloat = 34
     private let padding: CGFloat = 8
     /// The natural content width calculated during rebuild, before any external resizing.
@@ -48,6 +52,33 @@ class ToolOptionsRowView: NSView {
 
     required init?(coder: NSCoder) { fatalError() }
 
+    /// Rebuild the options row for a selected annotation's tool, reading values from the annotation.
+    func rebuild(forAnnotation ann: Annotation) {
+        editingAnnotation = ann
+        editingSnapshot = nil  // snapshot taken on first edit
+        rebuild(for: ann.tool)
+    }
+
+    /// Clear editing state so future rebuilds use global tool defaults.
+    func clearEditingAnnotation() {
+        commitEditingSnapshot()
+        editingAnnotation = nil
+        editingSnapshot = nil
+    }
+
+    /// Push the undo entry if we have a snapshot (i.e., at least one property was changed).
+    private func commitEditingSnapshot() {
+        guard let ann = editingAnnotation, let snapshot = editingSnapshot else { return }
+        overlayView?.pushPropertyChangeUndo(annotation: ann, snapshot: snapshot)
+        editingSnapshot = nil
+    }
+
+    /// Take a snapshot before the first edit so we can undo.
+    private func ensureSnapshot() {
+        guard let ann = editingAnnotation, editingSnapshot == nil else { return }
+        editingSnapshot = ann.clone()
+    }
+
     /// Rebuild the options row for the given tool. Call when tool or state changes.
     func rebuild(for tool: AnnotationTool) {
         // Remove old subviews
@@ -84,9 +115,16 @@ class ToolOptionsRowView: NSView {
             curX = addSeparator(at: curX)
             curX = addArrowStyleSegment(at: curX, ov: ov)
             curX = addSeparator(at: curX)
-            curX = addToggle(at: curX, title: "Flip", isOn: ov.arrowReversed) { [weak ov] isOn in
-                ov?.arrowReversed = isOn
-                UserDefaults.standard.set(isOn, forKey: "arrowReversed")
+            let flipIsOn = editingAnnotation?.arrowReversed ?? ov.arrowReversed
+            curX = addToggle(at: curX, title: "Flip", isOn: flipIsOn) { [weak self, weak ov] isOn in
+                if let ann = self?.editingAnnotation {
+                    self?.ensureSnapshot()
+                    ann.arrowReversed = isOn
+                    ov?.cachedCompositedImage = nil
+                } else {
+                    ov?.arrowReversed = isOn
+                    UserDefaults.standard.set(isOn, forKey: "arrowReversed")
+                }
                 ov?.needsDisplay = true
             }
         }
@@ -211,8 +249,9 @@ class ToolOptionsRowView: NSView {
         addSubview(nameLabel)
         curX += nameLabel.frame.width + 4
 
+        let currentVal = editingAnnotation?.strokeWidth ?? ov.activeStrokeWidthForTool(tool)
         let sliderW: CGFloat = 100
-        let slider = NSSlider(value: Double(ov.activeStrokeWidthForTool(tool)),
+        let slider = NSSlider(value: Double(currentVal),
                               minValue: tool == .loupe ? 40 : 1, maxValue: tool == .loupe ? 320 : 20,
                               target: self, action: #selector(strokeSliderChanged(_:)))
         slider.frame = NSRect(x: curX, y: (rowHeight - 20) / 2, width: sliderW, height: 20)
@@ -221,7 +260,7 @@ class ToolOptionsRowView: NSView {
         addSubview(slider)
         curX += sliderW + 4
 
-        let val = Int(ov.activeStrokeWidthForTool(tool))
+        let val = Int(currentVal)
         let valStr = tool == .loupe ? "\(val)" : "\(val)px"
         let labelW: CGFloat = tool == .loupe ? 32 : 28
         let label = NSTextField(labelWithString: valStr)
@@ -247,7 +286,7 @@ class ToolOptionsRowView: NSView {
             seg.setImage(Self.lineStyleImage(style), forSegment: i)
             seg.setWidth(36, forSegment: i)
         }
-        seg.selectedSegment = ov.currentLineStyle.rawValue
+        seg.selectedSegment = (editingAnnotation?.lineStyle ?? ov.currentLineStyle).rawValue
         let segW = CGFloat(LineStyle.allCases.count) * 36
         seg.frame = NSRect(x: curX, y: (rowHeight - 22) / 2, width: segW, height: 22)
         (seg.cell as? NSSegmentedCell)?.segmentStyle = .roundRect
@@ -267,7 +306,7 @@ class ToolOptionsRowView: NSView {
             seg.setImage(Self.arrowStyleImage(style), forSegment: i)
             seg.setWidth(30, forSegment: i)
         }
-        seg.selectedSegment = ov.currentArrowStyle.rawValue
+        seg.selectedSegment = (editingAnnotation?.arrowStyle ?? ov.currentArrowStyle).rawValue
         let segW = CGFloat(ArrowStyle.allCases.count) * 30
         seg.frame = NSRect(x: curX, y: (rowHeight - 22) / 2, width: segW, height: 22)
         (seg.cell as? NSSegmentedCell)?.segmentStyle = .roundRect
@@ -288,7 +327,7 @@ class ToolOptionsRowView: NSView {
             seg.setImage(Self.shapeFillImage(style, oval: isOval), forSegment: i)
             seg.setWidth(30, forSegment: i)
         }
-        seg.selectedSegment = ov.currentRectFillStyle.rawValue
+        seg.selectedSegment = (editingAnnotation?.rectFillStyle ?? ov.currentRectFillStyle).rawValue
         let segW = CGFloat(RectFillStyle.allCases.count) * 30
         seg.frame = NSRect(x: curX, y: (rowHeight - 22) / 2, width: segW, height: 22)
         (seg.cell as? NSSegmentedCell)?.segmentStyle = .roundRect
@@ -473,7 +512,8 @@ class ToolOptionsRowView: NSView {
         addSubview(label)
         curX += label.frame.width + 4
 
-        let slider = NSSlider(value: Double(ov.currentRectCornerRadius),
+        let radiusVal = editingAnnotation?.rectCornerRadius ?? ov.currentRectCornerRadius
+        let slider = NSSlider(value: Double(radiusVal),
                               minValue: 0, maxValue: 30,
                               target: self, action: #selector(cornerRadiusChanged(_:)))
         slider.frame = NSRect(x: curX, y: (rowHeight - 20) / 2, width: 80, height: 20)
@@ -481,7 +521,7 @@ class ToolOptionsRowView: NSView {
         addSubview(slider)
         curX += 80 + 4
 
-        let valLabel = NSTextField(labelWithString: "\(Int(ov.currentRectCornerRadius))px")
+        let valLabel = NSTextField(labelWithString: "\(Int(radiusVal))px")
         valLabel.font = NSFont.monospacedDigitSystemFont(ofSize: 10, weight: .medium)
         valLabel.textColor = ToolbarLayout.iconColor.withAlphaComponent(0.6)
         valLabel.alignment = .right
@@ -1036,17 +1076,30 @@ class ToolOptionsRowView: NSView {
     @objc private func strokeSliderChanged(_ sender: NSSlider) {
         guard let ov = overlayView else { return }
         let val = CGFloat(sender.floatValue)
-        if let tool = currentTool { ov.setActiveStrokeWidth(val, for: tool) }
+        if let ann = editingAnnotation {
+            ensureSnapshot()
+            ann.strokeWidth = val
+            ov.cachedCompositedImage = nil
+        } else {
+            if let tool = currentTool { ov.setActiveStrokeWidth(val, for: tool) }
+        }
         if let label = viewWithTag(997) as? NSTextField {
             label.stringValue = currentTool == .loupe ? "\(Int(val))" : "\(Int(val))px"
         }
+        ov.needsDisplay = true
     }
 
     @objc private func lineStyleChanged(_ sender: NSSegmentedControl) {
         guard let ov = overlayView else { return }
         if let style = LineStyle(rawValue: sender.selectedSegment) {
-            ov.currentLineStyle = style
-            UserDefaults.standard.set(style.rawValue, forKey: "currentLineStyle")
+            if let ann = editingAnnotation {
+                ensureSnapshot()
+                ann.lineStyle = style
+                ov.cachedCompositedImage = nil
+            } else {
+                ov.currentLineStyle = style
+                UserDefaults.standard.set(style.rawValue, forKey: "currentLineStyle")
+            }
             ov.needsDisplay = true
         }
     }
@@ -1054,8 +1107,14 @@ class ToolOptionsRowView: NSView {
     @objc private func arrowStyleChanged(_ sender: NSSegmentedControl) {
         guard let ov = overlayView else { return }
         if let style = ArrowStyle(rawValue: sender.selectedSegment) {
-            ov.currentArrowStyle = style
-            UserDefaults.standard.set(style.rawValue, forKey: "currentArrowStyle")
+            if let ann = editingAnnotation {
+                ensureSnapshot()
+                ann.arrowStyle = style
+                ov.cachedCompositedImage = nil
+            } else {
+                ov.currentArrowStyle = style
+                UserDefaults.standard.set(style.rawValue, forKey: "currentArrowStyle")
+            }
             ov.needsDisplay = true
         }
     }
@@ -1063,18 +1122,31 @@ class ToolOptionsRowView: NSView {
     @objc private func shapeFillChanged(_ sender: NSSegmentedControl) {
         guard let ov = overlayView else { return }
         if let style = RectFillStyle(rawValue: sender.selectedSegment) {
-            ov.currentRectFillStyle = style
-            UserDefaults.standard.set(style.rawValue, forKey: "currentRectFillStyle")
+            if let ann = editingAnnotation {
+                ensureSnapshot()
+                ann.rectFillStyle = style
+                ov.cachedCompositedImage = nil
+            } else {
+                ov.currentRectFillStyle = style
+                UserDefaults.standard.set(style.rawValue, forKey: "currentRectFillStyle")
+            }
             ov.needsDisplay = true
         }
     }
 
     @objc private func cornerRadiusChanged(_ sender: NSSlider) {
         guard let ov = overlayView else { return }
-        ov.currentRectCornerRadius = CGFloat(sender.floatValue)
-        UserDefaults.standard.set(sender.doubleValue, forKey: "currentRectCornerRadius")
+        let val = CGFloat(sender.floatValue)
+        if let ann = editingAnnotation {
+            ensureSnapshot()
+            ann.rectCornerRadius = val
+            ov.cachedCompositedImage = nil
+        } else {
+            ov.currentRectCornerRadius = val
+            UserDefaults.standard.set(sender.doubleValue, forKey: "currentRectCornerRadius")
+        }
         if let label = viewWithTag(996) as? NSTextField {
-            label.stringValue = "\(Int(sender.floatValue))px"
+            label.stringValue = "\(Int(val))px"
         }
         ov.needsDisplay = true
     }

@@ -19,7 +19,7 @@ final class HistoryOverlayController: NSObject, QLPreviewPanelDataSource, QLPrev
     private var quickLookEntryIndex: Int = -1
 
     private static let panelHeight: CGFloat = 240
-    private static let animationDuration: TimeInterval = 0.25
+    private static let animationDuration: TimeInterval = 0.12
 
     func show() {
         guard let screen = NSScreen.main else { return }

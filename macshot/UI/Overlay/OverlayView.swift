@@ -36,10 +36,13 @@ enum UndoEntry {
     case deleted(Annotation, Int)  // annotation was deleted at index; undo re-inserts it
     /// Image transform (crop/flip): stores the previous image and annotation offsets to restore.
     case imageTransform(previousImage: NSImage, annotationOffsets: [(Annotation, CGFloat, CGFloat)])
+    /// Property change: stores the annotation and a snapshot taken before the edit.
+    case propertyChange(annotation: Annotation, snapshot: Annotation)
 
     var annotation: Annotation {
         switch self {
         case .added(let a), .deleted(let a, _): return a
+        case .propertyChange(let a, _): return a
         case .imageTransform:
             return Annotation(
                 tool: .measure, startPoint: .zero, endPoint: .zero, color: .clear, strokeWidth: 0)  // dummy
@@ -197,8 +200,26 @@ class OverlayView: NSView {
     }()
 
     // Select/move mode
-    private var selectedAnnotation: Annotation?
+    private var selectedAnnotation: Annotation? {
+        didSet {
+            if selectedAnnotation !== oldValue {
+                // Commit any pending property edit undo from the previous selection
+                toolOptionsRowView?.clearEditingAnnotation()
+
+                if let ann = selectedAnnotation {
+                    // Show selected annotation's properties in the options row
+                    toolOptionsRowView?.rebuild(forAnnotation: ann)
+                    repositionToolbars()
+                } else if let tool = currentTool as AnnotationTool? {
+                    // Revert to global tool options
+                    toolOptionsRowView?.rebuild(for: tool)
+                    repositionToolbars()
+                }
+            }
+        }
+    }
     private var isDraggingAnnotation: Bool = false
+    private var didMoveAnnotation: Bool = false
     private var annotationDragStart: NSPoint = .zero
     /// Annotation under the cursor when using a non-select drawing tool — enables on-the-fly move without switching tools.
     private var hoveredAnnotation: Annotation?
@@ -750,89 +771,6 @@ class OverlayView: NSView {
         }
 
         // Toolbar hover handled by ToolbarButtonView (real NSView subviews)
-
-        // Hover-to-move: only active for the core shape/drawing tools.
-        let hoverMoveTools: Set<AnnotationTool> = [.arrow, .line, .rectangle, .ellipse]
-        // Hover-to-move: when a drawing tool is active and the cursor is over a movable annotation,
-        // temporarily show the open-hand cursor so the user can move it without switching tools.
-        // Disabled entirely during recording (pass-through mode).
-        if isRecording {
-            if hoveredAnnotation != nil {
-                hoveredAnnotationClearTimer?.invalidate()
-                hoveredAnnotationClearTimer = nil
-                hoveredAnnotation = nil
-                needsDisplay = true
-            }
-            return
-        }
-        if state == .selected && hoverMoveTools.contains(currentTool) && !isDraggingAnnotation
-            && !isResizingAnnotation
-        {
-            let canvasPoint = viewToCanvas(point)
-            let newHovered = annotations.reversed().first {
-                $0.isMovable && $0.hitTest(point: canvasPoint)
-            }
-
-            if newHovered !== nil {
-                // Cursor is directly over an annotation — show controls immediately.
-                hoveredAnnotationClearTimer?.invalidate()
-                hoveredAnnotationClearTimer = nil
-                if newHovered !== hoveredAnnotation {
-                    hoveredAnnotation = newHovered
-
-                    needsDisplay = true
-                }
-            } else if hoveredAnnotation != nil {
-                // Cursor left the annotation hit area. Check if it's within the extended controls
-                // zone (handles + delete button sit outside the hit area) — if so, keep hoveredAnnotation.
-                // Unrotate point for resize handle hit test (handles are drawn in rotated space)
-                let unrotatedPoint: NSPoint
-                if let ann = hoveredAnnotation, ann.rotation != 0 && ann.supportsRotation {
-                    let center = NSPoint(x: ann.boundingRect.midX, y: ann.boundingRect.midY)
-                    let cos_r = cos(-ann.rotation)
-                    let sin_r = sin(-ann.rotation)
-                    let dx = point.x - center.x
-                    let dy = point.y - center.y
-                    unrotatedPoint = NSPoint(
-                        x: center.x + dx * cos_r - dy * sin_r,
-                        y: center.y + dx * sin_r + dy * cos_r)
-                } else {
-                    unrotatedPoint = point
-                }
-                let controlsActive =
-                    annotationDeleteButtonRect.contains(point)
-                    || annotationResizeHandleRects.contains {
-                        $0.1.insetBy(dx: -8, dy: -8).contains(unrotatedPoint)
-                    }
-                    || (annotationRotateHandleRect != .zero
-                        && annotationRotateHandleRect.insetBy(dx: -8, dy: -8).contains(point))
-
-                if controlsActive {
-                    // Inside a control rect — cancel any pending clear and stay active.
-                    hoveredAnnotationClearTimer?.invalidate()
-                    hoveredAnnotationClearTimer = nil
-                } else if hoveredAnnotationClearTimer == nil {
-                    // Start a linger timer — gives the cursor time to travel to a nearby handle/button.
-                    hoveredAnnotationClearTimer = Timer.scheduledTimer(
-                        withTimeInterval: 0.45, repeats: false
-                    ) { [weak self] _ in
-                        guard let self = self else { return }
-                        self.hoveredAnnotationClearTimer = nil
-                        self.hoveredAnnotation = nil
-                        self.needsDisplay = true
-                    }
-                }
-            }
-        } else if hoveredAnnotation != nil
-            && (!hoverMoveTools.contains(currentTool) || isDraggingAnnotation
-                || isResizingAnnotation)
-        {
-            hoveredAnnotationClearTimer?.invalidate()
-            hoveredAnnotationClearTimer = nil
-            hoveredAnnotation = nil
-
-            needsDisplay = true
-        }
     }
 
     // Custom cursors
@@ -956,10 +894,15 @@ class OverlayView: NSView {
             return
         }
 
-        // Hover-to-move over annotations
-        if [.arrow, .line, .rectangle, .ellipse, .select].contains(currentTool) {
-            if let hovered = hoveredAnnotation, hovered.hitTest(point: viewToCanvas(point)) {
-                Self.moveCursor.set()
+        // Show open hand cursor when hovering over any movable annotation
+        if state == .selected && !isDraggingAnnotation {
+            let canvasPoint = viewToCanvas(point)
+            if let selected = selectedAnnotation, selected.hitTest(point: canvasPoint) {
+                NSCursor.openHand.set()
+                return
+            }
+            if annotations.reversed().contains(where: { $0.isMovable && $0.hitTest(point: canvasPoint) }) {
+                NSCursor.openHand.set()
                 return
             }
         }
@@ -1286,14 +1229,8 @@ class OverlayView: NSView {
 
             // Draw selection highlight for selected annotation (or hovered annotation in drawing mode)
             // Suppressed during recording so annotations are purely visual overlays.
-            if !isRecording {
-                if let selected = selectedAnnotation, currentTool == .select {
-                    drawAnnotationControls(for: selected)
-                } else if let hovered = hoveredAnnotation,
-                    [AnnotationTool.arrow, .line, .rectangle, .ellipse].contains(currentTool)
-                {
-                    drawAnnotationControls(for: hovered)
-                }
+            if !isRecording, let selected = selectedAnnotation {
+                drawAnnotationControls(for: selected)
             }
 
             // Marker cursor preview inside zoom transform so it scales with zoom
@@ -1317,16 +1254,10 @@ class OverlayView: NSView {
                 context.restoreGraphicsState()
 
                 // Re-draw annotation controls on top of the beautify preview so they stay visible.
-                if !isRecording {
+                if !isRecording, let selected = selectedAnnotation {
                     context.saveGraphicsState()
                     applyCanvasTransform(to: context)
-                    if let selected = selectedAnnotation, currentTool == .select {
-                        drawAnnotationControls(for: selected)
-                    } else if let hovered = hoveredAnnotation,
-                        [AnnotationTool.arrow, .line, .rectangle, .ellipse].contains(currentTool)
-                    {
-                        drawAnnotationControls(for: hovered)
-                    }
+                    drawAnnotationControls(for: selected)
                     context.restoreGraphicsState()
                 }
 
@@ -2221,6 +2152,10 @@ class OverlayView: NSView {
 
     /// Whether the current tool should show the options row
     var toolHasOptionsRow: Bool {
+        // Show options row for a selected annotation's tool even when currentTool is .select
+        if selectedAnnotation != nil && toolOptionsRowView?.editingAnnotation != nil {
+            return true
+        }
         switch currentTool {
         case .pencil, .line, .arrow, .rectangle, .ellipse, .marker, .number, .loupe, .measure,
             .pixelate, .blur, .stamp:
@@ -3645,7 +3580,12 @@ class OverlayView: NSView {
                 parent.addSubview(row)
                 toolOptionsRowView = row
             }
-            toolOptionsRowView?.rebuild(for: currentTool)
+            // Don't overwrite annotation-specific options when editing a selected annotation
+            if let ann = selectedAnnotation, toolOptionsRowView?.editingAnnotation === ann {
+                // Already showing this annotation's options — skip rebuild
+            } else {
+                toolOptionsRowView?.rebuild(for: currentTool)
+            }
         }
 
         repositionToolbars()
@@ -3982,7 +3922,7 @@ class OverlayView: NSView {
 
         // Control-click on line/arrow: add anchor point (same as right-click)
         if event.modifierFlags.contains(.control) && state == .selected {
-            if let ann = selectedAnnotation ?? hoveredAnnotation,
+            if let ann = selectedAnnotation,
                 ann.tool == .arrow || ann.tool == .line || ann.tool == .measure
             {
                 let canvasPoint = viewToCanvas(point)
@@ -4470,6 +4410,7 @@ class OverlayView: NSView {
                 annotation.move(dx: finalDx, dy: finalDy)
                 annotationDragStart = NSPoint(
                     x: canvasPoint.x + snap.dx, y: canvasPoint.y + snap.dy)
+                didMoveAnnotation = true
                 cachedCompositedImage = nil
                 needsDisplay = true
             } else if isDraggingSelection {
@@ -4623,14 +4564,12 @@ class OverlayView: NSView {
         case .selected:
             if isDraggingAnnotation {
                 isDraggingAnnotation = false
+                didMoveAnnotation = false
                 snapGuideX = nil
                 snapGuideY = nil
+                NSCursor.openHand.set()
                 if let ann = selectedAnnotation, ann.tool == .loupe {
                     ann.bakeLoupe()
-                }
-                // If this drag was initiated via hover-to-move (not the select tool), clear selectedAnnotation
-                if currentTool != .select {
-                    selectedAnnotation = nil
                 }
                 // Auto-expand canvas if annotation was dragged outside bounds (editor mode)
                 expandCanvasToFitAnnotations()
@@ -4665,7 +4604,7 @@ class OverlayView: NSView {
 
         // Right-click on a selected/hovered line/arrow: add anchor point
         if state == .selected {
-            if let ann = selectedAnnotation ?? hoveredAnnotation,
+            if let ann = selectedAnnotation,
                 ann.tool == .arrow || ann.tool == .line || ann.tool == .measure
             {
                 let canvasPoint = viewToCanvas(point)
@@ -5231,6 +5170,13 @@ class OverlayView: NSView {
         }
     }
 
+    /// Push a property change undo entry. Called by ToolOptionsRowView when editing completes.
+    func pushPropertyChangeUndo(annotation: Annotation, snapshot: Annotation) {
+        undoStack.append(.propertyChange(annotation: annotation, snapshot: snapshot))
+        redoStack.removeAll()
+        cachedCompositedImage = nil
+    }
+
     private func applyColorToSelectedAnnotation() {
         guard let ann = selectedAnnotation else { return }
         ann.color = opacityAppliedColor(for: ann.tool)
@@ -5255,14 +5201,28 @@ class OverlayView: NSView {
         // No drawing in recording setup mode
         guard !isRecording else { return }
 
-        // Hover-to-move: if the cursor is over a hovered annotation (while a drawing tool is active),
-        // intercept the click and handle it like the select tool — resize handle or drag — without
-        // switching currentTool. Must run BEFORE tool handler dispatch.
-        if currentTool != .select && currentTool != .colorSampler && currentTool != .text,
-           let hovered = hoveredAnnotation
-        {
-            if handleHoveredAnnotationClick(hovered, at: point) { return }
+        // Click-to-select: if clicking on an existing annotation (any tool except colorSampler/text),
+        // select it instead of starting a new annotation. If clicking on the currently selected
+        // annotation's controls (resize handles, delete, rotation), handle those.
+        if currentTool != .colorSampler && currentTool != .text {
+            // First check if clicking on controls of the currently selected annotation
+            if let selected = selectedAnnotation {
+                if handleSelectedAnnotationClick(selected, at: point) { return }
+            }
+            // Then check if clicking on any annotation's body
+            if let clicked = annotations.reversed().first(where: { $0.isMovable && $0.hitTest(point: point) }) {
+                selectedAnnotation = clicked
+                isDraggingAnnotation = true
+                didMoveAnnotation = false
+                annotationDragStart = point
+                NSCursor.closedHand.set()
+                needsDisplay = true
+                return
+            }
         }
+
+        // Clicking empty space — clear selection and start new annotation
+        if selectedAnnotation != nil { selectedAnnotation = nil }
 
         // Dispatch to extracted tool handler if available
         if let handler = toolHandlers[currentTool] {
@@ -5388,7 +5348,9 @@ class OverlayView: NSView {
                 if annotation.isMovable && annotation.hitTest(point: point) {
                     selectedAnnotation = annotation
                     isDraggingAnnotation = true
+                    didMoveAnnotation = false
                     annotationDragStart = point
+                    NSCursor.closedHand.set()
                     needsDisplay = true
                     return
                 }
@@ -5437,36 +5399,36 @@ class OverlayView: NSView {
         }
     }
 
-    /// Handle click on a hovered annotation's controls or body (hover-to-move).
-    /// Returns true if the click was consumed.
-    private func handleHoveredAnnotationClick(_ hovered: Annotation, at point: NSPoint) -> Bool {
+    /// Handle click on the selected annotation's controls (resize handles, rotation, delete).
+    /// Returns true if the click was consumed. Does NOT check the annotation body — that's
+    /// handled by the caller's hit-test loop.
+    private func handleSelectedAnnotationClick(_ selected: Annotation, at point: NSPoint) -> Bool {
         // Unrotate point for resize handle hit test
-        let hoverHandlePoint: NSPoint
-        if hovered.rotation != 0 && hovered.supportsRotation {
-            let center = NSPoint(x: hovered.boundingRect.midX, y: hovered.boundingRect.midY)
-            let cos_r = cos(-hovered.rotation)
-            let sin_r = sin(-hovered.rotation)
+        let handleTestPoint: NSPoint
+        if selected.rotation != 0 && selected.supportsRotation {
+            let center = NSPoint(x: selected.boundingRect.midX, y: selected.boundingRect.midY)
+            let cos_r = cos(-selected.rotation)
+            let sin_r = sin(-selected.rotation)
             let dx = point.x - center.x
             let dy = point.y - center.y
-            hoverHandlePoint = NSPoint(
+            handleTestPoint = NSPoint(
                 x: center.x + dx * cos_r - dy * sin_r,
                 y: center.y + dx * sin_r + dy * cos_r)
         } else {
-            hoverHandlePoint = point
+            handleTestPoint = point
         }
-        // Check resize handles of the hovered annotation (populated by drawAnnotationControls)
+        // Check resize handles (populated by drawAnnotationControls)
         for (handleIdx, handleEntry) in annotationResizeHandleRects.enumerated() {
             let (handle, rect) = handleEntry
-            if rect.insetBy(dx: -4, dy: -4).contains(hoverHandlePoint) {
-                selectedAnnotation = hovered
+            if rect.insetBy(dx: -4, dy: -4).contains(handleTestPoint) {
                 isResizingAnnotation = true
                 annotationResizeHandle = handle
-                annotationResizeOrigStart = hovered.startPoint
-                annotationResizeOrigEnd = hovered.endPoint
-                annotationResizeOrigTextOrigin = hovered.textDrawRect.origin
+                annotationResizeOrigStart = selected.startPoint
+                annotationResizeOrigEnd = selected.endPoint
+                annotationResizeOrigTextOrigin = selected.textDrawRect.origin
                 annotationResizeMouseStart = point
                 annotationResizeAnchorIndex = -1
-                if let anchors = hovered.anchorPoints, anchors.count >= 3, handleIdx >= 2 {
+                if let anchors = selected.anchorPoints, anchors.count >= 3, handleIdx >= 2 {
                     let anchorIdx = handleIdx - 2 + 1
                     if anchorIdx > 0 && anchorIdx < anchors.count - 1 {
                         annotationResizeAnchorIndex = anchorIdx
@@ -5475,10 +5437,10 @@ class OverlayView: NSView {
                 } else if handle == .none || (handle != .bottomLeft && handle != .topRight) {
                     if annotationResizeAnchorIndex < 0 {
                         annotationResizeOrigControlPoint =
-                            hovered.controlPoint
+                            selected.controlPoint
                             ?? NSPoint(
-                                x: (hovered.startPoint.x + hovered.endPoint.x) / 2,
-                                y: (hovered.startPoint.y + hovered.endPoint.y) / 2
+                                x: (selected.startPoint.x + selected.endPoint.x) / 2,
+                                y: (selected.startPoint.y + selected.endPoint.y) / 2
                             )
                     }
                 }
@@ -5490,31 +5452,30 @@ class OverlayView: NSView {
         if annotationRotateHandleRect != .zero
             && annotationRotateHandleRect.insetBy(dx: -6, dy: -6).contains(point)
         {
-            selectedAnnotation = hovered
             isRotatingAnnotation = true
-            let center = NSPoint(x: hovered.boundingRect.midX, y: hovered.boundingRect.midY)
+            let center = NSPoint(x: selected.boundingRect.midX, y: selected.boundingRect.midY)
             rotationStartAngle = atan2(point.x - center.x, point.y - center.y)
-            rotationOriginal = hovered.rotation
+            rotationOriginal = selected.rotation
             needsDisplay = true
             return true
         }
         // Check delete button
         if annotationDeleteButtonRect.contains(point) {
-            if let idx = annotations.firstIndex(where: { $0 === hovered }) {
+            if let idx = annotations.firstIndex(where: { $0 === selected }) {
                 annotations.remove(at: idx)
-                undoStack.append(.deleted(hovered, idx))
+                undoStack.append(.deleted(selected, idx))
                 redoStack.removeAll()
             }
-            hoveredAnnotation = nil
             selectedAnnotation = nil
             needsDisplay = true
             return true
         }
-        // Click on the annotation body — start drag
-        if hovered.hitTest(point: point) {
-            selectedAnnotation = hovered
+        // Click on the annotation body — start drag (annotation already selected)
+        if selected.hitTest(point: point) {
             isDraggingAnnotation = true
+            didMoveAnnotation = false
             annotationDragStart = point
+            NSCursor.closedHand.set()
             needsDisplay = true
             return true
         }
@@ -5744,6 +5705,9 @@ class OverlayView: NSView {
                 cancelTextEditing()
             } else if PopoverHelper.isVisible {
                 PopoverHelper.dismiss()
+            } else if selectedAnnotation != nil {
+                selectedAnnotation = nil
+                needsDisplay = true
             } else {
                 overlayDelegate?.overlayViewDidCancel()
             }
@@ -5782,17 +5746,6 @@ class OverlayView: NSView {
                     redoStack.removeAll()
                 }
                 selectedAnnotation = nil
-                cachedCompositedImage = nil
-                needsDisplay = true
-            } else if let ann = hoveredAnnotation {
-                if let idx = annotations.firstIndex(where: { $0 === ann }) {
-                    annotations.remove(at: idx)
-                    undoStack.append(.deleted(ann, idx))
-                    redoStack.removeAll()
-                }
-                hoveredAnnotation = nil
-                hoveredAnnotationClearTimer?.invalidate()
-                hoveredAnnotationClearTimer = nil
                 cachedCompositedImage = nil
                 needsDisplay = true
             }
@@ -5994,6 +5947,12 @@ class OverlayView: NSView {
             annotations.insert(ann, at: safeIdx)
             if ann.tool == .number { numberCounter += 1 }
             redoStack.append(.deleted(ann, idx))
+        case .propertyChange(let ann, let snapshot):
+            // Undo property change — swap current state with snapshot
+            let currentSnapshot = ann.clone()
+            ann.copyProperties(from: snapshot)
+            redoStack.append(.propertyChange(annotation: ann, snapshot: currentSnapshot))
+            cachedCompositedImage = nil
         case .imageTransform(let previousImage, _):
             // Undo crop/flip — swap the current image with the saved one
             let currentImage = screenshotImage?.copy() as? NSImage ?? previousImage
@@ -6048,6 +6007,12 @@ class OverlayView: NSView {
             annotations.removeAll { $0 === ann }
             if ann.tool == .number { numberCounter = max(0, numberCounter - 1) }
             undoStack.append(.deleted(ann, idx))
+        case .propertyChange(let ann, let snapshot):
+            // Redo property change — swap again
+            let currentSnapshot = ann.clone()
+            ann.copyProperties(from: snapshot)
+            undoStack.append(.propertyChange(annotation: ann, snapshot: currentSnapshot))
+            cachedCompositedImage = nil
         case .imageTransform(let redoImage, _):
             // Redo crop/flip — swap back
             let currentImage = screenshotImage?.copy() as? NSImage ?? redoImage

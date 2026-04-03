@@ -238,6 +238,28 @@ class Annotation {
         return c
     }
 
+    /// Copy all visual/style properties from another annotation (for undo/redo of property edits).
+    func copyProperties(from src: Annotation) {
+        color = src.color
+        strokeWidth = src.strokeWidth
+        lineStyle = src.lineStyle
+        arrowStyle = src.arrowStyle
+        arrowReversed = src.arrowReversed
+        rectFillStyle = src.rectFillStyle
+        rectCornerRadius = src.rectCornerRadius
+        fontSize = src.fontSize
+        isBold = src.isBold
+        isItalic = src.isItalic
+        isUnderline = src.isUnderline
+        isStrikethrough = src.isStrikethrough
+        textBgColor = src.textBgColor
+        textOutlineColor = src.textOutlineColor
+        textAlignment = src.textAlignment
+        fontFamilyName = src.fontFamilyName
+        numberFormat = src.numberFormat
+        measureInPoints = src.measureInPoints
+    }
+
     var boundingRect: NSRect {
         var minX = min(startPoint.x, endPoint.x)
         var minY = min(startPoint.y, endPoint.y)
@@ -397,19 +419,29 @@ class Annotation {
 
     /// Draw a selection highlight around this annotation
     func drawSelectionHighlight() {
+        // Pencil/marker: trace the actual stroke path with a glowing outline
+        if tool == .pencil || tool == .marker {
+            guard let points = points, points.count >= 2 else { return }
+            let path = NSBezierPath()
+            path.move(to: points[0])
+            for i in 1..<points.count {
+                path.line(to: points[i])
+            }
+            let effectiveWidth = tool == .marker ? strokeWidth * 6 : strokeWidth
+            path.lineWidth = effectiveWidth + 6
+            path.lineCapStyle = .round
+            path.lineJoinStyle = .round
+            ToolbarLayout.accentColor.withAlphaComponent(0.35).setStroke()
+            path.stroke()
+            // Inner bright edge
+            path.lineWidth = effectiveWidth + 2
+            ToolbarLayout.accentColor.withAlphaComponent(0.15).setStroke()
+            path.stroke()
+            return
+        }
+
         let highlightRect: NSRect
         switch tool {
-        case .pencil, .marker:
-            guard let points = points, !points.isEmpty else { return }
-            var minX = CGFloat.greatestFiniteMagnitude, minY = CGFloat.greatestFiniteMagnitude
-            var maxX = -CGFloat.greatestFiniteMagnitude, maxY = -CGFloat.greatestFiniteMagnitude
-            for p in points {
-                minX = min(minX, p.x); minY = min(minY, p.y)
-                maxX = max(maxX, p.x); maxY = max(maxY, p.y)
-            }
-            let strokePad = (tool == .marker ? strokeWidth * 6 : strokeWidth) / 2
-            highlightRect = NSRect(x: minX - strokePad, y: minY - strokePad,
-                                   width: maxX - minX + strokePad * 2, height: maxY - minY + strokePad * 2)
         case .text:
             highlightRect = textDrawRect != .zero ? textDrawRect : boundingRect
         case .number:
