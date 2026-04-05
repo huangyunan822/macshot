@@ -147,14 +147,19 @@ class ToolOptionsRowView: NSView {
             curX = addHintLabel(at: curX, text: L("Right-click to add points"))
         }
 
-        // ── Pencil smooth + velocity toggles ──
+        // ── Pencil smooth mode selector ──
         if tool == .pencil {
             curX = addSeparator(at: curX)
-            curX = addToggle(at: curX, title: L("Smooth"), isOn: ov.pencilSmoothEnabled) { [weak ov] isOn in
-                ov?.pencilSmoothEnabled = isOn
-                UserDefaults.standard.set(isOn, forKey: "pencilSmoothEnabled")
-                ov?.needsDisplay = true
-            }
+            let seg = NSSegmentedControl(labels: [L("None"), L("Smooth"), L("Refined")],
+                                          trackingMode: .selectOne,
+                                          target: self, action: #selector(pencilSmoothModeChanged(_:)))
+            seg.selectedSegment = ov.pencilSmoothMode
+            seg.font = NSFont.systemFont(ofSize: 10, weight: .medium)
+            (seg.cell as? NSSegmentedCell)?.segmentStyle = .roundRect
+            seg.sizeToFit()
+            seg.frame = NSRect(x: curX, y: (rowHeight - 22) / 2, width: seg.frame.width, height: 22)
+            addSubview(seg)
+            curX += seg.frame.width + 4
         }
 
         // ── Smart marker toggle ──
@@ -1274,6 +1279,12 @@ class ToolOptionsRowView: NSView {
 
     @objc private func drawModeChanged(_ sender: NSSegmentedControl) {
         UserDefaults.standard.set(sender.selectedSegment == 1, forKey: "censorTextOnly")
+    }
+
+    @objc private func pencilSmoothModeChanged(_ sender: NSSegmentedControl) {
+        let mode = sender.selectedSegment
+        overlayView?.pencilSmoothMode = mode
+        UserDefaults.standard.set(mode, forKey: "pencilSmoothMode")
     }
 
     @objc private func redactAllTextClicked() {

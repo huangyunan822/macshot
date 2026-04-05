@@ -20,6 +20,9 @@ final class PencilToolHandler: AnnotationToolHandler {
 
     /// Shift-constrain direction for freeform drawing. 0 = undecided, 1 = horizontal, 2 = vertical.
     private var freeformShiftDirection: Int = 0
+    /// Exponential moving average state for live smoothing (Extra mode).
+    private var emaPoint: NSPoint = .zero
+    private var emaInitialized: Bool = false
 
     var cursor: NSCursor? {
         Self.penCursor
@@ -56,6 +59,8 @@ final class PencilToolHandler: AnnotationToolHandler {
 
     func start(at point: NSPoint, canvas: AnnotationCanvas) -> Annotation? {
         freeformShiftDirection = 0
+        emaPoint = point
+        emaInitialized = true
         let annotation = Annotation(
             tool: .pencil,
             startPoint: point,
@@ -89,6 +94,16 @@ final class PencilToolHandler: AnnotationToolHandler {
             }
         }
 
+        // Extra smooth: apply exponential moving average for live smoothing.
+        // The drawn point lags behind the cursor, producing naturally smooth curves.
+        if canvas.pencilSmoothMode == 2 && emaInitialized {
+            let alpha: CGFloat = 0.25  // lower = smoother/laggier
+            emaPoint = NSPoint(
+                x: emaPoint.x + alpha * (clampedPoint.x - emaPoint.x),
+                y: emaPoint.y + alpha * (clampedPoint.y - emaPoint.y))
+            clampedPoint = emaPoint
+        }
+
         // No snap guides for freeform tools
         canvas.snapGuideX = nil
         canvas.snapGuideY = nil
@@ -104,15 +119,18 @@ final class PencilToolHandler: AnnotationToolHandler {
             return
         }
 
-        // Single click: duplicate the point so drawFreeform renders a dot
+        // Single click: offset points slightly so the round line cap renders a visible dot
         if points.count < 3, let p = points.first {
-            annotation.points = [p, p, p]
-        } else if canvas.pencilSmoothEnabled {
+            annotation.points = [p, NSPoint(x: p.x + 0.5, y: p.y), NSPoint(x: p.x + 0.5, y: p.y)]
+        } else if canvas.pencilSmoothMode >= 1 {
+            // Mode 1 (Smooth): Chaikin on finish
+            // Mode 2 (Extra): already live-smoothed via EMA, apply Chaikin as final polish
             annotation.points = Self.chaikinSmooth(points, iterations: 2)
         }
 
         commitAnnotation(annotation, canvas: canvas)
         freeformShiftDirection = 0
+        emaInitialized = false
     }
 
     // MARK: - Smoothing

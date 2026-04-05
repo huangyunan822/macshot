@@ -220,6 +220,10 @@ class OverlayView: NSView {
     private var isDraggingAnnotation: Bool = false
     private var didMoveAnnotation: Bool = false
     private var annotationDragStart: NSPoint = .zero
+    // Long-press-to-select for pencil/marker tools
+    private var longPressTimer: Timer?
+    private var longPressPoint: NSPoint = .zero
+    private var longPressTriggered: Bool = false
     /// Annotation under the cursor when using a non-select drawing tool — enables on-the-fly move without switching tools.
     private var hoveredAnnotation: Annotation?
     /// Delays clearing hoveredAnnotation so the cursor can travel to handles/buttons that sit outside the hit area.
@@ -364,8 +368,16 @@ class OverlayView: NSView {
 
     // Stroke width picker popover
 
-    var pencilSmoothEnabled: Bool =
-        UserDefaults.standard.object(forKey: "pencilSmoothEnabled") as? Bool ?? true
+    var pencilSmoothMode: Int = {
+        // Migrate old bool to new mode: true → 1 (Smooth), false → 0 (None)
+        if let old = UserDefaults.standard.object(forKey: "pencilSmoothEnabled") as? Bool {
+            UserDefaults.standard.removeObject(forKey: "pencilSmoothEnabled")
+            let mode = old ? 1 : 0
+            UserDefaults.standard.set(mode, forKey: "pencilSmoothMode")
+            return mode
+        }
+        return UserDefaults.standard.object(forKey: "pencilSmoothMode") as? Int ?? 1
+    }()
     var smartMarkerEnabled: Bool =
         UserDefaults.standard.object(forKey: "smartMarkerEnabled") as? Bool ?? false
     private var roundedRectEnabled: Bool =
@@ -983,15 +995,17 @@ class OverlayView: NSView {
                 }
             }
 
-            // Body hover — open hand
-            let canvasPoint = viewToCanvas(point)
-            if let selected = selectedAnnotation, selected.hitTest(point: canvasPoint) {
-                NSCursor.openHand.set()
-                return
-            }
-            if annotations.reversed().contains(where: { $0.isMovable && $0.hitTest(point: canvasPoint) }) {
-                NSCursor.openHand.set()
-                return
+            // Body hover — open hand (skip for pencil/marker where click always draws)
+            if currentTool != .pencil && currentTool != .marker {
+                let canvasPoint = viewToCanvas(point)
+                if let selected = selectedAnnotation, selected.hitTest(point: canvasPoint) {
+                    NSCursor.openHand.set()
+                    return
+                }
+                if annotations.reversed().contains(where: { $0.isMovable && $0.hitTest(point: canvasPoint) }) {
+                    NSCursor.openHand.set()
+                    return
+                }
             }
         }
 
@@ -4247,6 +4261,21 @@ class OverlayView: NSView {
     override func mouseDragged(with event: NSEvent) {
         let point = convert(event.locationInWindow, from: nil)
 
+        // Cancel long-press timer if the user moved more than 3px (they're drawing, not selecting)
+        if longPressTimer != nil {
+            let dx = point.x - longPressPoint.x
+            let dy = point.y - longPressPoint.y
+            if dx * dx + dy * dy > 9 {
+                longPressTimer?.invalidate()
+                longPressTimer = nil
+            }
+        }
+
+        // If long-press already triggered selection, handle as annotation drag
+        if longPressTriggered && isDraggingAnnotation {
+            // Fall through to the annotation drag handling below
+        }
+
         // Remote selection resize (cross-screen)
         if isResizingRemoteSelection {
             let anchor = remoteResizeAnchor
@@ -4572,6 +4601,11 @@ class OverlayView: NSView {
 
     override func mouseUp(with event: NSEvent) {
         spaceRepositioning = false
+
+        // Clean up long-press timer
+        longPressTimer?.invalidate()
+        longPressTimer = nil
+        longPressTriggered = false
 
         // Finish remote selection resize — final sync + transfer focus to the primary
         if isResizingRemoteSelection {
@@ -5325,15 +5359,20 @@ class OverlayView: NSView {
         // No drawing in recording setup mode
         guard !isRecording else { return }
 
-        // Click-to-select: if clicking on an existing annotation (any tool except colorSampler/text),
-        // select it instead of starting a new annotation. If clicking on the currently selected
-        // annotation's controls (resize handles, delete, rotation), handle those.
+        // Click-to-select: if clicking on an existing annotation, select it instead of
+        // starting a new annotation. Pencil and marker use long-press instead (so taps
+        // and drags always draw, even single dots).
+        let isPencilOrMarker = currentTool == .pencil || currentTool == .marker
+
+        // Always check selected annotation controls (delete, resize, etc.) for all tools
         if currentTool != .colorSampler && currentTool != .text {
-            // First check if clicking on controls of the currently selected annotation
             if let selected = selectedAnnotation {
                 if handleSelectedAnnotationClick(selected, at: point) { return }
             }
-            // Then check if clicking on any annotation's body
+        }
+
+        // Click-to-select body: skip for pencil/marker (they use long-press instead)
+        if currentTool != .colorSampler && currentTool != .text && !isPencilOrMarker {
             if let clicked = annotations.reversed().first(where: { $0.isMovable && $0.hitTest(point: point) }) {
                 selectedAnnotation = clicked
                 isDraggingAnnotation = true
@@ -5342,6 +5381,34 @@ class OverlayView: NSView {
                 NSCursor.closedHand.set()
                 needsDisplay = true
                 return
+            }
+        }
+
+        // Pencil/marker: start a long-press timer. If the user holds still for 300ms
+        // on an annotation, select it. Otherwise drawing starts normally (the timer
+        // is cancelled in mouseDragged when movement exceeds 3px).
+        if isPencilOrMarker {
+            let hasAnnotationUnder = annotations.reversed().contains(where: { $0.isMovable && $0.hitTest(point: point) })
+            if hasAnnotationUnder {
+                longPressPoint = point
+                longPressTriggered = false
+                longPressTimer?.invalidate()
+                longPressTimer = Timer.scheduledTimer(withTimeInterval: 0.3, repeats: false) { [weak self] _ in
+                    guard let self = self else { return }
+                    self.longPressTriggered = true
+                    self.longPressTimer = nil
+                    // Select the annotation under the long-press point
+                    if let clicked = self.annotations.reversed().first(where: { $0.isMovable && $0.hitTest(point: point) }) {
+                        self.selectedAnnotation = clicked
+                        self.isDraggingAnnotation = true
+                        self.didMoveAnnotation = false
+                        self.annotationDragStart = point
+                        // Cancel any in-progress pencil stroke
+                        self.currentAnnotation = nil
+                        NSCursor.closedHand.set()
+                        self.needsDisplay = true
+                    }
+                }
             }
         }
 

@@ -15,7 +15,7 @@ protocol AnnotationCanvas: AnyObject {
     var currentRectCornerRadius: CGFloat { get }
     var currentMeasureInPoints: Bool { get }
     var currentLoupeSize: CGFloat { get }
-    var pencilSmoothEnabled: Bool { get }
+    var pencilSmoothMode: Int { get }  // 0=None, 1=Smooth, 2=Extra
     var smartMarkerEnabled: Bool { get }
 
     // Number tool

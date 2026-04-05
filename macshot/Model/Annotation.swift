@@ -628,8 +628,19 @@ class Annotation {
     // MARK: - Drawing methods
 
     private func drawFreeform(alpha: CGFloat, width: CGFloat) {
-        guard let points = points, points.count > 1 else { return }
+        guard let points = points, !points.isEmpty else { return }
         guard let ctx = NSGraphicsContext.current?.cgContext else { return }
+
+        // Single point: draw a filled circle (dot)
+        if points.count == 1 {
+            let p = points[0]
+            let r = width / 2
+            ctx.setAlpha(alpha)
+            color.withAlphaComponent(1.0).setFill()
+            ctx.fillEllipse(in: CGRect(x: p.x - r, y: p.y - r, width: width, height: width))
+            ctx.setAlpha(1.0)
+            return
+        }
 
         // For dotted freeform, place dots at evenly-spaced arc-length positions
         // to avoid uneven spacing caused by segment boundaries in the polyline.

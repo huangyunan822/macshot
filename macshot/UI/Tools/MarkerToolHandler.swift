@@ -136,9 +136,9 @@ final class MarkerToolHandler: AnnotationToolHandler {
             return
         }
 
-        // Single click: duplicate the point so drawFreeform renders a dot
+        // Single click: offset points slightly so the round line cap renders a visible dot
         if points.count < 3, let p = points.first {
-            annotation.points = [p, p, p]
+            annotation.points = [p, NSPoint(x: p.x + 0.5, y: p.y), NSPoint(x: p.x + 0.5, y: p.y)]
         }
 
         if canvas.smartMarkerEnabled {

@@ -542,9 +542,17 @@ final class ScrollCaptureController {
         // Draw existing image at the top (CGContext: bottom-left origin, so top = highest y)
         ctx.draw(existing, in: CGRect(x: 0, y: newRows, width: w, height: existingH))
 
-        // Draw current frame at the bottom — its top overlaps the existing bottom,
-        // but we want the bottom `newRows` rows to extend below.
-        ctx.draw(currentFrame, in: CGRect(x: 0, y: 0, width: w, height: currentFrame.height))
+        if headerDetectionDone && headerHeight > 0 {
+            // Sticky header detected: only append the bottom newRows pixels.
+            let stripY = currentFrame.height - newRows
+            if let strip = currentFrame.cropping(to: CGRect(
+                x: 0, y: stripY, width: w, height: newRows)) {
+                ctx.draw(strip, in: CGRect(x: 0, y: 0, width: w, height: newRows))
+            }
+        } else {
+            // No header: draw full current frame with natural overlap.
+            ctx.draw(currentFrame, in: CGRect(x: 0, y: 0, width: w, height: currentFrame.height))
+        }
 
         guard let merged = ctx.makeImage() else { return }
         mergedImage = merged
@@ -667,7 +675,8 @@ final class ScrollCaptureController {
     private func visionShift(current: CGImage, previous: CGImage) -> CGFloat? {
         var curImg = current
         var prevImg = previous
-        let cropY = headerDetectionDone ? headerHeight : 0
+        let maxCropY = current.height / 5
+        let cropY = headerDetectionDone ? min(headerHeight, maxCropY) : 0
         let cropW = current.width - rightMarginPx
         let cropH = current.height - cropY
         if cropY > 0 || rightMarginPx > 0 {
@@ -785,18 +794,16 @@ final class ScrollCaptureController {
 
             if headerDetectionSamples == 1 {
                 headerHeight = frozenRows
+                frozenTopHeight = CGFloat(headerHeight) / backingScale
+                headerDetectionDone = true
             } else {
                 if abs(frozenRows - headerHeight) <= 5 {
                     headerHeight = min(headerHeight, frozenRows)
+                    frozenTopHeight = CGFloat(headerHeight) / backingScale
                 } else {
                     headerHeight = 0
-                    headerDetectionDone = true
-                    return
+                    frozenTopHeight = 0
                 }
-            }
-
-            if headerDetectionSamples >= 2 {
-                frozenTopHeight = CGFloat(headerHeight) / backingScale
                 headerDetectionDone = true
             }
         } else if frozenRows < 10 {
