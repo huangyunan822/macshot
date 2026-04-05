@@ -10,6 +10,8 @@ class ToolbarButtonView: NSView {
     var tintColor: NSColor = ToolbarLayout.iconColor { didSet { cachedIcon = nil; cachedIconIsOn = nil; needsDisplay = true } }
     var swatchColor: NSColor? { didSet { needsDisplay = true } }
     var hasContextMenu: Bool = false
+    /// Mic input level (0–1). When > 0, draws a green fill from the bottom of the button.
+    var micLevel: Float = 0 { didSet { if abs(oldValue - micLevel) > 0.005 { needsDisplay = true } } }
 
     private var isHovered: Bool = false
     var isPressed: Bool = false
@@ -50,6 +52,17 @@ class ToolbarButtonView: NSView {
         }
         bg.setFill()
         NSBezierPath(roundedRect: bounds, xRadius: Self.radius, yRadius: Self.radius).fill()
+
+        // Mic level fill — green bar rising from the bottom inside the button
+        if micLevel > 0.001 {
+            NSGraphicsContext.saveGraphicsState()
+            NSBezierPath(roundedRect: bounds, xRadius: Self.radius, yRadius: Self.radius).addClip()
+            let fillH = bounds.height * CGFloat(min(micLevel, 1.0))
+            let fillRect = NSRect(x: bounds.minX, y: bounds.minY, width: bounds.width, height: fillH)
+            NSColor.systemGreen.withAlphaComponent(0.45).setFill()
+            fillRect.fill()
+            NSGraphicsContext.restoreGraphicsState()
+        }
 
         // Color swatch
         if let swatch = swatchColor {

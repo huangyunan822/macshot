@@ -17,6 +17,8 @@ protocol OverlayWindowControllerDelegate: AnyObject {
         _ controller: OverlayWindowController, rect: NSRect, screen: NSScreen)
     func overlayDidRequestStopScrollCapture(_ controller: OverlayWindowController)
     func overlayDidRequestToggleAutoScroll(_ controller: OverlayWindowController)
+    func overlayDidRequestAccessibilityPermission(_ controller: OverlayWindowController)
+    func overlayDidRequestInputMonitoringPermission(_ controller: OverlayWindowController)
     func overlayDidBeginSelection(_ controller: OverlayWindowController)
     func overlayDidChangeSelection(_ controller: OverlayWindowController, globalRect: NSRect)
     func overlayDidRemoteResizeSelection(_ controller: OverlayWindowController, globalRect: NSRect)
@@ -48,6 +50,7 @@ class OverlayWindowController {
     var sessionRecordingFormat: String? { overlayView?.sessionRecordingFormat }
     var sessionRecordingFPS: Int? { overlayView?.sessionRecordingFPS }
     var sessionRecordingOnStop: String? { overlayView?.sessionRecordingOnStop }
+    var sessionRecordingDelay: Int? { overlayView?.sessionRecordingDelay }
 
     init(capture: ScreenCapture) {
         let screen = capture.screen
@@ -440,6 +443,14 @@ extension OverlayWindowController: OverlayViewDelegate {
 
     func overlayViewDidRequestToggleAutoScroll() {
         overlayDelegate?.overlayDidRequestToggleAutoScroll(self)
+    }
+
+    func overlayViewDidRequestAccessibilityPermission() {
+        overlayDelegate?.overlayDidRequestAccessibilityPermission(self)
+    }
+
+    func overlayViewDidRequestInputMonitoringPermission() {
+        overlayDelegate?.overlayDidRequestInputMonitoringPermission(self)
     }
 
     func overlayViewDidBeginSelection() {

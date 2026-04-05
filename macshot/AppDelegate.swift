@@ -22,12 +22,14 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private var delayEscMonitor: Any?
     private var pendingDelaySelection: NSRect = .zero
     private var uploadToastController: UploadToastController?
+    private var gifProcessingToast: UploadToastController?
     private var recordingEngine: RecordingEngine?
     private var recordingOverlayController: OverlayWindowController?
     private var recordingHUDPanel: RecordingHUDPanel?
     private var recordingScreenRect: NSRect = .zero  // screen-space capture rect
     private var recordingScreen: NSScreen?
     private var mouseHighlightOverlay: MouseHighlightOverlay?
+    private var keystrokeOverlay: KeystrokeOverlay?
     private var selectionBorderOverlay: SelectionBorderOverlay?
     private var menuBarIconWasHidden: Bool = false  // restore after recording if user had it hidden
     private var scrollCaptureController: ScrollCaptureController?
@@ -1077,13 +1079,115 @@ extension AppDelegate: OverlayWindowControllerDelegate {
         let formatOverride = controller.sessionRecordingFormat
         let fpsOverride = controller.sessionRecordingFPS
         let onStopOverride = controller.sessionRecordingOnStop
+        let delayOverride = controller.sessionRecordingDelay
 
+        // Dismiss overlays — recording doesn't need them anymore
+        dismissOverlays()
+
+        let delay = delayOverride ?? UserDefaults.standard.integer(forKey: "captureDelaySeconds")
+        if delay > 0 {
+            startRecordingCountdown(seconds: delay, rect: rect, screen: screen,
+                                    formatOverride: formatOverride, fpsOverride: fpsOverride,
+                                    onStopOverride: onStopOverride)
+        } else {
+            beginRecording(rect: rect, screen: screen,
+                           formatOverride: formatOverride, fpsOverride: fpsOverride,
+                           onStopOverride: onStopOverride)
+        }
+    }
+
+    private func startRecordingCountdown(seconds: Int, rect: NSRect, screen: NSScreen,
+                                          formatOverride: String?, fpsOverride: Int?,
+                                          onStopOverride: String?) {
+        let size = NSSize(width: 140, height: 140)
+        let origin = NSPoint(
+            x: rect.midX - size.width / 2,
+            y: rect.midY - size.height / 2
+        )
+
+        let window = NSWindow(
+            contentRect: NSRect(origin: origin, size: size),
+            styleMask: [.borderless],
+            backing: .buffered,
+            defer: false
+        )
+        window.isOpaque = false
+        window.backgroundColor = .clear
+        window.level = .floating
+        window.hasShadow = false
+        window.ignoresMouseEvents = true
+        window.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
+
+        let countdownView = CountdownView(frame: NSRect(origin: .zero, size: size))
+        countdownView.remaining = seconds
+        window.contentView = countdownView
+        window.makeKeyAndOrderFront(nil)
+        delayCountdownWindow = window
+
+        // Show selection border during countdown so user sees what area will be recorded
+        let border = SelectionBorderOverlay(screen: screen)
+        border.setSelectionRect(rect)
+        border.orderFront(nil)
+        selectionBorderOverlay = border
+
+        // Escape to cancel
+        delayEscMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
+            if event.keyCode == 53 {
+                self?.cancelRecordingCountdown()
+                return nil
+            }
+            return event
+        }
+
+        var remaining = seconds
+        delayTimer?.invalidate()
+        delayTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] timer in
+            remaining -= 1
+            if remaining <= 0 {
+                timer.invalidate()
+                self?.delayTimer = nil
+                self?.delayCountdownWindow?.orderOut(nil)
+                self?.delayCountdownWindow = nil
+                self?.removeDelayEscMonitors()
+                self?.beginRecording(rect: rect, screen: screen,
+                                     formatOverride: formatOverride, fpsOverride: fpsOverride,
+                                     onStopOverride: onStopOverride)
+            } else {
+                countdownView.remaining = remaining
+                countdownView.needsDisplay = true
+            }
+        }
+    }
+
+    private func cancelRecordingCountdown() {
+        delayTimer?.invalidate()
+        delayTimer = nil
+        delayCountdownWindow?.orderOut(nil)
+        delayCountdownWindow = nil
+        selectionBorderOverlay?.close()
+        selectionBorderOverlay = nil
+        removeDelayEscMonitors()
+    }
+
+    private func beginRecording(rect: NSRect, screen: NSScreen,
+                                 formatOverride: String?, fpsOverride: Int?,
+                                 onStopOverride: String?) {
         let engine = RecordingEngine()
         engine.onProgress = { [weak self] seconds in
             self?.updateRecordingHUD(seconds: seconds)
         }
+        engine.onProcessing = { [weak self] in
+            guard let self = self else { return }
+            self.stopRecordingUI()
+            self.gifProcessingToast?.dismiss()
+            let toast = UploadToastController()
+            self.gifProcessingToast = toast
+            toast.onDismiss = { [weak self] in self?.gifProcessingToast = nil }
+            toast.show(status: L("Processing GIF…"))
+        }
         engine.onCompletion = { [weak self] url, error in
             guard let self = self else { return }
+            self.gifProcessingToast?.dismiss()
             self.stopRecordingUI()
 
             if let url = url {
@@ -1107,12 +1211,10 @@ extension AppDelegate: OverlayWindowControllerDelegate {
             }
         }
         recordingEngine = engine
-        recordingOverlayController = controller
-
-        // Dismiss overlays — recording doesn't need them anymore
-        dismissOverlays()
 
         // Show selection border so user knows what area is being captured
+        // (may already exist from countdown — recreate to be safe)
+        selectionBorderOverlay?.close()
         let border = SelectionBorderOverlay(screen: screen)
         border.setSelectionRect(rect)
         border.orderFront(nil)
@@ -1134,6 +1236,15 @@ extension AppDelegate: OverlayWindowControllerDelegate {
             overlay.orderFront(nil)
             overlay.startMonitoring()
             mouseHighlightOverlay = overlay
+        }
+
+        // Start keystroke overlay if enabled
+        if UserDefaults.standard.bool(forKey: "recordKeystroke") && KeystrokeOverlay.hasInputMonitoringPermission {
+            let overlay = KeystrokeOverlay(screen: screen)
+            overlay.setRecordingRect(rect)
+            overlay.orderFront(nil)
+            overlay.startMonitoring()
+            keystrokeOverlay = overlay
         }
 
         // Turn menu bar icon into a stop button (ensure it's visible even if user hid it)
@@ -1220,6 +1331,9 @@ extension AppDelegate: OverlayWindowControllerDelegate {
         mouseHighlightOverlay?.stopMonitoring()
         mouseHighlightOverlay?.close()
         mouseHighlightOverlay = nil
+        keystrokeOverlay?.stopMonitoring()
+        keystrokeOverlay?.close()
+        keystrokeOverlay = nil
         recordingEngine = nil
         recordingOverlayController = nil
         recordingScreenRect = .zero
@@ -1291,6 +1405,41 @@ extension AppDelegate: OverlayWindowControllerDelegate {
     func overlayDidRequestStopScrollCapture(_ controller: OverlayWindowController) {
         scrollCaptureController?.stopSession()
         // onSessionDone fires asynchronously via handleScrollCaptureCompleted
+    }
+
+    func overlayDidRequestAccessibilityPermission(_ controller: OverlayWindowController) {
+        dismissOverlays()
+        let opts = [kAXTrustedCheckOptionPrompt.takeUnretainedValue(): true] as CFDictionary
+        AXIsProcessTrustedWithOptions(opts)
+        let alert = NSAlert()
+        alert.messageText = L("Accessibility Access Required")
+        alert.informativeText = L("macshot needs Accessibility permission to show keystrokes during recording. Please grant access in System Settings, then try again.")
+        alert.alertStyle = .warning
+        alert.addButton(withTitle: L("Open Settings"))
+        alert.addButton(withTitle: L("Cancel"))
+        let response = alert.runModal()
+        if response == .alertFirstButtonReturn {
+            if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility") {
+                NSWorkspace.shared.open(url)
+            }
+        }
+    }
+
+    func overlayDidRequestInputMonitoringPermission(_ controller: OverlayWindowController) {
+        dismissOverlays()
+        KeystrokeOverlay.requestInputMonitoringPermission()
+        let alert = NSAlert()
+        alert.messageText = L("Input Monitoring Required")
+        alert.informativeText = L("macshot needs Input Monitoring permission to show keystrokes during recording. Please grant access in System Settings, then try again.")
+        alert.alertStyle = .warning
+        alert.addButton(withTitle: L("Open Settings"))
+        alert.addButton(withTitle: L("Cancel"))
+        let response = alert.runModal()
+        if response == .alertFirstButtonReturn {
+            if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_ListenEvent") {
+                NSWorkspace.shared.open(url)
+            }
+        }
     }
 
     func overlayDidRequestToggleAutoScroll(_ controller: OverlayWindowController) {

@@ -57,6 +57,7 @@ final class RecordingEngine: NSObject {
     // MARK: - Callbacks
 
     var onProgress: RecordingProgressCallback?
+    var onProcessing: (() -> Void)?
     var onCompletion: RecordingCompletionCallback?
 
     private var progressTimer: Timer?
@@ -241,7 +242,14 @@ final class RecordingEngine: NSObject {
 
     private func startMicCapture() {
         guard AVCaptureDevice.authorizationStatus(for: .audio) == .authorized else { return }
-        guard let micDevice = AVCaptureDevice.default(for: .audio) else { return }
+        let micDevice: AVCaptureDevice
+        if let uid = UserDefaults.standard.string(forKey: "selectedMicDeviceUID"),
+           let device = AVCaptureDevice(uniqueID: uid) {
+            micDevice = device
+        } else {
+            guard let device = AVCaptureDevice.default(for: .audio) else { return }
+            micDevice = device
+        }
 
         let session = AVCaptureSession()
         session.beginConfiguration()
@@ -372,7 +380,15 @@ final class RecordingEngine: NSObject {
     // MARK: - GIF
 
     private func finalizeGIF() async {
-        gifEncoder?.finish()
+        await MainActor.run { self.onProcessing?() }
+        let encoder = gifEncoder
+        gifEncoder = nil
+        await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+            DispatchQueue.global(qos: .userInitiated).async {
+                encoder?.finish()
+                continuation.resume()
+            }
+        }
         await MainActor.run { self.succeed() }
     }
 

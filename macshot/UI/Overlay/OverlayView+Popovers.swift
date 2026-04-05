@@ -320,9 +320,40 @@ extension OverlayView {
         objc_setAssociatedObject(
             whenDonePopup, "handler", whenDoneHandler, .OBJC_ASSOCIATION_RETAIN)
 
+        // Delay popup
+        let delayPopup = NSPopUpButton()
+        delayPopup.controlSize = .small
+        delayPopup.font = NSFont.systemFont(ofSize: 11)
+        let delayOptions = [0, 3, 5, 10, 30]
+        for s in delayOptions {
+            delayPopup.addItem(withTitle: s == 0 ? L("None") : String(format: L("%d seconds"), s))
+        }
+        let effectiveDelay = sessionRecordingDelay ?? UserDefaults.standard.integer(forKey: "captureDelaySeconds")
+        if let idx = delayOptions.firstIndex(of: effectiveDelay) {
+            delayPopup.selectItem(at: idx)
+        }
+
+        class DelayHandler: NSObject {
+            weak var overlayView: OverlayView?
+            let options: [Int]
+            init(overlayView: OverlayView?, options: [Int]) {
+                self.overlayView = overlayView
+                self.options = options
+                super.init()
+            }
+            @objc func changed(_ sender: NSPopUpButton) {
+                overlayView?.sessionRecordingDelay = options[sender.indexOfSelectedItem]
+            }
+        }
+        let delayHandler = DelayHandler(overlayView: self, options: delayOptions)
+        delayPopup.target = delayHandler
+        delayPopup.action = #selector(DelayHandler.changed(_:))
+        objc_setAssociatedObject(delayPopup, "handler", delayHandler, .OBJC_ASSOCIATION_RETAIN)
+
         addRow(label: L("Format:"), control: formatSeg)
         addRow(label: L("FPS:"), control: fpsPopup)
         addRow(label: L("When done:"), control: whenDonePopup)
+        addRow(label: L("Delay:"), control: delayPopup)
 
         let size = NSSize(width: 240, height: y + 4)
         container.frame.size = size

@@ -23,7 +23,7 @@ final class VideoEditorWindowController: NSObject, NSWindowDelegate {
         guard let screen = NSScreen.main else { return }
 
         // Size window to fit content, capped at 60% of screen
-        let controlsH: CGFloat = 130
+        let controlsH: CGFloat = 140
         let maxW = screen.frame.width * 0.6
         let maxH = screen.frame.height * 0.6
         var contentW: CGFloat = 800
@@ -109,12 +109,18 @@ private final class VideoEditorView: NSView {
     private var gifPlaybackTime: Double = 0
     private var gifIsPlaying: Bool = false
 
+    // Timeline thumbnails
+    private var thumbnailImages: [NSImage] = []
+    private var thumbnailsGenerating: Bool = false
+    private var lastThumbnailWidth: CGFloat = 0
+
     // Button rects
     private var playBtnRect: NSRect = .zero
     private var saveBtnRect: NSRect = .zero
     private var saveArrowRect: NSRect = .zero
     private var uploadBtnRect: NSRect = .zero
     private var copyBtnRect: NSRect = .zero
+    private var copyArrowRect: NSRect = .zero
     private var muteBtnRect: NSRect = .zero
     private var finderBtnRect: NSRect = .zero
     private var isMuted: Bool = false
@@ -124,7 +130,7 @@ private final class VideoEditorView: NSView {
     private var statusTimer: Timer?
 
     // Layout
-    private let controlsH: CGFloat = 130
+    private let controlsH: CGFloat = 140
     private let timelinePad: CGFloat = 20
 
     init(frame: NSRect, videoURL: URL) {
@@ -250,7 +256,50 @@ private final class VideoEditorView: NSView {
             self.needsDisplay = true
         }
 
+        generateThumbnails()
         needsDisplay = true
+    }
+
+    private func generateThumbnails() {
+        guard let asset = asset, !thumbnailsGenerating else { return }
+        let tlW = bounds.width - timelinePad * 2
+        guard tlW > 0 else { return }
+        lastThumbnailWidth = tlW
+        thumbnailsGenerating = true
+
+        let thumbH: CGFloat = 30
+        let thumbW: CGFloat = thumbH * 16 / 9
+        let count = max(1, Int(ceil(tlW / thumbW)))
+        let dur = duration
+
+        let generator = AVAssetImageGenerator(asset: asset)
+        generator.appliesPreferredTrackTransform = true
+        generator.maximumSize = CGSize(width: thumbW * 2, height: thumbH * 2)
+        generator.requestedTimeToleranceBefore = CMTime(seconds: 0.5, preferredTimescale: 600)
+        generator.requestedTimeToleranceAfter = CMTime(seconds: 0.5, preferredTimescale: 600)
+
+        var times: [NSValue] = []
+        for i in 0..<count {
+            let t = dur * Double(i) / Double(count)
+            times.append(NSValue(time: CMTime(seconds: t, preferredTimescale: 600)))
+        }
+
+        var images: [NSImage] = Array(repeating: NSImage(), count: count)
+        var idx = 0
+        generator.generateCGImagesAsynchronously(forTimes: times) { [weak self] _, cgImage, _, _, _ in
+            if let cg = cgImage {
+                let img = NSImage(cgImage: cg, size: NSSize(width: CGFloat(cg.width), height: CGFloat(cg.height)))
+                images[idx] = img
+            }
+            idx += 1
+            if idx >= count {
+                DispatchQueue.main.async {
+                    self?.thumbnailImages = images
+                    self?.thumbnailsGenerating = false
+                    self?.needsDisplay = true
+                }
+            }
+        }
     }
 
     func cleanup() {
@@ -296,31 +345,59 @@ private final class VideoEditorView: NSView {
         let tlX = timelinePad
         let tlW = bounds.width - timelinePad * 2
         let tlY: CGFloat = 55
-        let tlH: CGFloat = 30
+        let tlH: CGFloat = 36
         timelineRect = NSRect(x: tlX, y: tlY, width: tlW, height: tlH)
 
-        // Track background
-        NSColor.white.withAlphaComponent(0.08).setFill()
-        NSBezierPath(roundedRect: timelineRect, xRadius: 4, yRadius: 4).fill()
+        // Regenerate thumbnails if width changed significantly
+        if abs(tlW - lastThumbnailWidth) > 40 && !thumbnailsGenerating && asset != nil {
+            generateThumbnails()
+        }
 
-        // Trimmed region
+        // Track background with rounded clip
+        let trackPath = NSBezierPath(roundedRect: timelineRect, xRadius: 5, yRadius: 5)
+        NSColor.white.withAlphaComponent(0.06).setFill()
+        trackPath.fill()
+
+        // Draw thumbnails
+        NSGraphicsContext.saveGraphicsState()
+        trackPath.addClip()
+        if !thumbnailImages.isEmpty {
+            let count = thumbnailImages.count
+            let thumbW = tlW / CGFloat(count)
+            for (i, img) in thumbnailImages.enumerated() {
+                let r = NSRect(x: tlX + CGFloat(i) * thumbW, y: tlY, width: thumbW + 1, height: tlH)
+                img.draw(in: r, from: .zero, operation: .sourceOver, fraction: 0.5)
+            }
+        }
+
+        // Dim untrimmed regions
         let startX = tlX + CGFloat(trimStart / duration) * tlW
         let endX = tlX + CGFloat(trimEnd / duration) * tlW
+        NSColor.black.withAlphaComponent(0.6).setFill()
+        if startX > tlX {
+            NSRect(x: tlX, y: tlY, width: startX - tlX, height: tlH).fill()
+        }
+        if endX < tlX + tlW {
+            NSRect(x: endX, y: tlY, width: tlX + tlW - endX, height: tlH).fill()
+        }
+
+        // Trim border highlight
         let trimRect = NSRect(x: startX, y: tlY, width: endX - startX, height: tlH)
-        NSColor.systemPurple.withAlphaComponent(0.3).setFill()
-        NSBezierPath(roundedRect: trimRect, xRadius: 2, yRadius: 2).fill()
+        let trimBorder = NSBezierPath(roundedRect: trimRect.insetBy(dx: 0.5, dy: 0.5), xRadius: 2, yRadius: 2)
+        trimBorder.lineWidth = 1.5
+        NSColor.systemPurple.withAlphaComponent(0.8).setStroke()
+        trimBorder.stroke()
+        NSGraphicsContext.restoreGraphicsState()
 
         // Trim handles
         let handleW: CGFloat = 10
         let handleH: CGFloat = tlH + 8
 
-        // Start handle
         let startHandleRect = NSRect(x: startX - handleW / 2, y: tlY - 4, width: handleW, height: handleH)
         NSColor.systemPurple.setFill()
         NSBezierPath(roundedRect: startHandleRect, xRadius: 3, yRadius: 3).fill()
         drawHandleGrip(in: startHandleRect)
 
-        // End handle
         let endHandleRect = NSRect(x: endX - handleW / 2, y: tlY - 4, width: handleW, height: handleH)
         NSColor.systemPurple.setFill()
         NSBezierPath(roundedRect: endHandleRect, xRadius: 3, yRadius: 3).fill()
@@ -330,13 +407,16 @@ private final class VideoEditorView: NSView {
         if player != nil || isGIF {
             let currentTime = currentPlaybackTime
             let playheadX = max(tlX, min(tlX + tlW, tlX + CGFloat(currentTime / duration) * tlW))
-            NSColor.white.setFill()
+
+            // Playhead line with subtle shadow
+            NSColor.white.withAlphaComponent(0.9).setFill()
             let playheadRect = NSRect(x: playheadX - 1, y: tlY - 2, width: 2, height: tlH + 4)
             NSBezierPath(roundedRect: playheadRect, xRadius: 1, yRadius: 1).fill()
 
-            // Playhead circle (clamped to timeline bounds)
+            // Playhead circle
             let circleR: CGFloat = 5
             let circleX = max(tlX + circleR, min(tlX + tlW - circleR, playheadX))
+            NSColor.white.setFill()
             NSBezierPath(ovalIn: NSRect(x: circleX - circleR, y: tlY + tlH + 2, width: circleR * 2, height: circleR * 2)).fill()
         }
     }
@@ -400,13 +480,73 @@ private final class VideoEditorView: NSView {
 
         // Right group: save, upload, finder, copy
         x = bounds.width - timelinePad
-        x -= labelBtnW
+        let copyArrowW: CGFloat = 20
+        let fullCopyW = labelBtnW + copyArrowW
+        x -= fullCopyW
+        let fullCopyRect = NSRect(x: x, y: btnY, width: fullCopyW, height: btnH)
         copyBtnRect = NSRect(x: x, y: btnY, width: labelBtnW, height: btnH)
+        copyArrowRect = NSRect(x: x + labelBtnW, y: btnY, width: copyArrowW, height: btnH)
+
+        // Draw combined background
+        NSColor.white.withAlphaComponent(0.1).setFill()
+        NSBezierPath(roundedRect: fullCopyRect, xRadius: 6, yRadius: 6).fill()
+
         if compact {
-            drawIconButton(rect: copyBtnRect, symbol: "doc.on.doc", accent: false)
+            if let img = NSImage(systemSymbolName: "doc.on.doc", accessibilityDescription: nil)?
+                    .withSymbolConfiguration(.init(pointSize: 13, weight: .medium)) {
+                let tinted = NSImage(size: img.size, flipped: false) { r in
+                    img.draw(in: r, from: .zero, operation: .sourceOver, fraction: 1)
+                    NSColor.white.setFill()
+                    r.fill(using: .sourceAtop)
+                    return true
+                }
+                tinted.draw(in: NSRect(x: copyBtnRect.midX - img.size.width / 2, y: copyBtnRect.midY - img.size.height / 2,
+                                        width: img.size.width, height: img.size.height))
+            }
         } else {
-            drawLabelButton(rect: copyBtnRect, symbol: "doc.on.doc", label: L("Copy Path"))
+            let iconSize: CGFloat = 12
+            let copyAttrs: [NSAttributedString.Key: Any] = [
+                .font: NSFont.systemFont(ofSize: 11, weight: .medium),
+                .foregroundColor: NSColor.white.withAlphaComponent(0.85),
+            ]
+            let copyLabel = L("Copy") as NSString
+            let copyLabelSize = copyLabel.size(withAttributes: copyAttrs)
+            let totalCopyW = iconSize + 4 + copyLabelSize.width
+            let copyStartX = copyBtnRect.midX - totalCopyW / 2
+            if let img = NSImage(systemSymbolName: "doc.on.doc", accessibilityDescription: nil)?
+                    .withSymbolConfiguration(.init(pointSize: iconSize, weight: .medium)) {
+                let tinted = NSImage(size: img.size, flipped: false) { r in
+                    img.draw(in: r, from: .zero, operation: .sourceOver, fraction: 1)
+                    NSColor.white.withAlphaComponent(0.85).setFill()
+                    r.fill(using: .sourceAtop)
+                    return true
+                }
+                tinted.draw(in: NSRect(x: copyStartX, y: copyBtnRect.midY - img.size.height / 2, width: img.size.width, height: img.size.height))
+            }
+            copyLabel.draw(at: NSPoint(x: copyStartX + iconSize + 4, y: copyBtnRect.midY - copyLabelSize.height / 2), withAttributes: copyAttrs)
         }
+
+        // Separator line
+        NSColor.white.withAlphaComponent(0.2).setStroke()
+        let copySep = NSBezierPath()
+        copySep.move(to: NSPoint(x: copyArrowRect.minX, y: copyArrowRect.minY + 4))
+        copySep.line(to: NSPoint(x: copyArrowRect.minX, y: copyArrowRect.maxY - 4))
+        copySep.lineWidth = 1
+        copySep.stroke()
+
+        // Chevron
+        if let chevron = NSImage(systemSymbolName: "chevron.down", accessibilityDescription: nil)?
+                .withSymbolConfiguration(.init(pointSize: 8, weight: .semibold)) {
+            let tinted = NSImage(size: chevron.size, flipped: false) { r in
+                chevron.draw(in: r, from: .zero, operation: .sourceOver, fraction: 1)
+                NSColor.white.withAlphaComponent(0.6).setFill()
+                r.fill(using: .sourceAtop)
+                return true
+            }
+            tinted.draw(in: NSRect(x: copyArrowRect.midX - chevron.size.width / 2, y: copyArrowRect.midY - chevron.size.height / 2,
+                                    width: chevron.size.width, height: chevron.size.height))
+        }
+
         x -= gap + iconBtnW
         finderBtnRect = NSRect(x: x, y: btnY, width: iconBtnW, height: btnH)
         drawIconButton(rect: finderBtnRect, symbol: "folder", accent: false, dimmed: savedURL == nil)
@@ -542,19 +682,19 @@ private final class VideoEditorView: NSView {
     private func drawTimeLabels() {
         let currentTime = currentPlaybackTime
         let trimDuration = trimEnd - trimStart
+        let labelY = timelineRect.maxY + 14
 
         let leftStr = formatTime(currentTime) as NSString
         let rightStr = String(format: L("%@ selected"), formatTime(trimDuration)) as NSString
         let attrs: [NSAttributedString.Key: Any] = [
             .font: NSFont.monospacedDigitSystemFont(ofSize: 11, weight: .medium),
-            .foregroundColor: NSColor.white.withAlphaComponent(0.6),
+            .foregroundColor: NSColor.white.withAlphaComponent(0.5),
         ]
 
-        let leftSize = leftStr.size(withAttributes: attrs)
-        leftStr.draw(at: NSPoint(x: timelinePad, y: 90), withAttributes: attrs)
+        leftStr.draw(at: NSPoint(x: timelinePad, y: labelY), withAttributes: attrs)
 
         let rightSize = rightStr.size(withAttributes: attrs)
-        rightStr.draw(at: NSPoint(x: bounds.width - timelinePad - rightSize.width, y: 90), withAttributes: attrs)
+        rightStr.draw(at: NSPoint(x: bounds.width - timelinePad - rightSize.width, y: labelY), withAttributes: attrs)
     }
 
     private func drawStatus(_ message: String) {
@@ -565,7 +705,8 @@ private final class VideoEditorView: NSView {
         ]
         let str = message as NSString
         let size = str.size(withAttributes: attrs)
-        str.draw(at: NSPoint(x: bounds.midX - size.width / 2, y: 90), withAttributes: attrs)
+        let labelY = timelineRect.maxY + 14
+        str.draw(at: NSPoint(x: bounds.midX - size.width / 2, y: labelY), withAttributes: attrs)
     }
 
     private func formatTime(_ seconds: Double) -> String {
@@ -611,7 +752,8 @@ private final class VideoEditorView: NSView {
             if let url = savedURL { NSWorkspace.shared.activateFileViewerSelecting([url]) }
             return
         }
-        if copyBtnRect.contains(point) { copyPath(); return }
+        if copyArrowRect.contains(point) { showCopyMenu(); return }
+        if copyBtnRect.contains(point) { copyToClipboard(); return }
     }
 
     override func mouseDragged(with event: NSEvent) {
@@ -685,7 +827,34 @@ private final class VideoEditorView: NSView {
         needsDisplay = true
     }
 
-    private func copyPath() {
+    private func copyToClipboard() {
+        let url = savedURL ?? videoURL
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
+
+        if isGIF || url.pathExtension.lowercased() == "gif" {
+            if let data = try? Data(contentsOf: url) {
+                let item = NSPasteboardItem()
+                item.setData(data, forType: NSPasteboard.PasteboardType("com.compuserve.gif"))
+                item.setString(url.absoluteString, forType: .fileURL)
+                pasteboard.writeObjects([item])
+            }
+        } else {
+            pasteboard.writeObjects([url as NSURL])
+        }
+        showStatus(L("Copied to clipboard!"))
+    }
+
+    private func showCopyMenu() {
+        let menu = NSMenu()
+        let pathItem = NSMenuItem(title: L("Copy Path"), action: #selector(copyPathAction), keyEquivalent: "")
+        pathItem.target = self
+        menu.addItem(pathItem)
+        let pos = NSPoint(x: copyArrowRect.minX, y: copyArrowRect.maxY)
+        menu.popUp(positioning: nil, at: pos, in: self)
+    }
+
+    @objc private func copyPathAction() {
         let url = savedURL ?? videoURL
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(url.path, forType: .string)
@@ -879,8 +1048,28 @@ private final class VideoEditorView: NSView {
         switch event.keyCode {
         case 49: // Space
             togglePlayPause()
+        case 123: // Left arrow — step back one frame
+            stepFrame(forward: false)
+        case 124: // Right arrow — step forward one frame
+            stepFrame(forward: true)
         default:
             super.keyDown(with: event)
         }
+    }
+
+    private func stepFrame(forward: Bool) {
+        guard let player = player else { return }
+        // Pause if playing
+        if player.rate > 0 { player.pause(); needsDisplay = true }
+
+        let fps = asset?.tracks(withMediaType: .video).first?.nominalFrameRate ?? 30
+        let frameDuration = 1.0 / Double(fps)
+        let current = CMTimeGetSeconds(player.currentTime())
+        let target = forward
+            ? min(current + frameDuration, trimEnd)
+            : max(current - frameDuration, trimStart)
+        player.seek(to: CMTime(seconds: target, preferredTimescale: 600),
+                     toleranceBefore: .zero, toleranceAfter: .zero)
+        needsDisplay = true
     }
 }

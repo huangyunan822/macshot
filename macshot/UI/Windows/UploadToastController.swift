@@ -89,6 +89,10 @@ class UploadToastController {
         statusLabel?.stringValue = String(format: L("Uploading... %d%%"), Int(fraction * 100))
     }
 
+    func updateStatus(_ text: String) {
+        statusLabel?.stringValue = text
+    }
+
     func showSuccess(link: String, deleteURL: String) {
         guard let window = window, let contentView = window.contentView else { return }
         self.currentLink = link

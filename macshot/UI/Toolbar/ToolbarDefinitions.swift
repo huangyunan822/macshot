@@ -38,6 +38,7 @@ enum ToolbarButtonAction {
     case detach
     case scrollCapture
     case addCapture  // editor only: capture a new region and append to the canvas
+    case showKeystrokes
     case recordSettings  // recording mode: open format/FPS/when-done popover
     case effects  // image effects (CIFilter adjustments + presets)
 }
@@ -261,6 +262,14 @@ class ToolbarLayout {
             mouseBtn.isSelected = mouseHighlightOn
             buttons.append(mouseBtn)
 
+            let keystrokesOn = UserDefaults.standard.bool(forKey: "recordKeystroke")
+            var keystrokeBtn = ToolbarButton(
+                action: .showKeystrokes, sfSymbol: "keyboard", label: nil,
+                tooltip: L("Show Keystrokes"))
+            keystrokeBtn.isSelected = keystrokesOn
+            keystrokeBtn.hasContextMenu = true
+            buttons.append(keystrokeBtn)
+
             let audioOn = UserDefaults.standard.bool(forKey: "recordSystemAudio")
             var audioBtn = ToolbarButton(
                 action: .systemAudio, sfSymbol: audioOn ? "speaker.wave.2.fill" : "speaker.slash",
@@ -273,6 +282,7 @@ class ToolbarLayout {
                 action: .micAudio, sfSymbol: micOn ? "mic.fill" : "mic.slash", label: nil,
                 tooltip: L("Record Microphone"))
             micBtn.isSelected = micOn
+            micBtn.hasContextMenu = true
             buttons.append(micBtn)
 
             // Recording settings gear
