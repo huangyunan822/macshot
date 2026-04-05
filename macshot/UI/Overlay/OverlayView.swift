@@ -953,6 +953,11 @@ class OverlayView: NSView {
             return
         }
         if state == .idle || state == .selecting {
+            // Recording mode: arrow cursor (no selection interaction)
+            if isRecording {
+                NSCursor.arrow.set()
+                return
+            }
             // Show resize cursor for remote selection handles
             if state == .idle && remoteSelectionRect.width >= 1 && remoteSelectionRect.height >= 1 {
                 let remoteHandle = hitTestRemoteHandle(at: point)
@@ -6001,6 +6006,14 @@ class OverlayView: NSView {
     }
 
     override func keyDown(with event: NSEvent) {
+        // In recording mode, only allow Escape (to exit recording mode)
+        if isRecording {
+            if event.keyCode == 53 { // Escape
+                handleToolbarAction(.stopRecord)
+            }
+            return
+        }
+
         // Space: reposition shape/selection mid-drag (design tool convention)
         if event.keyCode == 49 {
             // Swallow all repeats while repositioning to prevent system beep

@@ -1083,6 +1083,8 @@ extension AppDelegate: OverlayWindowControllerDelegate {
 
         // Dismiss overlays — recording doesn't need them anymore
         dismissOverlays()
+        // Return focus to the previously active app so clicks work immediately
+        NSApp.hide(nil)
 
         let delay = delayOverride ?? UserDefaults.standard.integer(forKey: "captureDelaySeconds")
         if delay > 0 {
