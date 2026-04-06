@@ -32,6 +32,7 @@ class ScreenshotHistory {
     private let indexFile: URL
 
     var maxEntries: Int {
+        if UserDefaults.standard.bool(forKey: "historyUnlimited") { return Int.max }
         if let stored = UserDefaults.standard.object(forKey: "historySize") as? Int {
             return stored
         }
@@ -62,18 +63,18 @@ class ScreenshotHistory {
         let id = UUID().uuidString
         let ext = "png"
 
-        // Generate thumbnail on the main thread (needs NSImage, quick operation)
-        let thumb = makeThumbnail(image: image, maxWidth: 36)
+        // Capture metadata on main thread (cheap)
         let size = image.size
         let scale: CGFloat = ImageEncoder.downscaleRetina ? 1.0 : (NSScreen.main?.backingScaleFactor ?? 2.0)
 
+        // Create entry with a placeholder thumbnail (tiny, fast)
         let entry = HistoryEntry(
             id: id,
             fileExtension: ext,
             timestamp: Date(),
             pixelWidth: Int(size.width * scale),
             pixelHeight: Int(size.height * scale),
-            thumbnail: thumb
+            thumbnail: NSImage(size: NSSize(width: 1, height: 1))
         )
         entries.insert(entry, at: 0)
 
@@ -83,14 +84,24 @@ class ScreenshotHistory {
             deleteFiles(for: removed.id, ext: removed.fileExtension)
         }
 
-        saveIndex()
-
-        // PNG encode + disk write on background thread (the expensive part)
+        // Move all expensive work off main thread: thumbnail, preview, PNG encoding, index save
         let fileURL = historyDir.appendingPathComponent("\(id).\(ext)")
         let thumbURL = historyDir.appendingPathComponent("\(id)_thumb.png")
         let previewURL = historyDir.appendingPathComponent("\(id)_preview.png")
-        let preview = makePreview(image: image)
-        DispatchQueue.global(qos: .utility).async {
+        DispatchQueue.global(qos: .utility).async { [weak self] in
+            guard let self = self else { return }
+            let thumb = self.makeThumbnail(image: image, maxWidth: 36)
+            let preview = self.makePreview(image: image)
+
+            // Update the entry's thumbnail on main thread
+            DispatchQueue.main.async {
+                if let idx = self.entries.firstIndex(where: { $0.id == id }) {
+                    self.entries[idx].thumbnail = thumb
+                }
+                self.saveIndex()
+            }
+
+            // Write files to disk
             if let tiff = image.tiffRepresentation,
                let bitmap = NSBitmapImageRep(data: tiff),
                let imageData = bitmap.representation(using: .png, properties: [:]) {

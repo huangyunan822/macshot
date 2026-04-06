@@ -19,6 +19,17 @@ class ToolbarButtonView: NSView {
     private var cachedIcon: NSImage?       // cached tinted SF Symbol for current state
     private var cachedIconIsOn: Bool?       // the isOn state when icon was cached
 
+    /// Shared cross-instance cache: avoids re-rasterizing SF Symbols when toolbar is rebuilt.
+    /// Key: "symbolName|isOn|colorHex"
+    private static var iconCache: [String: NSImage] = [:]
+
+    private static func cacheKey(name: String, isOn: Bool, color: NSColor) -> String {
+        let rgb = color.usingColorSpace(.sRGB) ?? color
+        var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0
+        rgb.getRed(&r, green: &g, blue: &b, alpha: nil)
+        return "\(name)|\(isOn)|\(Int(r*255)),\(Int(g*255)),\(Int(b*255))"
+    }
+
     var onClick: ((ToolbarButtonAction) -> Void)?
     var onMouseDown: ((ToolbarButtonAction) -> Void)?
     var onRightClick: ((ToolbarButtonAction, NSView) -> Void)?
@@ -77,33 +88,39 @@ class ToolbarButtonView: NSView {
             return
         }
 
-        // SF Symbol or custom icon (cached to avoid expensive re-render every frame)
+        // SF Symbol or custom icon (static cache survives toolbar rebuilds)
         guard let name = sfSymbol else { return }
         let currentIsOn = isOn
         if cachedIcon == nil || cachedIconIsOn != currentIsOn {
             let color = currentIsOn ? ToolbarLayout.iconColor : tintColor
-            let img: NSImage?
-            if name == "_custom.checkerboard" {
-                img = Self.checkerboardIcon(color: color)
-            } else {
-                let cfg = NSImage.SymbolConfiguration(pointSize: 14, weight: .medium)
-                if let symbol = NSImage(systemSymbolName: name, accessibilityDescription: nil)?
-                        .withSymbolConfiguration(cfg) {
-                    img = NSImage(size: symbol.size, flipped: false) { r in
-                        symbol.draw(in: r, from: .zero, operation: .sourceOver, fraction: 1.0)
-                        color.setFill()
-                        r.fill(using: .sourceAtop)
-                        return true
-                    }
-                } else {
-                    img = nil
-                }
-            }
-            if let img = img {
-                // Force the image to render now so it's a bitmap, not a lazy drawing block
-                img.lockFocus(); img.unlockFocus()
-                cachedIcon = img
+            let key = Self.cacheKey(name: name, isOn: currentIsOn, color: color)
+            if let cached = Self.iconCache[key] {
+                cachedIcon = cached
                 cachedIconIsOn = currentIsOn
+            } else {
+                let img: NSImage?
+                if name == "_custom.checkerboard" {
+                    img = Self.checkerboardIcon(color: color)
+                } else {
+                    let cfg = NSImage.SymbolConfiguration(pointSize: 14, weight: .medium)
+                    if let symbol = NSImage(systemSymbolName: name, accessibilityDescription: nil)?
+                            .withSymbolConfiguration(cfg) {
+                        img = NSImage(size: symbol.size, flipped: false) { r in
+                            symbol.draw(in: r, from: .zero, operation: .sourceOver, fraction: 1.0)
+                            color.setFill()
+                            r.fill(using: .sourceAtop)
+                            return true
+                        }
+                    } else {
+                        img = nil
+                    }
+                }
+                if let img = img {
+                    img.lockFocus(); img.unlockFocus()
+                    Self.iconCache[key] = img
+                    cachedIcon = img
+                    cachedIconIsOn = currentIsOn
+                }
             }
         }
         if let icon = cachedIcon {

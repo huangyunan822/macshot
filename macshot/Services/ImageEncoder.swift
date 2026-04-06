@@ -190,10 +190,16 @@ enum ImageEncoder {
     /// Explicitly sets PNG data so receiving apps (browsers, editors) get
     /// a lossless PNG instead of the TIFF that NSImage.writeObjects provides.
     static func copyToClipboard(_ image: NSImage) {
-        guard let bitmap = makeBitmap(image),
-              let pngData = bitmap.representation(using: .png, properties: [:]) else { return }
+        // Clear pasteboard immediately so Cmd+V doesn't paste stale content
         let pasteboard = NSPasteboard.general
         pasteboard.clearContents()
-        pasteboard.setData(pngData, forType: .png)
+        // PNG encode on background thread (the expensive part), then write to pasteboard on main
+        DispatchQueue.global(qos: .userInitiated).async {
+            guard let bitmap = makeBitmap(image),
+                  let pngData = bitmap.representation(using: .png, properties: [:]) else { return }
+            DispatchQueue.main.async {
+                pasteboard.setData(pngData, forType: .png)
+            }
+        }
     }
 }

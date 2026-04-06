@@ -27,6 +27,8 @@ class PreferencesWindowController: NSWindowController, NSTabViewDelegate, NSWind
     private var thumbnailAutoDismissStepper: NSStepper!
     private var thumbnailAutoDismissField: NSTextField!
     private var thumbnailStackingPopup: NSPopUpButton!
+    private var historyUnlimitedCheckbox: NSButton!
+    private var thumbnailScaleLabel: NSTextField!
     private var launchAtLoginCheckbox: NSButton!
     private var hideMenuBarIconCheckbox: NSButton!
     private var historySizeField: NSTextField!
@@ -315,6 +317,16 @@ class PreferencesWindowController: NSWindowController, NSTabViewDelegate, NSWind
         stack.addArrangedSubview(indented(labeledRow(L("  Multiple previews:"), controls: [thumbnailStackingPopup!])))
         stack.setCustomSpacing(8, after: stack.arrangedSubviews.last!)
 
+        let sizeSlider = NSSlider(value: UserDefaults.standard.object(forKey: "thumbnailScale") as? Double ?? 1.0,
+                                   minValue: 0.5, maxValue: 2.0, target: self, action: #selector(thumbnailScaleChanged(_:)))
+        sizeSlider.controlSize = .small
+        sizeSlider.widthAnchor.constraint(equalToConstant: 120).isActive = true
+        thumbnailScaleLabel = NSTextField(labelWithString: scalePercentString(sizeSlider.doubleValue))
+        thumbnailScaleLabel.font = .monospacedDigitSystemFont(ofSize: 11, weight: .regular)
+        thumbnailScaleLabel.textColor = .secondaryLabelColor
+        stack.addArrangedSubview(indented(labeledRow(L("  Preview size:"), controls: [sizeSlider, thumbnailScaleLabel])))
+        stack.setCustomSpacing(8, after: stack.arrangedSubviews.last!)
+
         stack.addArrangedSubview(indented(snapGuidesCheckbox))
         stack.setCustomSpacing(6, after: stack.arrangedSubviews.last!)
 
@@ -435,11 +447,14 @@ class PreferencesWindowController: NSWindowController, NSTabViewDelegate, NSWind
         historySizeStepper.target = self
         historySizeStepper.action = #selector(historySizeChanged(_:))
 
-        let histNote = NSTextField(labelWithString: L("screenshots kept on disk (0 = off)"))
+        historyUnlimitedCheckbox = NSButton(checkboxWithTitle: L("Unlimited"), target: self, action: #selector(historyUnlimitedChanged(_:)))
+        historyUnlimitedCheckbox.font = NSFont.systemFont(ofSize: 11)
+
+        let histNote = NSTextField(labelWithString: L("(0 = off)"))
         histNote.font = NSFont.systemFont(ofSize: 11)
         histNote.textColor = .secondaryLabelColor
 
-        stack.addArrangedSubview(labeledRow(L("History size:"), controls: [historySizeField, historySizeStepper, histNote]))
+        stack.addArrangedSubview(labeledRow(L("History size:"), controls: [historySizeField, historySizeStepper, histNote, historyUnlimitedCheckbox]))
         stack.setCustomSpacing(20, after: stack.arrangedSubviews.last!)
 
         // ── Translation ──────────────────────────────────────
@@ -1503,6 +1518,8 @@ class PreferencesWindowController: NSWindowController, NSTabViewDelegate, NSWind
         let historySize = UserDefaults.standard.object(forKey: "historySize") as? Int ?? 10
         historySizeField.integerValue = historySize
         historySizeStepper.integerValue = historySize
+        historyUnlimitedCheckbox.state = UserDefaults.standard.bool(forKey: "historyUnlimited") ? .on : .off
+        updateHistoryControlsEnabled()
 
         // Migrate old bool setting to new int: 0=save, 1=copy, 2=both
         if let oldBool = UserDefaults.standard.object(forKey: "quickModeCopyToClipboard") as? Bool {
@@ -1624,6 +1641,15 @@ class PreferencesWindowController: NSWindowController, NSTabViewDelegate, NSWind
         thumbnailAutoDismissField.integerValue = sender.integerValue
         UserDefaults.standard.set(sender.integerValue, forKey: "thumbnailAutoDismiss")
     }
+    @objc private func thumbnailScaleChanged(_ sender: NSSlider) {
+        UserDefaults.standard.set(sender.doubleValue, forKey: "thumbnailScale")
+        thumbnailScaleLabel?.stringValue = scalePercentString(sender.doubleValue)
+    }
+
+    private func scalePercentString(_ scale: Double) -> String {
+        "\(Int(round(scale * 100)))%"
+    }
+
     @objc private func thumbnailStackingChanged(_ sender: NSPopUpButton) {
         UserDefaults.standard.set(sender.indexOfSelectedItem == 0, forKey: "thumbnailStacking")
     }
@@ -1662,7 +1688,22 @@ class PreferencesWindowController: NSWindowController, NSTabViewDelegate, NSWind
     @objc private func historySizeChanged(_ sender: NSStepper) {
         historySizeField.integerValue = sender.integerValue
         UserDefaults.standard.set(sender.integerValue, forKey: "historySize")
+        UserDefaults.standard.set(false, forKey: "historyUnlimited")
+        historyUnlimitedCheckbox.state = .off
+        updateHistoryControlsEnabled()
         ScreenshotHistory.shared.pruneToMax()
+    }
+
+    @objc private func historyUnlimitedChanged(_ sender: NSButton) {
+        let unlimited = sender.state == .on
+        UserDefaults.standard.set(unlimited, forKey: "historyUnlimited")
+        updateHistoryControlsEnabled()
+    }
+
+    private func updateHistoryControlsEnabled() {
+        let unlimited = UserDefaults.standard.bool(forKey: "historyUnlimited")
+        historySizeField.alphaValue = unlimited ? 0.35 : 1.0
+        historySizeStepper.isEnabled = !unlimited
     }
     @objc private func recordingFormatChanged(_ sender: NSPopUpButton) {
         let isGIF = sender.indexOfSelectedItem == 1

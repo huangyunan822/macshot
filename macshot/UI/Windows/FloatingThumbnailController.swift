@@ -34,30 +34,12 @@ class FloatingThumbnailController: NSObject, NSDraggingSource {
 
         // Fit image within max bounds preserving aspect ratio, then enforce
         // a minimum window size so hover buttons always fit (letterbox if needed).
-        let maxWidth: CGFloat = 320
-        let minWinWidth: CGFloat = 200
-        let minWinHeight: CGFloat = 120
         let padding: CGFloat = 16
-        let maxHeight: CGFloat = screenFrame.height - padding * 2
+        guard image.size.width > 0 && image.size.height > 0 else { return }
 
-        let imgW = image.size.width
-        let imgH = image.size.height
-        guard imgW > 0 && imgH > 0 else { return }
-        let aspect = imgW / imgH
-
-        // Scale image to fit within maxWidth x maxHeight
-        var imgDrawW = min(imgW, maxWidth)
-        var imgDrawH = imgDrawW / aspect
-        if imgDrawH > maxHeight {
-            imgDrawH = maxHeight
-            imgDrawW = imgDrawH * aspect
-        }
-
-        // Window is at least minWinWidth x minWinHeight, or image size — whichever is larger
-        let thumbSize = NSSize(
-            width:  ceil(max(minWinWidth, imgDrawW)),
-            height: ceil(max(minWinHeight, imgDrawH))
-        )
+        // Fixed thumbnail size scaled by user preference (default 1.0 = 240x160)
+        let scale = CGFloat(UserDefaults.standard.object(forKey: "thumbnailScale") as? Double ?? 1.0)
+        let thumbSize = NSSize(width: round(240 * scale), height: round(160 * scale))
 
         // Clamp Y so the thumbnail always fits within the visible screen
         let clampedY = min(y, screenFrame.maxY - thumbSize.height - padding)
@@ -292,13 +274,19 @@ private class ThumbnailView: NSView {
         NSColor(white: 0.12, alpha: 1.0).setFill()
         NSBezierPath(roundedRect: r, xRadius: cr, yRadius: cr).fill()
 
-        // Draw image centered, preserving aspect ratio (letterboxed)
+        // Draw image with aspect fill (cropped to fill, no letterboxing)
         let imgAspect = image.size.width / image.size.height
-        var drawW = r.width
-        var drawH = drawW / imgAspect
-        if drawH > r.height {
+        let viewAspect = r.width / r.height
+        var drawW: CGFloat
+        var drawH: CGFloat
+        if imgAspect > viewAspect {
+            // Image is wider than view — fill height, crop sides
             drawH = r.height
             drawW = drawH * imgAspect
+        } else {
+            // Image is taller than view — fill width, crop top/bottom
+            drawW = r.width
+            drawH = drawW / imgAspect
         }
         let drawRect = NSRect(
             x: r.midX - drawW / 2,

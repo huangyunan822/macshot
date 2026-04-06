@@ -3930,18 +3930,32 @@ class OverlayView: NSView {
             let rightFitsRight = anchorRect.maxX < bounds.maxX - rightMargin
             let rightFitsLeft = anchorRect.minX > bounds.minX + rightMargin
 
-            var rx: CGFloat
-            if rightFitsRight {
-                rx = anchorRect.maxX + 6
-            } else if rightFitsLeft {
-                rx = anchorRect.minX - rightSize.width - 6
-            } else {
-                rx = selectionRect.maxX - rightSize.width - 6
-            }
-            rx = max(bounds.minX + 4, min(rx, bounds.maxX - rightSize.width - 4))
+            // For very narrow selections, put the right bar below instead of to the side
+            let selectionTooNarrow = !rightFitsRight && !rightFitsLeft
+                && anchorRect.width < bounds.width * 0.5
 
-            var ry = anchorRect.maxY - rightSize.height
-            ry = max(bounds.minY + 4, min(ry, bounds.maxY - rightSize.height - 4))
+            var rx: CGFloat
+            var ry: CGFloat
+
+            if selectionTooNarrow {
+                // Place right bar below the selection, right-aligned
+                rx = anchorRect.maxX - rightSize.width
+                rx = max(bounds.minX + 4, min(rx, bounds.maxX - rightSize.width - 4))
+                ry = anchorRect.minY - rightSize.height - 6
+                ry = max(bounds.minY + 4, min(ry, bounds.maxY - rightSize.height - 4))
+            } else {
+                if rightFitsRight {
+                    rx = anchorRect.maxX + 6
+                } else if rightFitsLeft {
+                    rx = anchorRect.minX - rightSize.width - 6
+                } else {
+                    rx = selectionRect.maxX - rightSize.width - 6
+                }
+                rx = max(bounds.minX + 4, min(rx, bounds.maxX - rightSize.width - 4))
+
+                ry = anchorRect.maxY - rightSize.height
+                ry = max(bounds.minY + 4, min(ry, bounds.maxY - rightSize.height - 4))
+            }
 
             // ── 2. Choose bottom bar Y, preferring positions that don't overlap right bar ──
             let belowY = anchorRect.minY - bottomSize.height - 6
