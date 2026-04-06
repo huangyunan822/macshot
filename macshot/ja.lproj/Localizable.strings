@@ -192,6 +192,7 @@
 "Hide menu bar icon" = "メニューバーアイコンを隠す";
 "Hotkeys still work. To show the icon again, re-launch macshot." = "ホットキーは引き続き使用できます。アイコンを再表示するには、macshot を再起動してください。";
 "Check for updates automatically" = "自動的にアップデートを確認";
+"Check for beta updates" = "ベータアップデートを確認";
 "Thumbnail" = "サムネイル";
 "  Dismiss after:" = "  自動非表示:";
 "seconds before auto-dismiss (0 = never)" = "秒後に自動非表示 (0 = 無効)";
@@ -419,3 +420,20 @@
 
 /* Video Editor */
 "Copied to clipboard!" = "クリップボードにコピーしました!";
+
+/* Webcam Overlay */
+"Webcam Overlay" = "ウェブカメラオーバーレイ";
+"Camera Access Required" = "カメラのアクセスが必要です";
+"macshot needs camera permission for the webcam overlay. Open System Settings to grant access." = "macshot がウェブカメラオーバーレイを使用するには、カメラの許可が必要です。システム設定を開いてアクセスを許可してください。";
+"Webcam" = "ウェブカメラ";
+"Bottom Right" = "右下";
+"Bottom Left" = "左下";
+"Top Right" = "右上";
+"Top Left" = "左上";
+"Small" = "小";
+"Large" = "大";
+"Circle" = "円形";
+"Rounded Rectangle" = "角丸四角形";
+"Cam pos:" = "カメラ位置:";
+"Cam size:" = "カメラサイズ:";
+"Cam shape:" = "カメラ形状:";

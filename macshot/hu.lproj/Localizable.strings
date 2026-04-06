@@ -192,6 +192,7 @@
 "Hide menu bar icon" = "Menüsor ikon elrejtése";
 "Hotkeys still work. To show the icon again, re-launch macshot." = "A gyorsbillentyűk továbbra is működnek. Az ikon újbóli megjelenítéséhez indítsd újra a macshot-ot.";
 "Check for updates automatically" = "Frissítések automatikus keresése";
+"Check for beta updates" = "Béta frissítések keresése";
 "Thumbnail" = "Bélyegkép";
 "  Dismiss after:" = "  Eltüntetés ennyi idő után:";
 "seconds before auto-dismiss (0 = never)" = "másodperc az automatikus eltüntetés előtt (0 = soha)";
@@ -419,3 +420,20 @@
 
 /* Video Editor */
 "Copied to clipboard!" = "Vágólapra másolva!";
+
+/* Webcam Overlay */
+"Webcam Overlay" = "Webkamera átfedés";
+"Camera Access Required" = "Kamera hozzáférés szükséges";
+"macshot needs camera permission for the webcam overlay. Open System Settings to grant access." = "A macshot-nak kamera engedélyre van szüksége a webkamera átfedéshez. Nyisd meg a Rendszerbeállításokat a hozzáférés megadásához.";
+"Webcam" = "Webkamera";
+"Bottom Right" = "Jobb alsó";
+"Bottom Left" = "Bal alsó";
+"Top Right" = "Jobb felső";
+"Top Left" = "Bal felső";
+"Small" = "Kicsi";
+"Large" = "Nagy";
+"Circle" = "Kör";
+"Rounded Rectangle" = "Lekerekített téglalap";
+"Cam pos:" = "Kam. poz.:";
+"Cam size:" = "Kam. méret:";
+"Cam shape:" = "Kam. alak:";

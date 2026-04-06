@@ -66,6 +66,10 @@ class PreferencesWindowController: NSWindowController, NSTabViewDelegate, NSWind
     private var recordingFPSPopup: NSPopUpButton!
     private var recordingOnStopPopup: NSPopUpButton!
     private var recSavePathField: NSTextField!
+    // Webcam controls
+    private var webcamPositionPopup: NSPopUpButton!
+    private var webcamSizePopup: NSPopUpButton!
+    private var webcamShapePopup: NSPopUpButton!
     // Scroll capture controls
     private var scrollAutoScrollCheckbox: NSButton!
     private var scrollSpeedPopup: NSPopUpButton!
@@ -756,6 +760,31 @@ class PreferencesWindowController: NSWindowController, NSTabViewDelegate, NSWind
         recordingOnStopPopup.target = self
         recordingOnStopPopup.action = #selector(recordingOnStopChanged(_:))
         stack.addArrangedSubview(labeledRow(L("When done:"), controls: [recordingOnStopPopup]))
+        stack.setCustomSpacing(20, after: stack.arrangedSubviews.last!)
+
+        // ── Webcam ───────────────────────────────────────────
+        stack.addArrangedSubview(sectionHeader(L("Webcam")))
+        stack.setCustomSpacing(10, after: stack.arrangedSubviews.last!)
+
+        webcamPositionPopup = NSPopUpButton()
+        webcamPositionPopup.addItems(withTitles: [L("Bottom Right"), L("Bottom Left"), L("Top Right"), L("Top Left")])
+        webcamPositionPopup.target = self
+        webcamPositionPopup.action = #selector(webcamPositionChanged(_:))
+        stack.addArrangedSubview(labeledRow(L("Position:"), controls: [webcamPositionPopup]))
+        stack.setCustomSpacing(8, after: stack.arrangedSubviews.last!)
+
+        webcamSizePopup = NSPopUpButton()
+        webcamSizePopup.addItems(withTitles: [L("Small"), L("Medium"), L("Large")])
+        webcamSizePopup.target = self
+        webcamSizePopup.action = #selector(webcamSizeChanged(_:))
+        stack.addArrangedSubview(labeledRow(L("Size:"), controls: [webcamSizePopup]))
+        stack.setCustomSpacing(8, after: stack.arrangedSubviews.last!)
+
+        webcamShapePopup = NSPopUpButton()
+        webcamShapePopup.addItems(withTitles: [L("Circle"), L("Rounded Rectangle")])
+        webcamShapePopup.target = self
+        webcamShapePopup.action = #selector(webcamShapeChanged(_:))
+        stack.addArrangedSubview(labeledRow(L("Shape:"), controls: [webcamShapePopup]))
         stack.setCustomSpacing(20, after: stack.arrangedSubviews.last!)
 
         // ── Scroll Capture ────────────────────────────────────
@@ -1490,6 +1519,26 @@ class PreferencesWindowController: NSWindowController, NSTabViewDelegate, NSWind
 
         recSavePathField.stringValue = SaveDirectoryAccess.recordingDisplayPath
 
+        // Webcam
+        let webcamPos = UserDefaults.standard.string(forKey: "webcamPosition") ?? "bottomRight"
+        switch webcamPos {
+        case "bottomRight": webcamPositionPopup.selectItem(at: 0)
+        case "bottomLeft": webcamPositionPopup.selectItem(at: 1)
+        case "topRight": webcamPositionPopup.selectItem(at: 2)
+        case "topLeft": webcamPositionPopup.selectItem(at: 3)
+        default: webcamPositionPopup.selectItem(at: 0)
+        }
+
+        let webcamSize = UserDefaults.standard.string(forKey: "webcamSize") ?? "medium"
+        switch webcamSize {
+        case "small": webcamSizePopup.selectItem(at: 0)
+        case "medium": webcamSizePopup.selectItem(at: 1)
+        case "large": webcamSizePopup.selectItem(at: 2)
+        default: webcamSizePopup.selectItem(at: 1)
+        }
+
+        webcamShapePopup.selectItem(at: (UserDefaults.standard.string(forKey: "webcamShape") ?? "circle") == "roundedRect" ? 1 : 0)
+
         // Scroll Capture
         let autoScroll = UserDefaults.standard.object(forKey: "scrollAutoScrollEnabled") as? Bool ?? false
         scrollAutoScrollCheckbox.state = autoScroll ? .on : .off
@@ -1617,6 +1666,22 @@ class PreferencesWindowController: NSWindowController, NSTabViewDelegate, NSWind
         let values = ["editor", "finder", "clipboard"]
         UserDefaults.standard.set(values[sender.indexOfSelectedItem], forKey: "recordingOnStop")
     }
+
+    @objc private func webcamPositionChanged(_ sender: NSPopUpButton) {
+        let values = ["bottomRight", "bottomLeft", "topRight", "topLeft"]
+        UserDefaults.standard.set(values[sender.indexOfSelectedItem], forKey: "webcamPosition")
+    }
+
+    @objc private func webcamSizeChanged(_ sender: NSPopUpButton) {
+        let values = ["small", "medium", "large"]
+        UserDefaults.standard.set(values[sender.indexOfSelectedItem], forKey: "webcamSize")
+    }
+
+    @objc private func webcamShapeChanged(_ sender: NSPopUpButton) {
+        let values = ["circle", "roundedRect"]
+        UserDefaults.standard.set(values[sender.indexOfSelectedItem], forKey: "webcamShape")
+    }
+
     @objc private func browseRecSavePath(_ sender: NSButton) {
         let panel = NSOpenPanel()
         panel.canChooseDirectories = true

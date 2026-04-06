@@ -192,6 +192,7 @@
 "Hide menu bar icon" = "Skjul menulinjeikon";
 "Hotkeys still work. To show the icon again, re-launch macshot." = "Genvejstaster virker stadig. For at vise ikonet igen skal du genstarte macshot.";
 "Check for updates automatically" = "S\U00F8g efter opdateringer automatisk";
+"Check for beta updates" = "S\U00F8g efter betaopdateringer";
 "Thumbnail" = "Miniature";
 "  Dismiss after:" = "  Luk efter:";
 "seconds before auto-dismiss (0 = never)" = "sekunder f\U00F8r automatisk lukning (0 = aldrig)";
@@ -419,3 +420,20 @@
 
 /* Video Editor */
 "Copied to clipboard!" = "Kopieret til udklipsholder!";
+
+/* Webcam Overlay */
+"Webcam Overlay" = "Webcam-overlay";
+"Camera Access Required" = "Kameraadgang kr\U00E6ves";
+"macshot needs camera permission for the webcam overlay. Open System Settings to grant access." = "macshot kr\U00E6ver kameratilladelse til webcam-overlayet. \U00C5bn Systemindstillinger for at give adgang.";
+"Webcam" = "Webcam";
+"Bottom Right" = "Nederst til h\U00F8jre";
+"Bottom Left" = "Nederst til venstre";
+"Top Right" = "\U00D8verst til h\U00F8jre";
+"Top Left" = "\U00D8verst til venstre";
+"Small" = "Lille";
+"Large" = "Stor";
+"Circle" = "Cirkel";
+"Rounded Rectangle" = "Afrundet rektangel";
+"Cam pos:" = "Kam. pos.:";
+"Cam size:" = "Kam. str.:";
+"Cam shape:" = "Kam. form:";

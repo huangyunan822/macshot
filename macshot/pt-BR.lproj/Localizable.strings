@@ -192,6 +192,7 @@
 "Hide menu bar icon" = "Ocultar ícone da barra de menus";
 "Hotkeys still work. To show the icon again, re-launch macshot." = "Os atalhos continuam funcionando. Para mostrar o ícone novamente, reabra o macshot.";
 "Check for updates automatically" = "Verificar atualizações automaticamente";
+"Check for beta updates" = "Verificar atualizações beta";
 "Thumbnail" = "Miniatura";
 "  Dismiss after:" = "  Dispensar após:";
 "seconds before auto-dismiss (0 = never)" = "segundos antes de dispensar automaticamente (0 = nunca)";
@@ -419,3 +420,20 @@
 
 /* Video Editor */
 "Copied to clipboard!" = "Copiado para a área de transferência!";
+
+/* Webcam Overlay */
+"Webcam Overlay" = "Sobreposição de Webcam";
+"Camera Access Required" = "Acesso à Câmera Necessário";
+"macshot needs camera permission for the webcam overlay. Open System Settings to grant access." = "O macshot precisa da permissão de câmera para a sobreposição de webcam. Abra os Ajustes do Sistema para conceder o acesso.";
+"Webcam" = "Webcam";
+"Bottom Right" = "Inferior Direito";
+"Bottom Left" = "Inferior Esquerdo";
+"Top Right" = "Superior Direito";
+"Top Left" = "Superior Esquerdo";
+"Small" = "Pequeno";
+"Large" = "Grande";
+"Circle" = "Círculo";
+"Rounded Rectangle" = "Retângulo Arredondado";
+"Cam pos:" = "Pos. cam.:";
+"Cam size:" = "Tam. cam.:";
+"Cam shape:" = "Forma cam.:";

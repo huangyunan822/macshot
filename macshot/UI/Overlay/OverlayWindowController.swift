@@ -423,6 +423,11 @@ extension OverlayWindowController: OverlayViewDelegate {
         overlayDelegate?.overlayDidRequestStartRecording(self, rect: screenRect, screen: screen)
     }
 
+    /// Detach the webcam setup preview so it can be reused during recording.
+    func detachWebcamPreview() -> WebcamOverlay? {
+        overlayView?.detachWebcamSetupPreview()
+    }
+
     func overlayViewDidRequestStopRecording() {
         overlayDelegate?.overlayDidRequestStopRecording(self)
     }

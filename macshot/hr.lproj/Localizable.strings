@@ -192,6 +192,7 @@
 "Hide menu bar icon" = "Sakrij ikonu u traci izbornika";
 "Hotkeys still work. To show the icon again, re-launch macshot." = "Tipkovni precaci i dalje rade. Za ponovni prikaz ikone ponovno pokrenite macshot.";
 "Check for updates automatically" = "Automatski provjeravaj azuriranja";
+"Check for beta updates" = "Provjeri beta ažuriranja";
 "Thumbnail" = "Minijatura";
 "  Dismiss after:" = "  Odbaci nakon:";
 "seconds before auto-dismiss (0 = never)" = "sekundi prije automatskog odbacivanja (0 = nikad)";
@@ -419,3 +420,20 @@
 
 /* Video Editor */
 "Copied to clipboard!" = "Kopirano u meduspremnik!";
+
+/* Webcam Overlay */
+"Webcam Overlay" = "Preklapanje web-kamere";
+"Camera Access Required" = "Potreban pristup kameri";
+"macshot needs camera permission for the webcam overlay. Open System Settings to grant access." = "macshot treba dozvolu kamere za preklapanje web-kamere. Otvorite Postavke sustava za odobravanje pristupa.";
+"Webcam" = "Web-kamera";
+"Bottom Right" = "Dolje desno";
+"Bottom Left" = "Dolje lijevo";
+"Top Right" = "Gore desno";
+"Top Left" = "Gore lijevo";
+"Small" = "Malo";
+"Large" = "Veliko";
+"Circle" = "Krug";
+"Rounded Rectangle" = "Zaobljeni pravokutnik";
+"Cam pos:" = "Poz. kamere:";
+"Cam size:" = "Vel. kamere:";
+"Cam shape:" = "Oblik kamere:";

@@ -192,6 +192,7 @@
 "Hide menu bar icon" = "Itago ang icon sa menu bar";
 "Hotkeys still work. To show the icon again, re-launch macshot." = "Gumagana pa rin ang mga hotkey. Upang ipakita muli ang icon, i-restart ang macshot.";
 "Check for updates automatically" = "Awtomatikong tingnan ang mga update";
+"Check for beta updates" = "Tingnan ang mga beta update";
 "Thumbnail" = "Thumbnail";
 "  Dismiss after:" = "  I-dismiss pagkatapos ng:";
 "seconds before auto-dismiss (0 = never)" = "segundo bago mag-auto-dismiss (0 = hindi kailanman)";
@@ -419,3 +420,20 @@
 
 /* Video Editor */
 "Copied to clipboard!" = "Nakopya sa clipboard!";
+
+/* Webcam Overlay */
+"Webcam Overlay" = "Webcam Overlay";
+"Camera Access Required" = "Kinakailangan ang Access sa Camera";
+"macshot needs camera permission for the webcam overlay. Open System Settings to grant access." = "Kailangan ng macshot ang camera permission para sa webcam overlay. Buksan ang System Settings upang bigyan ng access.";
+"Webcam" = "Webcam";
+"Bottom Right" = "Ibaba Kanan";
+"Bottom Left" = "Ibaba Kaliwa";
+"Top Right" = "Itaas Kanan";
+"Top Left" = "Itaas Kaliwa";
+"Small" = "Maliit";
+"Large" = "Malaki";
+"Circle" = "Bilog";
+"Rounded Rectangle" = "Bilugang Parihaba";
+"Cam pos:" = "Pos. ng cam:";
+"Cam size:" = "Laki ng cam:";
+"Cam shape:" = "Hugis ng cam:";

@@ -192,6 +192,7 @@
 "Hide menu bar icon" = "பட்டிப்பட்டை ஐகானை மறை";
 "Hotkeys still work. To show the icon again, re-launch macshot." = "விரைவு விசைகள் செயல்படும். ஐகானை மீண்டும் காட்ட, macshot-ஐ மறுதொடக்கம் செய்யுங்கள்.";
 "Check for updates automatically" = "புதுப்பிப்புகளைத் தானாகச் சரிபார்";
+"Check for beta updates" = "பீட்டா புதுப்பிப்புகளைச் சரிபார்";
 "Thumbnail" = "சிறுபடம்";
 "  Dismiss after:" = "  பிறகு மறை:";
 "seconds before auto-dismiss (0 = never)" = "தானாக மறைவதற்கு முன் வினாடிகள் (0 = ஒருபோதும் இல்லை)";
@@ -419,3 +420,20 @@
 
 /* Video Editor */
 "Copied to clipboard!" = "ஒட்டுப்பலகையில் நகலெடுக்கப்பட்டது!";
+
+/* Webcam Overlay */
+"Webcam Overlay" = "வெப்கேம் மேலடுக்கு";
+"Camera Access Required" = "கேமரா அணுகல் தேவை";
+"macshot needs camera permission for the webcam overlay. Open System Settings to grant access." = "வெப்கேம் மேலடுக்குக்கு macshot க்கு கேமரா அனுமதி தேவை. அணுகலை வழங்க System Settings ஐ திறக்கவும்.";
+"Webcam" = "வெப்கேம்";
+"Bottom Right" = "கீழ் வலது";
+"Bottom Left" = "கீழ் இடது";
+"Top Right" = "மேல் வலது";
+"Top Left" = "மேல் இடது";
+"Small" = "சிறியது";
+"Large" = "பெரியது";
+"Circle" = "வட்டம்";
+"Rounded Rectangle" = "வட்டமான செவ்வகம்";
+"Cam pos:" = "கேம் நிலை:";
+"Cam size:" = "கேம் அளவு:";
+"Cam shape:" = "கேம் வடிவம்:";

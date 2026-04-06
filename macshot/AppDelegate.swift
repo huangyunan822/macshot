@@ -2,6 +2,7 @@ import Cocoa
 import Carbon
 import Sparkle
 import UniformTypeIdentifiers
+import AVFoundation
 
 @MainActor
 class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
@@ -30,6 +31,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
     private var recordingScreen: NSScreen?
     private var mouseHighlightOverlay: MouseHighlightOverlay?
     private var keystrokeOverlay: KeystrokeOverlay?
+    private var webcamOverlay: WebcamOverlay?
     private var selectionBorderOverlay: SelectionBorderOverlay?
     private var menuBarIconWasHidden: Bool = false  // restore after recording if user had it hidden
     private var scrollCaptureController: ScrollCaptureController?
@@ -1087,6 +1089,9 @@ extension AppDelegate: OverlayWindowControllerDelegate {
         let onStopOverride = controller.sessionRecordingOnStop
         let delayOverride = controller.sessionRecordingDelay
 
+        // Detach webcam preview before dismissing overlays so we can reuse the live session
+        let existingWebcam = controller.detachWebcamPreview()
+
         // Dismiss overlays — recording doesn't need them anymore
         dismissOverlays()
         // Return focus to the previously active app so clicks work immediately
@@ -1094,13 +1099,17 @@ extension AppDelegate: OverlayWindowControllerDelegate {
 
         let delay = delayOverride ?? UserDefaults.standard.integer(forKey: "captureDelaySeconds")
         if delay > 0 {
+            // Can't reuse webcam during countdown — tear it down, beginRecording will create fresh
+            existingWebcam?.stopPreview()
+            existingWebcam?.close()
             startRecordingCountdown(seconds: delay, rect: rect, screen: screen,
                                     formatOverride: formatOverride, fpsOverride: fpsOverride,
                                     onStopOverride: onStopOverride)
         } else {
             beginRecording(rect: rect, screen: screen,
                            formatOverride: formatOverride, fpsOverride: fpsOverride,
-                           onStopOverride: onStopOverride)
+                           onStopOverride: onStopOverride,
+                           existingWebcam: existingWebcam)
         }
     }
 
@@ -1179,7 +1188,8 @@ extension AppDelegate: OverlayWindowControllerDelegate {
 
     private func beginRecording(rect: NSRect, screen: NSScreen,
                                  formatOverride: String?, fpsOverride: Int?,
-                                 onStopOverride: String?) {
+                                 onStopOverride: String?,
+                                 existingWebcam: WebcamOverlay? = nil) {
         let engine = RecordingEngine()
         engine.onProgress = { [weak self] seconds in
             self?.updateRecordingHUD(seconds: seconds)
@@ -1253,6 +1263,31 @@ extension AppDelegate: OverlayWindowControllerDelegate {
             overlay.orderFront(nil)
             overlay.startMonitoring()
             keystrokeOverlay = overlay
+        }
+
+        // Start webcam overlay if enabled — reuse existing session to avoid camera restart flash
+        if UserDefaults.standard.bool(forKey: "recordWebcam") &&
+           AVCaptureDevice.authorizationStatus(for: .video) == .authorized {
+            if let existing = existingWebcam {
+                // Reuse the live preview — just lock it in place
+                existing.setDraggable(false)
+                existing.orderFront(nil)
+                webcamOverlay = existing
+            } else {
+                let overlay = WebcamOverlay(screen: screen)
+                let position = WebcamPosition(rawValue: UserDefaults.standard.string(forKey: "webcamPosition") ?? "bottomRight") ?? .bottomRight
+                let wcSize = WebcamSize(rawValue: UserDefaults.standard.string(forKey: "webcamSize") ?? "medium") ?? .medium
+                let shape = WebcamShape(rawValue: UserDefaults.standard.string(forKey: "webcamShape") ?? "circle") ?? .circle
+                overlay.configure(position: position, size: wcSize, shape: shape, recordingRect: rect)
+                overlay.startPreview(deviceUID: UserDefaults.standard.string(forKey: "selectedCameraDeviceUID"))
+                overlay.setDraggable(false)
+                overlay.orderFront(nil)
+                webcamOverlay = overlay
+            }
+        } else {
+            // Webcam not enabled — clean up any detached preview
+            existingWebcam?.stopPreview()
+            existingWebcam?.close()
         }
 
         // Turn menu bar icon into a stop button (ensure it's visible even if user hid it)
@@ -1342,6 +1377,9 @@ extension AppDelegate: OverlayWindowControllerDelegate {
         keystrokeOverlay?.stopMonitoring()
         keystrokeOverlay?.close()
         keystrokeOverlay = nil
+        webcamOverlay?.stopPreview()
+        webcamOverlay?.close()
+        webcamOverlay = nil
         recordingEngine = nil
         recordingOverlayController = nil
         recordingScreenRect = .zero

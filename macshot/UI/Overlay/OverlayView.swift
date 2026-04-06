@@ -468,34 +468,11 @@ class OverlayView: NSView {
                     overlayDelegate?.overlayViewDidRequestInputMonitoringPermission()
                 }
 
-                // Pre-check mic permission if mic is enabled
-                if UserDefaults.standard.bool(forKey: "recordMicAudio") {
-                    let status = AVCaptureDevice.authorizationStatus(for: .audio)
-                    if status == .authorized {
-                        startMicLevelMonitor()
-                    } else if status == .notDetermined {
-                        let savedLevel = window?.level
-                        window?.level = .normal
-                        AVCaptureDevice.requestAccess(for: .audio) { [weak self] granted in
-                            DispatchQueue.main.async {
-                                if let saved = savedLevel { self?.window?.level = saved }
-                                if granted {
-                                    self?.startMicLevelMonitor()
-                                } else {
-                                    UserDefaults.standard.set(false, forKey: "recordMicAudio")
-                                    self?.rebuildToolbarLayout()
-                                }
-                            }
-                        }
-                    } else {
-                        // Denied/restricted — disable mic and show alert
-                        UserDefaults.standard.set(false, forKey: "recordMicAudio")
-                        rebuildToolbarLayout()
-                        showMicPermissionAlert()
-                    }
-                }
+                // Pre-check mic + camera permissions sequentially so dialogs don't overlap
+                preCheckRecordingPermissions()
             } else {
                 stopMicLevelMonitor()
+                dismissWebcamSetupPreview()
             }
         }
     }
@@ -690,6 +667,9 @@ class OverlayView: NSView {
 
     // Radial color wheel (right-click in drawing mode)
     private let colorWheel = ColorWheelRenderer()
+
+    // Webcam setup preview (shown during recording setup when webcam is enabled)
+    private var webcamSetupPreview: WebcamOverlay?
 
     // Handle
     private let handleSize: CGFloat = 10
@@ -5206,6 +5186,8 @@ class OverlayView: NSView {
             showMicDeviceMenu(anchorView: anchorView)
         case .showKeystrokes:
             showKeystrokeModeMenu(anchorView: anchorView)
+        case .webcam:
+            showWebcamDeviceMenu(anchorView: anchorView)
         default:
             break
         }
@@ -5279,6 +5261,201 @@ class OverlayView: NSView {
         startMicLevelMonitor()
     }
 
+    // MARK: - Recording Permission Pre-checks
+
+    /// Sequentially request mic and camera permissions so system dialogs don't overlap behind the overlay.
+    private func preCheckRecordingPermissions() {
+        checkMicPermission { [weak self] in
+            self?.checkCameraPermission()
+        }
+    }
+
+    private func checkMicPermission(then next: @escaping () -> Void) {
+        guard UserDefaults.standard.bool(forKey: "recordMicAudio") else { next(); return }
+        let status = AVCaptureDevice.authorizationStatus(for: .audio)
+        if status == .authorized {
+            startMicLevelMonitor()
+            next()
+        } else if status == .notDetermined {
+            let savedLevel = window?.level
+            window?.level = .normal
+            AVCaptureDevice.requestAccess(for: .audio) { [weak self] granted in
+                DispatchQueue.main.async {
+                    if let saved = savedLevel { self?.window?.level = saved }
+                    if granted {
+                        self?.startMicLevelMonitor()
+                    } else {
+                        UserDefaults.standard.set(false, forKey: "recordMicAudio")
+                        self?.rebuildToolbarLayout()
+                    }
+                    next()
+                }
+            }
+        } else {
+            UserDefaults.standard.set(false, forKey: "recordMicAudio")
+            rebuildToolbarLayout()
+            showMicPermissionAlert()
+            next()
+        }
+    }
+
+    private func checkCameraPermission() {
+        guard UserDefaults.standard.bool(forKey: "recordWebcam") else { return }
+        let status = AVCaptureDevice.authorizationStatus(for: .video)
+        if status == .authorized {
+            showWebcamSetupPreview()
+        } else if status == .notDetermined {
+            let savedLevel = window?.level
+            window?.level = .normal
+            AVCaptureDevice.requestAccess(for: .video) { [weak self] granted in
+                DispatchQueue.main.async {
+                    if let saved = savedLevel { self?.window?.level = saved }
+                    if granted {
+                        self?.showWebcamSetupPreview()
+                    } else {
+                        UserDefaults.standard.set(false, forKey: "recordWebcam")
+                        self?.rebuildToolbarLayout()
+                    }
+                }
+            }
+        } else {
+            UserDefaults.standard.set(false, forKey: "recordWebcam")
+            rebuildToolbarLayout()
+        }
+    }
+
+    // MARK: - Webcam Toggle & Device Menu
+
+    private func toggleWebcamOverlay() {
+        let current = UserDefaults.standard.bool(forKey: "recordWebcam")
+        if current {
+            UserDefaults.standard.set(false, forKey: "recordWebcam")
+            dismissWebcamSetupPreview()
+            rebuildToolbarLayout()
+            return
+        }
+        switch AVCaptureDevice.authorizationStatus(for: .video) {
+        case .authorized:
+            UserDefaults.standard.set(true, forKey: "recordWebcam")
+            rebuildToolbarLayout()
+            showWebcamSetupPreview()
+        case .notDetermined:
+            let savedLevel = window?.level
+            window?.level = .normal
+            AVCaptureDevice.requestAccess(for: .video) { [weak self] granted in
+                DispatchQueue.main.async {
+                    if let saved = savedLevel { self?.window?.level = saved }
+                    if granted {
+                        UserDefaults.standard.set(true, forKey: "recordWebcam")
+                        self?.showWebcamSetupPreview()
+                    }
+                    self?.rebuildToolbarLayout()
+                }
+            }
+        case .denied, .restricted:
+            showCameraPermissionAlert()
+        @unknown default:
+            break
+        }
+    }
+
+    private func showWebcamSetupPreview() {
+        guard webcamSetupPreview == nil else { return }
+        guard let screen = window?.screen ?? NSScreen.main else { return }
+
+        let overlay = WebcamOverlay(screen: screen)
+        let position = WebcamPosition(rawValue: UserDefaults.standard.string(forKey: "webcamPosition") ?? "bottomRight") ?? .bottomRight
+        let size = WebcamSize(rawValue: UserDefaults.standard.string(forKey: "webcamSize") ?? "medium") ?? .medium
+        let shape = WebcamShape(rawValue: UserDefaults.standard.string(forKey: "webcamShape") ?? "circle") ?? .circle
+
+        let screenOrigin = screen.frame.origin
+        let screenRect = NSRect(
+            x: selectionRect.origin.x + screenOrigin.x,
+            y: selectionRect.origin.y + screenOrigin.y,
+            width: selectionRect.width,
+            height: selectionRect.height)
+
+        overlay.configure(position: position, size: size, shape: shape, recordingRect: screenRect)
+        overlay.startPreview(deviceUID: UserDefaults.standard.string(forKey: "selectedCameraDeviceUID"))
+        overlay.setDraggable(true)
+        overlay.orderFront(nil)
+        webcamSetupPreview = overlay
+    }
+
+    private func dismissWebcamSetupPreview() {
+        webcamSetupPreview?.stopPreview()
+        webcamSetupPreview?.close()
+        webcamSetupPreview = nil
+    }
+
+    /// Detach the setup preview so it can be reused during recording (avoids camera restart).
+    func detachWebcamSetupPreview() -> WebcamOverlay? {
+        let overlay = webcamSetupPreview
+        webcamSetupPreview = nil
+        return overlay
+    }
+
+    func updateWebcamSetupPreview() {
+        guard webcamSetupPreview != nil else { return }
+        dismissWebcamSetupPreview()
+        if UserDefaults.standard.bool(forKey: "recordWebcam") {
+            showWebcamSetupPreview()
+        }
+    }
+
+    private func showCameraPermissionAlert() {
+        let alert = NSAlert()
+        alert.messageText = L("Camera Access Required")
+        alert.informativeText = L("macshot needs camera permission for the webcam overlay. Open System Settings to grant access.")
+        alert.alertStyle = .warning
+        alert.addButton(withTitle: L("Open Settings"))
+        alert.addButton(withTitle: L("Cancel"))
+        let response = alert.runModal()
+        if response == .alertFirstButtonReturn {
+            if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Camera") {
+                NSWorkspace.shared.open(url)
+            }
+        }
+    }
+
+    private func showWebcamDeviceMenu(anchorView: NSView) {
+        let menu = NSMenu()
+        let savedUID = UserDefaults.standard.string(forKey: "selectedCameraDeviceUID")
+        let webcamOn = UserDefaults.standard.bool(forKey: "recordWebcam")
+
+        let noneItem = NSMenuItem(title: L("None"), action: #selector(webcamMenuNone), keyEquivalent: "")
+        noneItem.target = self
+        if !webcamOn { noneItem.state = .on }
+        menu.addItem(noneItem)
+        menu.addItem(NSMenuItem.separator())
+
+        let devices = WebcamOverlay.availableCameras
+        for device in devices {
+            let item = NSMenuItem(title: device.localizedName, action: #selector(webcamMenuSelectDevice(_:)), keyEquivalent: "")
+            item.target = self
+            item.representedObject = device.uniqueID
+            if webcamOn && (savedUID == device.uniqueID || (savedUID == nil && device == AVCaptureDevice.default(for: .video))) {
+                item.state = .on
+            }
+            menu.addItem(item)
+        }
+        menu.popUp(positioning: nil, at: NSPoint(x: 0, y: anchorView.bounds.height), in: anchorView)
+    }
+
+    @objc private func webcamMenuNone() {
+        UserDefaults.standard.set(false, forKey: "recordWebcam")
+        dismissWebcamSetupPreview()
+        rebuildToolbarLayout()
+    }
+
+    @objc private func webcamMenuSelectDevice(_ sender: NSMenuItem) {
+        guard let uid = sender.representedObject as? String else { return }
+        UserDefaults.standard.set(uid, forKey: "selectedCameraDeviceUID")
+        UserDefaults.standard.set(true, forKey: "recordWebcam")
+        rebuildToolbarLayout()
+        updateWebcamSetupPreview()
+    }
+
     func handleToolbarAction(_ action: ToolbarButtonAction, mousePoint: NSPoint = .zero) {
         switch action {
         case .tool(let tool):
@@ -5335,6 +5512,7 @@ class OverlayView: NSView {
                 moveBtn.needsDisplay = true
             }
             scheduleBarcodeDetection()
+            updateWebcamSetupPreview()
             needsDisplay = true
         case .undo:
             undo()
@@ -5442,6 +5620,8 @@ class OverlayView: NSView {
             rebuildToolbarLayout()
         case .micAudio:
             toggleMicAudio()
+        case .webcam:
+            toggleWebcamOverlay()
         case .cancel:
             overlayDelegate?.overlayViewDidCancel()
         case .detach:

@@ -192,6 +192,7 @@
 "Hide menu bar icon" = "Απόκρυψη εικονιδίου γραμμής μενού";
 "Hotkeys still work. To show the icon again, re-launch macshot." = "Τα πλήκτρα συντόμευσης λειτουργούν ακόμα. Για εμφάνιση του εικονιδίου, επανεκκινήστε το macshot.";
 "Check for updates automatically" = "Αυτόματος έλεγχος ενημερώσεων";
+"Check for beta updates" = "Έλεγχος για ενημερώσεις beta";
 "Thumbnail" = "Μικρογραφία";
 "  Dismiss after:" = "  Απόκρυψη μετά από:";
 "seconds before auto-dismiss (0 = never)" = "δευτερόλεπτα πριν την αυτόματη απόκρυψη (0 = ποτέ)";
@@ -419,3 +420,20 @@
 
 /* Video Editor */
 "Copied to clipboard!" = "Αντιγράφηκε στο πρόχειρο!";
+
+/* Webcam Overlay */
+"Webcam Overlay" = "Επικάλυψη κάμερας";
+"Camera Access Required" = "Απαιτείται πρόσβαση κάμερας";
+"macshot needs camera permission for the webcam overlay. Open System Settings to grant access." = "Το macshot χρειάζεται άδεια κάμερας για την επικάλυψη κάμερας. Ανοίξτε τις Ρυθμίσεις συστήματος για παραχώρηση πρόσβασης.";
+"Webcam" = "Κάμερα";
+"Bottom Right" = "Κάτω δεξιά";
+"Bottom Left" = "Κάτω αριστερά";
+"Top Right" = "Πάνω δεξιά";
+"Top Left" = "Πάνω αριστερά";
+"Small" = "Μικρό";
+"Large" = "Μεγάλο";
+"Circle" = "Κύκλος";
+"Rounded Rectangle" = "Στρογγυλεμένο ορθογώνιο";
+"Cam pos:" = "Θέση κάμ.:";
+"Cam size:" = "Μέγ. κάμ.:";
+"Cam shape:" = "Σχήμα κάμ.:";

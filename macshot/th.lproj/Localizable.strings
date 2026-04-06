@@ -192,6 +192,7 @@
 "Hide menu bar icon" = "ซ่อนไอคอนแถบเมนู";
 "Hotkeys still work. To show the icon again, re-launch macshot." = "ปุ่มลัดยังใช้งานได้ เปิด macshot ใหม่เพื่อแสดงไอคอนอีกครั้ง";
 "Check for updates automatically" = "ตรวจสอบอัปเดตอัตโนมัติ";
+"Check for beta updates" = "ตรวจสอบอัปเดตเบต้า";
 "Thumbnail" = "ภาพขนาดย่อ";
 "  Dismiss after:" = "  ปิดหลังจาก:";
 "seconds before auto-dismiss (0 = never)" = "วินาทีก่อนปิดอัตโนมัติ (0 = ไม่ปิด)";
@@ -419,3 +420,20 @@
 
 /* Video Editor */
 "Copied to clipboard!" = "คัดลอกไปยังคลิปบอร์ดแล้ว!";
+
+/* Webcam Overlay */
+"Webcam Overlay" = "ซ้อนทับเว็บแคม";
+"Camera Access Required" = "ต้องการสิทธิ์กล้อง";
+"macshot needs camera permission for the webcam overlay. Open System Settings to grant access." = "macshot ต้องการสิทธิ์กล้องสำหรับการซ้อนทับเว็บแคม เปิดการตั้งค่าระบบเพื่ออนุญาต";
+"Webcam" = "เว็บแคม";
+"Bottom Right" = "ล่างขวา";
+"Bottom Left" = "ล่างซ้าย";
+"Top Right" = "บนขวา";
+"Top Left" = "บนซ้าย";
+"Small" = "เล็ก";
+"Large" = "ใหญ่";
+"Circle" = "วงกลม";
+"Rounded Rectangle" = "สี่เหลี่ยมมุมมน";
+"Cam pos:" = "ตำแหน่งกล้อง:";
+"Cam size:" = "ขนาดกล้อง:";
+"Cam shape:" = "รูปทรงกล้อง:";

@@ -192,6 +192,7 @@
 "Hide menu bar icon" = "隱藏選單列圖像";
 "Hotkeys still work. To show the icon again, re-launch macshot." = "快捷鍵仍可使用。若要再次顯示圖像，請重新啟動 macshot。";
 "Check for updates automatically" = "自動檢查更新";
+"Check for beta updates" = "檢查測試版更新";
 "Thumbnail" = "縮圖";
 "  Dismiss after:" = "  自動關閉：";
 "seconds before auto-dismiss (0 = never)" = "秒後自動關閉（0 = 永不）";
@@ -419,3 +420,20 @@
 
 /* Video Editor */
 "Copied to clipboard!" = "已拷貝至剪貼簿！";
+
+/* Webcam Overlay */
+"Webcam Overlay" = "網路攝影機疊加";
+"Camera Access Required" = "需要攝影機權限";
+"macshot needs camera permission for the webcam overlay. Open System Settings to grant access." = "macshot 需要攝影機權限才能使用網路攝影機疊加。請打開系統設定以授予權限。";
+"Webcam" = "網路攝影機";
+"Bottom Right" = "右下";
+"Bottom Left" = "左下";
+"Top Right" = "右上";
+"Top Left" = "左上";
+"Small" = "小";
+"Large" = "大";
+"Circle" = "圓形";
+"Rounded Rectangle" = "圓角矩形";
+"Cam pos:" = "攝影機位置：";
+"Cam size:" = "攝影機大小：";
+"Cam shape:" = "攝影機形狀：";

@@ -47,6 +47,7 @@ class MouseHighlightOverlay: NSPanel {
             NSEvent.removeMonitor(monitor)
             globalMonitor = nil
         }
+        highlightView.stopAnimation()
         highlightView.highlights.removeAll()
         highlightView.needsDisplay = true
     }
@@ -60,6 +61,8 @@ private class MouseHighlightView: NSView {
     }
 
     var highlights: [Highlight] = []
+    private var animationTimer: Timer?
+    private let reusablePath = NSBezierPath()
 
     override var isFlipped: Bool { false }
 
@@ -69,32 +72,47 @@ private class MouseHighlightView: NSView {
         for entry in highlights {
             let age = now.timeIntervalSince(entry.time)
             guard age <= 0.3 else { continue }
-            let alpha = max(0, 1.0 - age / 0.3)
+            let alpha = CGFloat(max(0, 1.0 - age / 0.3))
             let radius: CGFloat = 18 + CGFloat(age) * 60
             let rect = NSRect(
                 x: entry.point.x - radius, y: entry.point.y - radius,
                 width: radius * 2, height: radius * 2)
-            NSColor.systemYellow.withAlphaComponent(0.35 * alpha).setFill()
-            NSBezierPath(ovalIn: rect).fill()
-            NSColor.systemYellow.withAlphaComponent(0.6 * alpha).setStroke()
-            let ring = NSBezierPath(ovalIn: rect.insetBy(dx: 2, dy: 2))
-            ring.lineWidth = 2
-            ring.stroke()
-        }
 
-        if !highlights.isEmpty {
-            DispatchQueue.main.async { [weak self] in
-                guard let self = self else { return }
-                self.highlights.removeAll { now.timeIntervalSince($0.time) > 0.3 }
-                self.needsDisplay = true
-                self.displayIfNeeded()
-            }
+            reusablePath.removeAllPoints()
+            reusablePath.appendOval(in: rect)
+            NSColor.systemYellow.withAlphaComponent(0.35 * alpha).setFill()
+            reusablePath.fill()
+
+            reusablePath.removeAllPoints()
+            reusablePath.appendOval(in: rect.insetBy(dx: 2, dy: 2))
+            reusablePath.lineWidth = 2
+            NSColor.systemYellow.withAlphaComponent(0.6 * alpha).setStroke()
+            reusablePath.stroke()
         }
     }
 
     func addHighlight(at point: NSPoint) {
         highlights.append(Highlight(point: point, time: Date()))
         needsDisplay = true
-        displayIfNeeded()
+        startAnimationIfNeeded()
+    }
+
+    private func startAnimationIfNeeded() {
+        guard animationTimer == nil else { return }
+        animationTimer = Timer.scheduledTimer(withTimeInterval: 1.0 / 30, repeats: true) { [weak self] _ in
+            guard let self = self else { return }
+            let now = Date()
+            self.highlights.removeAll { now.timeIntervalSince($0.time) > 0.3 }
+            if self.highlights.isEmpty {
+                self.animationTimer?.invalidate()
+                self.animationTimer = nil
+            }
+            self.needsDisplay = true
+        }
+    }
+
+    func stopAnimation() {
+        animationTimer?.invalidate()
+        animationTimer = nil
     }
 }

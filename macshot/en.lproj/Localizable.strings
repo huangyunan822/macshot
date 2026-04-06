@@ -117,7 +117,22 @@
 "Highlight Mouse Clicks" = "Highlight Mouse Clicks";
 "Record System Audio" = "Record System Audio";
 "Record Microphone" = "Record Microphone";
+"Webcam Overlay" = "Webcam Overlay";
+"Camera Access Required" = "Camera Access Required";
+"macshot needs camera permission for the webcam overlay. Open System Settings to grant access." = "macshot needs camera permission for the webcam overlay. Open System Settings to grant access.";
 "Recording Settings" = "Recording Settings";
+"Webcam" = "Webcam";
+"Bottom Right" = "Bottom Right";
+"Bottom Left" = "Bottom Left";
+"Top Right" = "Top Right";
+"Top Left" = "Top Left";
+"Small" = "Small";
+"Large" = "Large";
+"Circle" = "Circle";
+"Rounded Rectangle" = "Rounded Rectangle";
+"Cam pos:" = "Cam pos:";
+"Cam size:" = "Cam size:";
+"Cam shape:" = "Cam shape:";
 
 /* Tool Options */
 "Size" = "Size";
@@ -192,6 +207,7 @@
 "Hide menu bar icon" = "Hide menu bar icon";
 "Hotkeys still work. To show the icon again, re-launch macshot." = "Hotkeys still work. To show the icon again, re-launch macshot.";
 "Check for updates automatically" = "Check for updates automatically";
+"Check for beta updates" = "Check for beta updates";
 "Thumbnail" = "Thumbnail";
 "  Dismiss after:" = "  Dismiss after:";
 "seconds before auto-dismiss (0 = never)" = "seconds before auto-dismiss (0 = never)";

@@ -192,6 +192,7 @@
 "Hide menu bar icon" = "D\U00F6lj menyradsikon";
 "Hotkeys still work. To show the icon again, re-launch macshot." = "Kortkommandon fungerar fortfarande. F\U00F6r att visa ikonen igen, starta om macshot.";
 "Check for updates automatically" = "S\U00F6k efter uppdateringar automatiskt";
+"Check for beta updates" = "S\U00F6k efter betauppdateringar";
 "Thumbnail" = "Miniatyrbild";
 "  Dismiss after:" = "  St\U00E4ng efter:";
 "seconds before auto-dismiss (0 = never)" = "sekunder f\U00F6re automatisk st\U00E4ngning (0 = aldrig)";
@@ -419,3 +420,20 @@
 
 /* Video Editor */
 "Copied to clipboard!" = "Kopierat till urklipp!";
+
+/* Webcam Overlay */
+"Webcam Overlay" = "Webbkamera\U00F6verlagring";
+"Camera Access Required" = "Kamera\U00E5tkomst kr\U00E4vs";
+"macshot needs camera permission for the webcam overlay. Open System Settings to grant access." = "macshot beh\U00F6ver kamerabeh\U00F6righet f\U00F6r webbkamera\U00F6verlagringen. \U00D6ppna Systeminst\U00E4llningar f\U00F6r att ge \U00E5tkomst.";
+"Webcam" = "Webbkamera";
+"Bottom Right" = "Nedre h\U00F6ger";
+"Bottom Left" = "Nedre v\U00E4nster";
+"Top Right" = "\U00D6vre h\U00F6ger";
+"Top Left" = "\U00D6vre v\U00E4nster";
+"Small" = "Liten";
+"Large" = "Stor";
+"Circle" = "Cirkel";
+"Rounded Rectangle" = "Rundad rektangel";
+"Cam pos:" = "Kam. pos.:";
+"Cam size:" = "Kam. storlek:";
+"Cam shape:" = "Kam. form:";

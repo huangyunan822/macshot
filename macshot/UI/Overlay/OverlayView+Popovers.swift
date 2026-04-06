@@ -355,6 +355,88 @@ extension OverlayView {
         addRow(label: L("When done:"), control: whenDonePopup)
         addRow(label: L("Delay:"), control: delayPopup)
 
+        // Webcam settings (only when webcam is enabled)
+        if UserDefaults.standard.bool(forKey: "recordWebcam") {
+            // Separator
+            let sep = NSBox()
+            sep.boxType = .separator
+            sep.frame = NSRect(x: 10, y: y + 2, width: 220, height: 1)
+            container.addSubview(sep)
+            y += 10
+
+            // Position
+            let posSeg = NSSegmentedControl(labels: ["↙", "↘", "↖", "↗"], trackingMode: .selectOne, target: nil, action: nil)
+            let currentPos = UserDefaults.standard.string(forKey: "webcamPosition") ?? "bottomRight"
+            switch currentPos {
+            case "bottomLeft": posSeg.selectedSegment = 0
+            case "bottomRight": posSeg.selectedSegment = 1
+            case "topLeft": posSeg.selectedSegment = 2
+            case "topRight": posSeg.selectedSegment = 3
+            default: posSeg.selectedSegment = 1
+            }
+
+            class PosHandler: NSObject {
+                weak var overlayView: OverlayView?
+                init(overlayView: OverlayView?) { self.overlayView = overlayView; super.init() }
+                @objc func changed(_ sender: NSSegmentedControl) {
+                    let values = ["bottomLeft", "bottomRight", "topLeft", "topRight"]
+                    UserDefaults.standard.set(values[sender.selectedSegment], forKey: "webcamPosition")
+                    overlayView?.updateWebcamSetupPreview()
+                }
+            }
+            let posHandler = PosHandler(overlayView: self)
+            posSeg.target = posHandler
+            posSeg.action = #selector(PosHandler.changed(_:))
+            objc_setAssociatedObject(posSeg, "handler", posHandler, .OBJC_ASSOCIATION_RETAIN)
+
+            // Size
+            let sizeSeg = NSSegmentedControl(labels: ["S", "M", "L"], trackingMode: .selectOne, target: nil, action: nil)
+            let currentSize = UserDefaults.standard.string(forKey: "webcamSize") ?? "medium"
+            switch currentSize {
+            case "small": sizeSeg.selectedSegment = 0
+            case "medium": sizeSeg.selectedSegment = 1
+            case "large": sizeSeg.selectedSegment = 2
+            default: sizeSeg.selectedSegment = 1
+            }
+
+            class SizeHandler: NSObject {
+                weak var overlayView: OverlayView?
+                init(overlayView: OverlayView?) { self.overlayView = overlayView; super.init() }
+                @objc func changed(_ sender: NSSegmentedControl) {
+                    let values = ["small", "medium", "large"]
+                    UserDefaults.standard.set(values[sender.selectedSegment], forKey: "webcamSize")
+                    overlayView?.updateWebcamSetupPreview()
+                }
+            }
+            let sizeHandler = SizeHandler(overlayView: self)
+            sizeSeg.target = sizeHandler
+            sizeSeg.action = #selector(SizeHandler.changed(_:))
+            objc_setAssociatedObject(sizeSeg, "handler", sizeHandler, .OBJC_ASSOCIATION_RETAIN)
+
+            // Shape
+            let shapeSeg = NSSegmentedControl(labels: ["●", "▢"], trackingMode: .selectOne, target: nil, action: nil)
+            let currentShape = UserDefaults.standard.string(forKey: "webcamShape") ?? "circle"
+            shapeSeg.selectedSegment = currentShape == "roundedRect" ? 1 : 0
+
+            class ShapeHandler: NSObject {
+                weak var overlayView: OverlayView?
+                init(overlayView: OverlayView?) { self.overlayView = overlayView; super.init() }
+                @objc func changed(_ sender: NSSegmentedControl) {
+                    let values = ["circle", "roundedRect"]
+                    UserDefaults.standard.set(values[sender.selectedSegment], forKey: "webcamShape")
+                    overlayView?.updateWebcamSetupPreview()
+                }
+            }
+            let shapeHandler = ShapeHandler(overlayView: self)
+            shapeSeg.target = shapeHandler
+            shapeSeg.action = #selector(ShapeHandler.changed(_:))
+            objc_setAssociatedObject(shapeSeg, "handler", shapeHandler, .OBJC_ASSOCIATION_RETAIN)
+
+            addRow(label: L("Cam pos:"), control: posSeg)
+            addRow(label: L("Cam size:"), control: sizeSeg)
+            addRow(label: L("Cam shape:"), control: shapeSeg)
+        }
+
         let size = NSSize(width: 240, height: y + 4)
         container.frame.size = size
 

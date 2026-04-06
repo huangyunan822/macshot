@@ -192,6 +192,7 @@
 "Hide menu bar icon" = "Сховати іконку в смузі меню";
 "Hotkeys still work. To show the icon again, re-launch macshot." = "Гарячі клавіші продовжують працювати. Щоб знову показати іконку, перезапустіть macshot.";
 "Check for updates automatically" = "Перевіряти оновлення автоматично";
+"Check for beta updates" = "Перевіряти бета-оновлення";
 "Thumbnail" = "Мініатюра";
 "  Dismiss after:" = "  Зникає через:";
 "seconds before auto-dismiss (0 = never)" = "секунд до автозникнення (0 = ніколи)";
@@ -419,3 +420,20 @@
 
 /* Video Editor */
 "Copied to clipboard!" = "Скопійовано до буфера обміну!";
+
+/* Webcam Overlay */
+"Webcam Overlay" = "Накладання вебкамери";
+"Camera Access Required" = "Потрібен доступ до камери";
+"macshot needs camera permission for the webcam overlay. Open System Settings to grant access." = "macshot потребує дозволу камери для накладання вебкамери. Відкрийте Системні параметри, щоб надати доступ.";
+"Webcam" = "Вебкамера";
+"Bottom Right" = "Внизу праворуч";
+"Bottom Left" = "Внизу ліворуч";
+"Top Right" = "Вгорі праворуч";
+"Top Left" = "Вгорі ліворуч";
+"Small" = "Малий";
+"Large" = "Великий";
+"Circle" = "Коло";
+"Rounded Rectangle" = "Заокруглений прямокутник";
+"Cam pos:" = "Поз. камери:";
+"Cam size:" = "Розмір камери:";
+"Cam shape:" = "Форма камери:";

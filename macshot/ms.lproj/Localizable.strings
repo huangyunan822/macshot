@@ -192,6 +192,7 @@
 "Hide menu bar icon" = "Sembunyikan ikon bar menu";
 "Hotkeys still work. To show the icon again, re-launch macshot." = "Kekunci panas masih berfungsi. Untuk menunjukkan ikon semula, lancar semula macshot.";
 "Check for updates automatically" = "Semak kemas kini secara automatik";
+"Check for beta updates" = "Semak kemas kini beta";
 "Thumbnail" = "Lakaran Kecil";
 "  Dismiss after:" = "  Ketepikan selepas:";
 "seconds before auto-dismiss (0 = never)" = "saat sebelum ketepikan auto (0 = tidak pernah)";
@@ -419,3 +420,20 @@
 
 /* Video Editor */
 "Copied to clipboard!" = "Disalin ke papan keratan!";
+
+/* Webcam Overlay */
+"Webcam Overlay" = "Tindanan Webcam";
+"Camera Access Required" = "Akses Kamera Diperlukan";
+"macshot needs camera permission for the webcam overlay. Open System Settings to grant access." = "macshot memerlukan kebenaran kamera untuk tindanan webcam. Buka Tetapan Sistem untuk memberikan akses.";
+"Webcam" = "Webcam";
+"Bottom Right" = "Kanan Bawah";
+"Bottom Left" = "Kiri Bawah";
+"Top Right" = "Kanan Atas";
+"Top Left" = "Kiri Atas";
+"Small" = "Kecil";
+"Large" = "Besar";
+"Circle" = "Bulatan";
+"Rounded Rectangle" = "Segi Empat Bulat";
+"Cam pos:" = "Pos. kam:";
+"Cam size:" = "Saiz kam:";
+"Cam shape:" = "Bentuk kam:";

@@ -192,6 +192,7 @@
 "Hide menu bar icon" = "Menü çubuğu simgesini gizle";
 "Hotkeys still work. To show the icon again, re-launch macshot." = "Kısayol tuşları çalışmaya devam eder. Simgeyi tekrar göstermek için macshot'u yeniden başlatın.";
 "Check for updates automatically" = "Güncellemeleri otomatik denetle";
+"Check for beta updates" = "Beta güncellemelerini denetle";
 "Thumbnail" = "Küçük Resim";
 "  Dismiss after:" = "  Kapatma süresi:";
 "seconds before auto-dismiss (0 = never)" = "saniye sonra otomatik kapat (0 = asla)";
@@ -419,3 +420,20 @@
 
 /* Video Editor */
 "Copied to clipboard!" = "Panoya kopyalandı!";
+
+/* Webcam Overlay */
+"Webcam Overlay" = "Web Kamerası Katmanı";
+"Camera Access Required" = "Kamera Erişimi Gerekli";
+"macshot needs camera permission for the webcam overlay. Open System Settings to grant access." = "macshot, web kamerası katmanı için kamera iznine ihtiyaç duyar. İzin vermek için Sistem Ayarları'nı açın.";
+"Webcam" = "Web Kamerası";
+"Bottom Right" = "Sağ Alt";
+"Bottom Left" = "Sol Alt";
+"Top Right" = "Sağ Üst";
+"Top Left" = "Sol Üst";
+"Small" = "Küçük";
+"Large" = "Büyük";
+"Circle" = "Daire";
+"Rounded Rectangle" = "Yuvarlatılmış Dikdörtgen";
+"Cam pos:" = "Kam. konum:";
+"Cam size:" = "Kam. boyut:";
+"Cam shape:" = "Kam. şekil:";

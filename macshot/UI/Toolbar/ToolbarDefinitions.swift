@@ -39,6 +39,7 @@ enum ToolbarButtonAction {
     case scrollCapture
     case addCapture  // editor only: capture a new region and append to the canvas
     case showKeystrokes
+    case webcam
     case recordSettings  // recording mode: open format/FPS/when-done popover
     case effects  // image effects (CIFilter adjustments + presets)
 }
@@ -284,6 +285,20 @@ class ToolbarLayout {
             micBtn.isSelected = micOn
             micBtn.hasContextMenu = true
             buttons.append(micBtn)
+
+            let webcamOn = UserDefaults.standard.bool(forKey: "recordWebcam")
+            let webcamSymbol: String = {
+                if #available(macOS 14.0, *) {
+                    return webcamOn ? "web.camera.fill" : "web.camera"
+                }
+                return webcamOn ? "camera.fill" : "camera"
+            }()
+            var webcamBtn = ToolbarButton(
+                action: .webcam, sfSymbol: webcamSymbol, label: nil,
+                tooltip: L("Webcam Overlay"))
+            webcamBtn.isSelected = webcamOn
+            webcamBtn.hasContextMenu = true
+            buttons.append(webcamBtn)
 
             // Recording settings gear
             buttons.append(

@@ -192,6 +192,7 @@
 "Hide menu bar icon" = "Piilota valikkopalkin kuvake";
 "Hotkeys still work. To show the icon again, re-launch macshot." = "Pikanappaimet toimivat edelleen. Nayta kuvake uudelleen kaynnistamalla macshot.";
 "Check for updates automatically" = "Tarkista paivitykset automaattisesti";
+"Check for beta updates" = "Tarkista beetapäivitykset";
 "Thumbnail" = "Pienoiskuva";
 "  Dismiss after:" = "  Hylkaa jalkeen:";
 "seconds before auto-dismiss (0 = never)" = "sekuntia ennen automaattista hylkaämista (0 = ei koskaan)";
@@ -419,3 +420,20 @@
 
 /* Video Editor */
 "Copied to clipboard!" = "Kopioitu leikepöydälle!";
+
+/* Webcam Overlay */
+"Webcam Overlay" = "Webkameran peittokuva";
+"Camera Access Required" = "Kameran kayttooikeus vaaditaan";
+"macshot needs camera permission for the webcam overlay. Open System Settings to grant access." = "macshot tarvitsee kameran kayttooikeuden webkameran peittokuvaa varten. Avaa jarjestelman asetukset myontaaksesi kayttooikeuden.";
+"Webcam" = "Webkamera";
+"Bottom Right" = "Oikea alakulma";
+"Bottom Left" = "Vasen alakulma";
+"Top Right" = "Oikea ylakulma";
+"Top Left" = "Vasen ylakulma";
+"Small" = "Pieni";
+"Large" = "Suuri";
+"Circle" = "Ympyra";
+"Rounded Rectangle" = "Pyoristetty suorakulmio";
+"Cam pos:" = "Kameran sijainti:";
+"Cam size:" = "Kameran koko:";
+"Cam shape:" = "Kameran muoto:";

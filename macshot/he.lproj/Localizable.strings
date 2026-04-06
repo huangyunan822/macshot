@@ -192,6 +192,7 @@
 "Hide menu bar icon" = "הסתר סמל שורת התפריטים";
 "Hotkeys still work. To show the icon again, re-launch macshot." = "מקשי קיצור עדיין פועלים. להצגת הסמל שוב, הפעל מחדש את macshot.";
 "Check for updates automatically" = "בדוק עדכונים באופן אוטומטי";
+"Check for beta updates" = "בדוק עדכוני בטא";
 "Thumbnail" = "תמונה ממוזערת";
 "  Dismiss after:" = "  סגור אחרי:";
 "seconds before auto-dismiss (0 = never)" = "שניות לסגירה אוטומטית (0 = אף פעם)";
@@ -419,3 +420,20 @@
 
 /* Video Editor */
 "Copied to clipboard!" = "הועתק ללוח!";
+
+/* Webcam Overlay */
+"Webcam Overlay" = "שכבת מצלמת רשת";
+"Camera Access Required" = "נדרשת גישה למצלמה";
+"macshot needs camera permission for the webcam overlay. Open System Settings to grant access." = "macshot זקוק להרשאת מצלמה עבור שכבת מצלמת הרשת. פתח את הגדרות המערכת לאישור גישה.";
+"Webcam" = "מצלמת רשת";
+"Bottom Right" = "למטה מימין";
+"Bottom Left" = "למטה משמאל";
+"Top Right" = "למעלה מימין";
+"Top Left" = "למעלה משמאל";
+"Small" = "קטן";
+"Large" = "גדול";
+"Circle" = "עיגול";
+"Rounded Rectangle" = "מלבן מעוגל";
+"Cam pos:" = "מיקום מצלמה:";
+"Cam size:" = "גודל מצלמה:";
+"Cam shape:" = "צורת מצלמה:";

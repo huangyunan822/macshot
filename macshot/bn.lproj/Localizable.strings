@@ -192,6 +192,7 @@
 "Hide menu bar icon" = "মেনু বার আইকন লুকান";
 "Hotkeys still work. To show the icon again, re-launch macshot." = "হটকি এখনও কাজ করে। আইকন আবার দেখাতে macshot পুনরায় চালু করুন।";
 "Check for updates automatically" = "স্বয়ংক্রিয়ভাবে আপডেট পরীক্ষা করুন";
+"Check for beta updates" = "বিটা আপডেট পরীক্ষা করুন";
 "Thumbnail" = "থাম্বনেইল";
 "  Dismiss after:" = "  এর পরে বাতিল করুন:";
 "seconds before auto-dismiss (0 = never)" = "স্বয়ংক্রিয় বাতিলের আগে সেকেন্ড (0 = কখনই না)";
@@ -419,3 +420,20 @@
 
 /* Video Editor */
 "Copied to clipboard!" = "ক্লিপবোর্ডে কপি হয়েছে!";
+
+/* Webcam Overlay */
+"Webcam Overlay" = "ওয়েবক্যাম ওভারলে";
+"Camera Access Required" = "ক্যামেরা অ্যাক্সেস প্রয়োজন";
+"macshot needs camera permission for the webcam overlay. Open System Settings to grant access." = "ওয়েবক্যাম ওভারলের জন্য macshot-এর ক্যামেরা অনুমতি প্রয়োজন। অ্যাক্সেস দিতে সিস্টেম সেটিংস খুলুন।";
+"Webcam" = "ওয়েবক্যাম";
+"Bottom Right" = "নিচে ডানে";
+"Bottom Left" = "নিচে বামে";
+"Top Right" = "উপরে ডানে";
+"Top Left" = "উপরে বামে";
+"Small" = "ছোট";
+"Large" = "বড়";
+"Circle" = "বৃত্ত";
+"Rounded Rectangle" = "গোলাকার আয়তক্ষেত্র";
+"Cam pos:" = "ক্যাম অবস্থান:";
+"Cam size:" = "ক্যাম আকার:";
+"Cam shape:" = "ক্যাম আকৃতি:";

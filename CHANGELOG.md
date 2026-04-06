@@ -1,5 +1,20 @@
 # Changelog
 
+## [3.8.0-beta.2] - 2026-04-06
+
+### Added
+- **Webcam overlay** — toggle in recording toolbar to show a live camera feed bubble during screen recordings. Supports circle and rounded rectangle shapes, four corner positions, three sizes (small/medium/large). Right-click the webcam button to select a camera device. Settings available in both the recording settings popover and Preferences Recording tab. Camera session is reused when starting recording to avoid startup flash.
+- **Webcam localization** — webcam overlay strings translated in all 40 languages.
+- **Beta updates localization** — "Check for beta updates" translated in all 40 languages.
+
+### Fixed
+- **Recording "Stop Sharing" button** — clicking macOS's "Stop Sharing" in the screen recording indicator now gracefully stops the recording instead of leaving a zombie state. Implemented `SCStreamDelegate.stream(_:didStopWithError:)`.
+- **Color wheel toolbar sync** — selecting a color via right-click color wheel now updates the toolbar color swatch immediately.
+- **Google Drive error messages** — folder search, folder creation, and file upload now surface Google's actual API error message and HTTP status code instead of generic "failed" strings.
+- **Recording permission dialog overlap** — when multiple permissions (mic + camera) need prompting on first use, dialogs now appear sequentially instead of overlapping behind the overlay.
+- **Mouse highlight performance** — replaced runaway draw loop (9% CPU in profiler) with a 30fps timer that auto-stops when idle. Reusable NSBezierPath eliminates per-frame allocations.
+- **Webcam preview follows selection move** — moving the recording area via the move tool now repositions the webcam preview to match.
+
 ## [3.8.0-beta.1] - 2026-04-06
 
 ### Added

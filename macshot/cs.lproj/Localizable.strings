@@ -192,6 +192,7 @@
 "Hide menu bar icon" = "Skrýt ikonu v liště";
 "Hotkeys still work. To show the icon again, re-launch macshot." = "Klávesové zkratky stále fungují. Pro opětovné zobrazení ikony znovu spusťte macshot.";
 "Check for updates automatically" = "Automaticky kontrolovat aktualizace";
+"Check for beta updates" = "Kontrolovat beta aktualizace";
 "Thumbnail" = "Náhled";
 "  Dismiss after:" = "  Zavřít po:";
 "seconds before auto-dismiss (0 = never)" = "sekund před automatickým zavřením (0 = nikdy)";
@@ -419,3 +420,20 @@
 
 /* Video Editor */
 "Copied to clipboard!" = "Zkopírováno do schránky!";
+
+/* Webcam Overlay */
+"Webcam Overlay" = "Překryv webkamery";
+"Camera Access Required" = "Vyžadován přístup ke kameře";
+"macshot needs camera permission for the webcam overlay. Open System Settings to grant access." = "macshot potřebuje oprávnění ke kameře pro překryv webkamery. Otevřete Nastavení systému pro udělení přístupu.";
+"Webcam" = "Webkamera";
+"Bottom Right" = "Vpravo dole";
+"Bottom Left" = "Vlevo dole";
+"Top Right" = "Vpravo nahoře";
+"Top Left" = "Vlevo nahoře";
+"Small" = "Malý";
+"Large" = "Velký";
+"Circle" = "Kruh";
+"Rounded Rectangle" = "Zaoblený obdélník";
+"Cam pos:" = "Poz. kam.:";
+"Cam size:" = "Vel. kam.:";
+"Cam shape:" = "Tvar kam.:";

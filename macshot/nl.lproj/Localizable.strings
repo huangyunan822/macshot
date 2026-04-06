@@ -192,6 +192,7 @@
 "Hide menu bar icon" = "Menubalkpictogram verbergen";
 "Hotkeys still work. To show the icon again, re-launch macshot." = "Sneltoetsen werken nog steeds. Start macshot opnieuw op om het pictogram weer te tonen.";
 "Check for updates automatically" = "Automatisch op updates controleren";
+"Check for beta updates" = "Controleren op bèta-updates";
 "Thumbnail" = "Miniatuur";
 "  Dismiss after:" = "  Verberg na:";
 "seconds before auto-dismiss (0 = never)" = "seconden voor automatisch verbergen (0 = nooit)";
@@ -419,3 +420,20 @@
 
 /* Video Editor */
 "Copied to clipboard!" = "Gekopieerd naar klembord!";
+
+/* Webcam Overlay */
+"Webcam Overlay" = "Webcamoverlay";
+"Camera Access Required" = "Cameratoegang vereist";
+"macshot needs camera permission for the webcam overlay. Open System Settings to grant access." = "macshot heeft cameratoegang nodig voor de webcamoverlay. Open Systeeminstellingen om toegang te verlenen.";
+"Webcam" = "Webcam";
+"Bottom Right" = "Rechtsonder";
+"Bottom Left" = "Linksonder";
+"Top Right" = "Rechtsboven";
+"Top Left" = "Linksboven";
+"Small" = "Klein";
+"Large" = "Groot";
+"Circle" = "Cirkel";
+"Rounded Rectangle" = "Afgeronde rechthoek";
+"Cam pos:" = "Cam pos.:";
+"Cam size:" = "Cam grootte:";
+"Cam shape:" = "Cam vorm:";

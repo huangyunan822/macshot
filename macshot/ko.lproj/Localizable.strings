@@ -192,6 +192,7 @@
 "Hide menu bar icon" = "메뉴 막대 아이콘 숨기기";
 "Hotkeys still work. To show the icon again, re-launch macshot." = "단축키는 계속 작동합니다. 아이콘을 다시 표시하려면 macshot을 재실행하세요.";
 "Check for updates automatically" = "자동으로 업데이트 확인";
+"Check for beta updates" = "베타 업데이트 확인";
 "Thumbnail" = "썸네일";
 "  Dismiss after:" = "  자동 닫기:";
 "seconds before auto-dismiss (0 = never)" = "초 후 자동 닫기 (0 = 사용 안 함)";
@@ -419,3 +420,20 @@
 
 /* Video Editor */
 "Copied to clipboard!" = "클립보드에 복사되었습니다!";
+
+/* Webcam Overlay */
+"Webcam Overlay" = "웹캠 오버레이";
+"Camera Access Required" = "카메라 접근 권한 필요";
+"macshot needs camera permission for the webcam overlay. Open System Settings to grant access." = "macshot이 웹캠 오버레이를 사용하려면 카메라 권한이 필요합니다. 시스템 설정을 열어 권한을 허용하세요.";
+"Webcam" = "웹캠";
+"Bottom Right" = "오른쪽 하단";
+"Bottom Left" = "왼쪽 하단";
+"Top Right" = "오른쪽 상단";
+"Top Left" = "왼쪽 상단";
+"Small" = "작게";
+"Large" = "크게";
+"Circle" = "원형";
+"Rounded Rectangle" = "둥근 사각형";
+"Cam pos:" = "캠 위치:";
+"Cam size:" = "캠 크기:";
+"Cam shape:" = "캠 모양:";

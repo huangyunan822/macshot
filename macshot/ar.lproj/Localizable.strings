@@ -192,6 +192,7 @@
 "Hide menu bar icon" = "إخفاء أيقونة شريط القوائم";
 "Hotkeys still work. To show the icon again, re-launch macshot." = "الاختصارات لا تزال تعمل. لإظهار الأيقونة مجددًا، أعد تشغيل macshot.";
 "Check for updates automatically" = "التحقق من التحديثات تلقائيًا";
+"Check for beta updates" = "التحقق من التحديثات التجريبية";
 "Thumbnail" = "صورة مصغرة";
 "  Dismiss after:" = "  إخفاء بعد:";
 "seconds before auto-dismiss (0 = never)" = "ثوانٍ قبل الإخفاء التلقائي (0 = أبدًا)";
@@ -419,3 +420,20 @@
 
 /* Video Editor */
 "Copied to clipboard!" = "تم النسخ إلى الحافظة!";
+
+/* Webcam Overlay */
+"Webcam Overlay" = "طبقة كاميرا الويب";
+"Camera Access Required" = "مطلوب إذن الكاميرا";
+"macshot needs camera permission for the webcam overlay. Open System Settings to grant access." = "يحتاج macshot إلى إذن الكاميرا لطبقة كاميرا الويب. افتح إعدادات النظام لمنح الإذن.";
+"Webcam" = "كاميرا الويب";
+"Bottom Right" = "أسفل اليمين";
+"Bottom Left" = "أسفل اليسار";
+"Top Right" = "أعلى اليمين";
+"Top Left" = "أعلى اليسار";
+"Small" = "صغير";
+"Large" = "كبير";
+"Circle" = "دائرة";
+"Rounded Rectangle" = "مستطيل مستدير";
+"Cam pos:" = "موضع الكام:";
+"Cam size:" = "حجم الكام:";
+"Cam shape:" = "شكل الكام:";

@@ -192,6 +192,7 @@
 "Hide menu bar icon" = "Ascunde pictograma din bara de meniu";
 "Hotkeys still work. To show the icon again, re-launch macshot." = "Scurtaturile functioneaza in continuare. Pentru a afisa din nou pictograma, reporneste macshot.";
 "Check for updates automatically" = "Verifica actualizarile automat";
+"Check for beta updates" = "Verifica actualizarile beta";
 "Thumbnail" = "Miniatura";
 "  Dismiss after:" = "  Inchide dupa:";
 "seconds before auto-dismiss (0 = never)" = "secunde inainte de inchidere automata (0 = niciodata)";
@@ -419,3 +420,20 @@
 
 /* Video Editor */
 "Copied to clipboard!" = "Copiat in clipboard!";
+
+/* Webcam Overlay */
+"Webcam Overlay" = "Suprapunere webcam";
+"Camera Access Required" = "Acces la camera necesar";
+"macshot needs camera permission for the webcam overlay. Open System Settings to grant access." = "macshot are nevoie de permisiunea camerei pentru suprapunerea webcam. Deschide Setarile sistemului pentru a acorda acces.";
+"Webcam" = "Webcam";
+"Bottom Right" = "Dreapta jos";
+"Bottom Left" = "Stanga jos";
+"Top Right" = "Dreapta sus";
+"Top Left" = "Stanga sus";
+"Small" = "Mic";
+"Large" = "Mare";
+"Circle" = "Cerc";
+"Rounded Rectangle" = "Dreptunghi rotunjit";
+"Cam pos:" = "Poz. cam.:";
+"Cam size:" = "Dim. cam.:";
+"Cam shape:" = "Forma cam.:";
