@@ -1,17 +1,5 @@
 import Cocoa
 
-/// Create a tinted bitmap copy of an SF Symbol image.
-private func tintedSymbolCopy(of image: NSImage, color: NSColor) -> NSImage {
-    let img = NSImage(size: image.size, flipped: false) { r in
-        image.draw(in: r)
-        color.setFill()
-        r.fill(using: .sourceAtop)
-        return true
-    }
-    img.lockFocus(); img.unlockFocus()
-    return img
-}
-
 /// Handles pencil (freeform draw) tool interaction.
 /// Accumulates points on drag, applies Chaikin smoothing on finish.
 final class PencilToolHandler: AnnotationToolHandler {
@@ -24,36 +12,7 @@ final class PencilToolHandler: AnnotationToolHandler {
     private var rawPointBuffer: [NSPoint] = []
     private let smoothWindowSize: Int = 8
 
-    var cursor: NSCursor? {
-        Self.penCursor
-    }
-
-    private static let penCursor: NSCursor = {
-        let size: CGFloat = 25
-        let config = NSImage.SymbolConfiguration(pointSize: size, weight: .medium)
-        guard let base = NSImage(systemSymbolName: "pencil", accessibilityDescription: nil)?
-                .withSymbolConfiguration(config) else {
-            return NSCursor.crosshair
-        }
-        let blackImg = tintedSymbolCopy(of: base, color: .black)
-        let whiteImg = tintedSymbolCopy(of: base, color: .white)
-
-        let pad: CGFloat = 2
-        let outSize = NSSize(width: base.size.width + pad * 2, height: base.size.height + pad * 2)
-        let result = NSImage(size: outSize, flipped: false) { _ in
-            let drawRect = NSRect(x: pad, y: pad, width: base.size.width, height: base.size.height)
-            for ox: CGFloat in [-1, 0, 1] {
-                for oy: CGFloat in [-1, 0, 1] {
-                    guard ox != 0 || oy != 0 else { continue }
-                    blackImg.draw(in: drawRect.offsetBy(dx: ox, dy: oy))
-                }
-            }
-            whiteImg.draw(in: drawRect)
-            return true
-        }
-        result.lockFocus(); result.unlockFocus()
-        return NSCursor(image: result, hotSpot: NSPoint(x: pad + 2, y: result.size.height - pad - 2))
-    }()
+    var cursor: NSCursor? { nil }  // dot preview replaces system cursor
 
     // MARK: - AnnotationToolHandler
 
@@ -139,6 +98,10 @@ final class PencilToolHandler: AnnotationToolHandler {
             annotation.points = Self.chaikinSmooth(points, iterations: 2)
         }
 
+        // Update drawing cursor position so dot doesn't jump back to pre-drag location
+        if let lastPt = annotation.points?.last {
+            canvas.drawingCursorPoint = lastPt
+        }
         commitAnnotation(annotation, canvas: canvas)
         freeformShiftDirection = 0
         rawPointBuffer.removeAll()

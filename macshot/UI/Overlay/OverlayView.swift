@@ -390,7 +390,7 @@ class OverlayView: NSView {
         return saved != nil ? CGFloat(saved!) : 120.0
     }()
     private var loupeCursorPoint: NSPoint = .zero
-    var markerCursorPoint: NSPoint = .zero
+    var drawingCursorPoint: NSPoint = .zero
     private var colorSamplerPoint: NSPoint = .zero  // canvas space, for color picker tool
     private var colorSamplerBitmap: NSBitmapImageRep?  // cached bitmap for fast pixel sampling
     // Auto-measure preview (live while holding 1 or 2 key)
@@ -456,7 +456,7 @@ class OverlayView: NSView {
                 commitTextFieldIfNeeded()
                 stampPreviewPoint = nil
                 loupeCursorPoint = .zero
-                markerCursorPoint = .zero
+                drawingCursorPoint = .zero
                 autoMeasurePreview = nil
                 hoveredAnnotation = nil
                 selectedAnnotation = nil
@@ -803,20 +803,22 @@ class OverlayView: NSView {
             }
         }
 
-        // Track cursor for marker size preview circle (canvas space so it scales with zoom)
+        // Track cursor for pencil/marker dot preview (canvas space so it scales with zoom)
         // Skip in smart marker mode — stroke size is auto-determined by text detection
-        if state == .selected && currentTool == .marker && !isRecording && !smartMarkerEnabled {
+        let showDrawingCursor = state == .selected && !isRecording
+            && ((currentTool == .pencil) || (currentTool == .marker && !smartMarkerEnabled))
+        if showDrawingCursor {
             let canvasPoint = viewToCanvas(point)
-            if canvasPoint != markerCursorPoint {
-                let oldPt = markerCursorPoint
-                markerCursorPoint = canvasPoint
-                let r = (currentMarkerSize * 6) / 2 + 4
+            if canvasPoint != drawingCursorPoint {
+                let oldPt = drawingCursorPoint
+                drawingCursorPoint = canvasPoint
+                let r = drawingCursorRadius + 4
                 invalidateCursorPreview(oldCanvas: oldPt, newCanvas: canvasPoint, radius: r)
             }
-        } else if markerCursorPoint != .zero {
-            let oldPt = markerCursorPoint
-            markerCursorPoint = .zero
-            invalidateCursorPreview(oldCanvas: oldPt, newCanvas: oldPt, radius: (currentMarkerSize * 6) / 2 + 4)
+        } else if drawingCursorPoint != .zero {
+            let oldPt = drawingCursorPoint
+            drawingCursorPoint = .zero
+            invalidateCursorPreview(oldCanvas: oldPt, newCanvas: oldPt, radius: drawingCursorRadius + 4)
         }
 
         // Track cursor for color sampler tool (canvas space)
@@ -838,6 +840,12 @@ class OverlayView: NSView {
     }
 
     // Custom cursors
+    /// Transparent 1x1 cursor used to hide the system cursor while the drawing dot preview is shown.
+    private static let invisibleCursor: NSCursor = {
+        let img = NSImage(size: NSSize(width: 1, height: 1))
+        return NSCursor(image: img, hotSpot: .zero)
+    }()
+
     /// Render an SF Symbol as a cursor image: white icon with dark shadow for visibility on any background.
     private static func cursorFromSymbol(
         _ name: String, pointSize: CGFloat, hotSpot: NSPoint, canvasSize: CGFloat = 22
@@ -1038,7 +1046,11 @@ class OverlayView: NSView {
         }
 
         // Tool cursor — use handler's state-aware cursor if available, else legacy switch
-        if let handler = toolHandlers[currentTool], let cursor = handler.cursorForCanvas(self) {
+        // Pencil/marker: hide system cursor when dot preview is active (the dot IS the cursor)
+        if (currentTool == .pencil || (currentTool == .marker && !smartMarkerEnabled))
+            && state == .selected && drawingCursorPoint != .zero {
+            Self.invisibleCursor.set()
+        } else if let handler = toolHandlers[currentTool], let cursor = handler.cursorForCanvas(self) {
             cursor.set()
         } else {
             switch currentTool {
@@ -1368,9 +1380,9 @@ class OverlayView: NSView {
                 drawAnnotationControls(for: selected)
             }
 
-            // Marker cursor preview inside zoom transform so it scales with zoom
-            if currentTool == .marker && markerCursorPoint != .zero && currentAnnotation == nil {
-                drawMarkerCursorPreview(at: markerCursorPoint)
+            // Pencil/marker cursor dot preview inside zoom transform so it scales with zoom
+            if (currentTool == .pencil || currentTool == .marker) && drawingCursorPoint != .zero && currentAnnotation == nil {
+                drawDrawingCursorPreview(at: drawingCursorPoint)
             }
 
             // Snap alignment guides
@@ -1431,12 +1443,12 @@ class OverlayView: NSView {
                     context.restoreGraphicsState()
                 }
 
-                // Re-draw marker cursor preview on top of beautify
-                if currentTool == .marker && markerCursorPoint != .zero && currentAnnotation == nil
+                // Re-draw drawing cursor dot preview on top of beautify
+                if (currentTool == .pencil || currentTool == .marker) && drawingCursorPoint != .zero && currentAnnotation == nil
                 {
                     context.saveGraphicsState()
                     applyCanvasTransform(to: context)
-                    drawMarkerCursorPreview(at: markerCursorPoint)
+                    drawDrawingCursorPreview(at: drawingCursorPoint)
                     context.restoreGraphicsState()
                 }
 
@@ -1485,10 +1497,10 @@ class OverlayView: NSView {
                     drawColorSamplerPreview(at: colorSamplerPoint)
                     context.restoreGraphicsState()
                 }
-                if currentTool == .marker && markerCursorPoint != .zero && currentAnnotation == nil {
+                if (currentTool == .pencil || currentTool == .marker) && drawingCursorPoint != .zero && currentAnnotation == nil {
                     context.saveGraphicsState()
                     applyCanvasTransform(to: context)
-                    drawMarkerCursorPreview(at: markerCursorPoint)
+                    drawDrawingCursorPreview(at: drawingCursorPoint)
                     context.restoreGraphicsState()
                 }
                 if snapGuideX != nil || snapGuideY != nil {
@@ -3027,18 +3039,44 @@ class OverlayView: NSView {
         ).fill()
     }
 
-    private func drawMarkerCursorPreview(at center: NSPoint) {
-        let radius = (currentMarkerSize * 6) / 2
+    /// Radius of the drawing cursor dot for the current tool.
+    private var drawingCursorRadius: CGFloat {
+        if currentTool == .marker {
+            return (currentMarkerSize * 6) / 2
+        } else {
+            // Pencil — stroke width is the line width; show a dot at that size
+            // with a minimum radius so it's always visible
+            return max(currentStrokeWidth / 2, 2)
+        }
+    }
+
+    private func drawDrawingCursorPreview(at center: NSPoint) {
+        let radius = drawingCursorRadius
         let circleRect = NSRect(
             x: center.x - radius, y: center.y - radius, width: radius * 2, height: radius * 2)
         let path = NSBezierPath(ovalIn: circleRect)
-        // Fill with marker color at marker opacity
-        currentColor.withAlphaComponent(0.35).setFill()
-        path.fill()
-        // Thin border so the circle is visible on any background
-        currentColor.withAlphaComponent(0.7).setStroke()
-        path.lineWidth = 1.0
-        path.stroke()
+
+        if currentTool == .marker {
+            // Semi-transparent fill for marker (highlighter preview)
+            currentColor.withAlphaComponent(0.35).setFill()
+            path.fill()
+            currentColor.withAlphaComponent(0.7).setStroke()
+            path.lineWidth = 1.0
+            path.stroke()
+        } else {
+            // Solid fill for pencil (matches what a click produces)
+            annotationColor.setFill()
+            path.fill()
+            // Contrasting border so dot is visible on any background
+            let border = NSBezierPath(ovalIn: circleRect.insetBy(dx: -0.5, dy: -0.5))
+            border.lineWidth = 1.0
+            NSColor.white.withAlphaComponent(0.6).setStroke()
+            border.stroke()
+            let inner = NSBezierPath(ovalIn: circleRect.insetBy(dx: 0.5, dy: 0.5))
+            inner.lineWidth = 0.5
+            NSColor.black.withAlphaComponent(0.3).setStroke()
+            inner.stroke()
+        }
     }
 
     // MARK: - Loupe Preview

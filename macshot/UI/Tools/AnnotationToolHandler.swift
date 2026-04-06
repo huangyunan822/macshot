@@ -57,8 +57,8 @@ protocol AnnotationCanvas: AnyObject {
     var snapGuideY: CGFloat? { get set }
     func snapPoint(_ point: NSPoint, excluding: Annotation?) -> NSPoint
 
-    /// Marker cursor preview position (canvas space). Set after marker finish so preview doesn't jump.
-    var markerCursorPoint: NSPoint { get set }
+    /// Drawing cursor preview position (canvas space). Set after pencil/marker finish so preview doesn't jump.
+    var drawingCursorPoint: NSPoint { get set }
 }
 
 /// Protocol for extracted annotation tool logic.
