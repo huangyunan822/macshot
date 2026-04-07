@@ -75,19 +75,20 @@ class ColorWheelRenderer {
             border.lineWidth = isHovered ? 2.5 : 1.0
             border.stroke()
 
-            // Check mark for current color
+            // Check mark for current color (centered on swatch)
             if color == currentColor && !isHovered {
-                let checkSize: CGFloat = 8
+                let s: CGFloat = 8
                 let checkPath = NSBezierPath()
                 checkPath.lineWidth = 2
                 checkPath.lineCapStyle = .round
                 checkPath.lineJoinStyle = .round
-                let cx = sx - checkSize / 3
-                let cy = sy
-                checkPath.move(to: NSPoint(x: cx - checkSize / 3, y: cy))
-                checkPath.line(to: NSPoint(x: cx, y: cy - checkSize / 3))
-                checkPath.line(to: NSPoint(x: cx + checkSize / 2, y: cy + checkSize / 3))
-                NSColor.white.setStroke()
+                checkPath.move(to: NSPoint(x: sx - s * 0.35, y: sy + s * 0.05))
+                checkPath.line(to: NSPoint(x: sx - s * 0.05, y: sy - s * 0.3))
+                checkPath.line(to: NSPoint(x: sx + s * 0.4, y: sy + s * 0.3))
+                // Use dark checkmark on light colors, white on dark
+                let c = color.usingColorSpace(.sRGB) ?? color
+                let brightness = c.redComponent * 0.299 + c.greenComponent * 0.587 + c.blueComponent * 0.114
+                (brightness > 0.6 ? NSColor.black : NSColor.white).setStroke()
                 checkPath.stroke()
             }
         }
