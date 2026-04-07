@@ -13,10 +13,10 @@
             <enclosure url="https://github.com/sw33tLie/macshot/releases/download/v3.7.0/MacShot.dmg" length="5358295" type="application/octet-stream" sparkle:edSignature="/X2jDgHWwMIWeiPylwxluhu/ccaLceyaBqz4I+8L5utyGt2kNfhxNtn9AGZwVxhmQ5AoY/2IEKzGpzfbRttlAw==" />
         </item>
 <item>
-    <title>v4.0.0-beta.01</title>
-    <pubDate>Tue, 07 Apr 2026 02:19:20 +0000</pubDate>
-    <sparkle:version>12</sparkle:version>
-    <sparkle:shortVersionString>4.0.0-beta.01</sparkle:shortVersionString>
+    <title>v4.0.0-beta.02</title>
+    <pubDate>Tue, 07 Apr 2026 16:21:55 +0000</pubDate>
+    <sparkle:version>13</sparkle:version>
+    <sparkle:shortVersionString>4.0.0-beta.02</sparkle:shortVersionString>
     <sparkle:minimumSystemVersion>12.3</sparkle:minimumSystemVersion>
     <sparkle:channel>beta</sparkle:channel>
     <description><![CDATA[
@@ -27,13 +27,13 @@
         ul { padding-left: 18px; margin: 4px 0; }
         li { margin: 4px 0; line-height: 1.5; }
       </style>
-      <h3>Added</h3><ul> <li><b>Hide recording controls</b> — new option in Preferences > Recording and the gear menu to hide the floating HUD and selection border during recording. Stop via menu bar icon.</li>  </ul><h3>Changed</h3><ul> <li><b>Shortcut preferences UI</b> — unified all buttons to "Set", added reset-to-default (↺) button on every shortcut row for both global hotkeys and overlay/editor tool shortcuts.</li>  </ul><h3>Fixed</h3><ul> <li><b>Shortcut "Set" button stuck on "Press..."</b> — button title now resets after recording completes or is cancelled.</li> <li><b>Toolbar text labels off-center</b> — font name, "Fill", and "Outline" labels in the options row were 1-2px low due to AppKit's recessed button padding. Fixed with baseline offset.</li></ul>
+      <h3>Added</h3><ul> <li><b>Lasso marquee selection</b> — hold Shift and drag on empty space from any tool to draw a selection rectangle. All annotations intersecting the marquee are selected on release. Blue dashed border with translucent fill while dragging.</li> <li><b>"Open from Clipboard" hotkey</b> — new configurable global hotkey in Preferences > Shortcuts (default: None). Opens the clipboard image in the editor from anywhere.</li>  </ul><h3>Changed</h3><ul> <li><b>Select tool removed from shortcuts</b> — annotation selection is now handled entirely via click-to-select, Shift+click multi-select, and Shift+drag lasso from any tool. No dedicated tool needed.</li>  </ul><h3>Fixed</h3><ul> <li><b>Blurry screenshots on mixed-DPI setups</b> — replaced `tiffRepresentation` with direct CGImage extraction in the image encoder. Preserves exact pixel data regardless of which display the app runs on. Fixes quality loss when Retina and non-Retina monitors are mixed.</li> <li><b>Purple selection border in recordings</b> — the selection border overlay now draws entirely outside the capture rect, and macshot's UI chrome windows (border + HUD) are excluded from SCStream capture.</li></ul>
     ]]></description>
     <enclosure
-        url="https://github.com/sw33tLie/macshot/releases/download/v4.0.0-beta.01/MacShot.dmg"
-        length="5800556"
+        url="https://github.com/sw33tLie/macshot/releases/download/v4.0.0-beta.02/MacShot.dmg"
+        length="5793107"
         type="application/octet-stream"
-        sparkle:edSignature="uoFa/QqEQOqIqOz+J4OwnIXcpybiKpLLoj5yPDJ7lIssZW6tYyzM+jtf3Okhxesm38wshxSxRwmRkHsgpldUBQ=="
+        sparkle:edSignature="5JBxba7+ymcA/s/I3A7jPEwfp1cZvw7ST+ZnCzmvi6QTmM5Z+fu2muNQ/MDEugNKikeYIrjxhgIRO95w5o85Ag=="
     />
 </item>
     </channel>
