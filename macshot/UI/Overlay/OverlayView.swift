@@ -6480,46 +6480,14 @@ class OverlayView: NSView {
             if state == .selected && textEditView == nil && !event.modifierFlags.contains(.command)
                 && !event.modifierFlags.contains(.option) && !event.modifierFlags.contains(.control)
             {
-                if let char = event.charactersIgnoringModifiers?.lowercased() {
-                    switch char {
-                    case "p":
-                        handleToolbarAction(.tool(.pencil))
-                        return
-                    case "a":
-                        handleToolbarAction(.tool(.arrow))
-                        return
-                    case "l":
-                        handleToolbarAction(.tool(.line))
-                        return
-                    case "r":
-                        handleToolbarAction(.tool(.rectangle))
-                        return
-                    case "t":
-                        handleToolbarAction(.tool(.text))
-                        return
-                    case "m":
-                        handleToolbarAction(.tool(.marker))
-                        return
-                    case "n":
-                        handleToolbarAction(.tool(.number))
-                        return
-                    case "b", "x":
-                        handleToolbarAction(.tool(.pixelate))
-                        return
-                    case "i":
-                        handleToolbarAction(.tool(.colorSampler))
-                        return
-                    case "s":
-                        handleToolbarAction(.tool(.select))
-                        return
-                    case "g":
-                        handleToolbarAction(.tool(.stamp))
-                        return
-                    case "e":
+                if let char = event.charactersIgnoringModifiers?.lowercased(),
+                   let action = ToolShortcutManager.lookupAction(for: char) {
+                    if case .detach = action {
                         if shouldAllowDetach() { handleToolbarAction(.detach) }
-                        return
-                    default: break
+                    } else {
+                        handleToolbarAction(action)
                     }
+                    return
                 }
             }
             if event.modifierFlags.contains(.command) {

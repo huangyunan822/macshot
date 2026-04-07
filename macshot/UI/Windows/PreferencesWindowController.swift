@@ -18,6 +18,8 @@ class PreferencesWindowController: NSWindowController, NSTabViewDelegate, NSWind
     private var hotkeyFields: [HotkeyManager.HotkeySlot: NSTextField] = [:]
     private var hotkeyButtons: [HotkeyManager.HotkeySlot: NSButton] = [:]
     private var recordingSlot: HotkeyManager.HotkeySlot?
+    private var toolShortcutFields: [ToolShortcutManager.Action: NSTextField] = [:]
+    private var recordingToolAction: ToolShortcutManager.Action?
     private var savePathField: NSTextField!
     private var ocrActionPopup: NSPopUpButton!
     private var copySoundCheckbox: NSButton!
@@ -584,6 +586,45 @@ class PreferencesWindowController: NSWindowController, NSTabViewDelegate, NSWind
         note.textColor = .secondaryLabelColor
         stack.addArrangedSubview(indented(note))
 
+        // ── Overlay / Editor Tool Shortcuts ──────────────────
+        stack.setCustomSpacing(20, after: stack.arrangedSubviews.last!)
+        stack.addArrangedSubview(sectionHeader(L("Overlay / Editor Shortcuts")))
+        stack.setCustomSpacing(10, after: stack.arrangedSubviews.last!)
+
+        for action in ToolShortcutManager.Action.allCases {
+            let field = NSTextField()
+            field.isEditable = false
+            field.isSelectable = false
+            field.alignment = .center
+            field.setContentHuggingPriority(.defaultHigh, for: .horizontal)
+            field.widthAnchor.constraint(greaterThanOrEqualToConstant: 50).isActive = true
+            field.stringValue = ToolShortcutManager.displayString(for: action)
+
+            let btn = NSButton(title: L("Set"), target: self, action: #selector(recordToolShortcut(_:)))
+            btn.bezelStyle = .rounded
+            btn.tag = ToolShortcutManager.Action.allCases.firstIndex(of: action)!
+
+            let clearBtn = NSButton(title: "", target: self, action: #selector(clearToolShortcut(_:)))
+            clearBtn.bezelStyle = .inline
+            clearBtn.isBordered = false
+            clearBtn.image = NSImage(systemSymbolName: "xmark.circle.fill", accessibilityDescription: L("None"))
+            clearBtn.contentTintColor = .secondaryLabelColor
+            clearBtn.imagePosition = .imageOnly
+            clearBtn.tag = ToolShortcutManager.Action.allCases.firstIndex(of: action)!
+            clearBtn.toolTip = L("None")
+            clearBtn.widthAnchor.constraint(equalToConstant: 20).isActive = true
+
+            toolShortcutFields[action] = field
+
+            stack.addArrangedSubview(labeledRow("\(action.label):", controls: [field, btn, clearBtn]))
+            stack.setCustomSpacing(8, after: stack.arrangedSubviews.last!)
+        }
+
+        let toolNote = NSTextField(wrappingLabelWithString: L("Press a single key to assign it as the shortcut for that tool. These work when the overlay or editor is active."))
+        toolNote.font = NSFont.systemFont(ofSize: 10)
+        toolNote.textColor = .secondaryLabelColor
+        stack.addArrangedSubview(indented(toolNote))
+
         // Spacer to push content to top
         let spacer = NSView()
         spacer.translatesAutoresizingMaskIntoConstraints = false
@@ -611,8 +652,9 @@ class PreferencesWindowController: NSWindowController, NSTabViewDelegate, NSWind
             stopShortcutRecording()
             return
         }
-        // Stop any previous recording
+        // Stop any previous recording (global or tool)
         stopShortcutRecording()
+        stopToolShortcutRecording()
 
         recordingSlot = slot
         sender.title = L("Press keys...")
@@ -650,6 +692,63 @@ class PreferencesWindowController: NSWindowController, NSTabViewDelegate, NSWind
             hotkeyFields[slot]?.stringValue = HotkeyManager.displayString(for: slot)
         }
         recordingSlot = nil
+        if let m = localMonitor { NSEvent.removeMonitor(m); localMonitor = nil }
+    }
+
+    // MARK: - Overlay Tool Shortcuts
+
+    @objc private func recordToolShortcut(_ sender: NSButton) {
+        let allActions = ToolShortcutManager.Action.allCases
+        guard sender.tag >= 0, sender.tag < allActions.count else { return }
+        let action = allActions[sender.tag]
+
+        // If already recording this action, stop
+        if recordingToolAction == action {
+            stopToolShortcutRecording()
+            return
+        }
+        // Stop any other recording (global or tool)
+        stopShortcutRecording()
+        stopToolShortcutRecording()
+
+        recordingToolAction = action
+        sender.title = L("Press...")
+        toolShortcutFields[action]?.stringValue = "…"
+
+        localMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
+            guard let self = self else { return event }
+            // Only accept single keys without modifiers (or allow Escape to cancel)
+            if event.keyCode == 53 { // Escape — cancel
+                self.stopToolShortcutRecording()
+                return nil
+            }
+            guard !event.modifierFlags.contains(.command),
+                  !event.modifierFlags.contains(.option),
+                  !event.modifierFlags.contains(.control),
+                  let char = event.charactersIgnoringModifiers?.lowercased(),
+                  char.count == 1 else { return nil }
+
+            ToolShortcutManager.setKey(char, for: action)
+            self.toolShortcutFields[action]?.stringValue = ToolShortcutManager.displayString(for: action)
+            self.stopToolShortcutRecording()
+            return nil
+        }
+    }
+
+    @objc private func clearToolShortcut(_ sender: NSButton) {
+        let allActions = ToolShortcutManager.Action.allCases
+        guard sender.tag >= 0, sender.tag < allActions.count else { return }
+        let action = allActions[sender.tag]
+        stopToolShortcutRecording()
+        ToolShortcutManager.setKey("", for: action)
+        toolShortcutFields[action]?.stringValue = L("None")
+    }
+
+    private func stopToolShortcutRecording() {
+        if let action = recordingToolAction {
+            toolShortcutFields[action]?.stringValue = ToolShortcutManager.displayString(for: action)
+        }
+        recordingToolAction = nil
         if let m = localMonitor { NSEvent.removeMonitor(m); localMonitor = nil }
     }
 

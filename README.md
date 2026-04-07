@@ -156,7 +156,7 @@ brew install sw33tlie/macshot/macshot
 | `Space` (while drawing) | Reposition shape without changing size |
 | `Right-click` on line/arrow | Add anchor point for multi-point curves |
 
-**Tool shortcuts** (active after selecting a region)
+**Tool shortcuts** (active after selecting a region — customizable in Preferences > Shortcuts)
 
 | Key | Tool |
 |---|---|
@@ -165,11 +165,11 @@ brew install sw33tlie/macshot/macshot
 | `P` | Pencil |
 | `M` | Marker |
 | `R` | Rectangle |
+| `O` | Ellipse |
 | `T` | Text |
 | `N` | Number |
-| `B` | Blur |
-| `X` | Pixelate |
-| `I` | Color sampler |
+| `B` | Censor (Pixelate/Blur) |
+| `I` | Color Sampler |
 | `G` | Stamp / Emoji |
 | `S` | Select & Edit |
 | `E` | Open in Editor |
