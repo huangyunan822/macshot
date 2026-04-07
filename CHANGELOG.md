@@ -1,5 +1,11 @@
 # Changelog
 
+## [3.8.0-beta.10] - 2026-04-07
+
+### Fixed
+- **"Also open in Editor" now shows Done button** — editor opened via quick capture receives the history entry ID, so the Done button appears and edits commit back to history.
+- **Enter in editor adds to history** — pressing Enter in an editor that wasn't opened from history (e.g. "Open in Editor", "Open Image...") now creates a history entry and shows the Done button for future edits.
+
 ## [3.8.0-beta.9] - 2026-04-07
 
 ### Added
