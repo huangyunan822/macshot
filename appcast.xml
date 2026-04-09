@@ -24,10 +24,10 @@
     <enclosure url="https://github.com/sw33tLie/macshot/releases/download/v4.0.1/MacShot.dmg" length="5898809" type="application/octet-stream" sparkle:edSignature="PhTJ2x9txgjjNXgZ+YWVu/ozlN6O58mBkrsLRvQCyYKw6wY7PY25MfNc15mwbWVx8DkxlYPaetuU8Hi/sRSICQ==" />
 </item>
 <item>
-    <title>v4.0.2-beta.1</title>
-    <pubDate>Thu, 09 Apr 2026 14:20:49 +0000</pubDate>
-    <sparkle:version>25</sparkle:version>
-    <sparkle:shortVersionString>4.0.2-beta.1</sparkle:shortVersionString>
+    <title>v4.0.2-beta.2</title>
+    <pubDate>Thu, 09 Apr 2026 17:02:34 +0000</pubDate>
+    <sparkle:version>26</sparkle:version>
+    <sparkle:shortVersionString>4.0.2-beta.2</sparkle:shortVersionString>
     <sparkle:minimumSystemVersion>12.3</sparkle:minimumSystemVersion>
     <sparkle:channel>beta</sparkle:channel>
     <description><![CDATA[
@@ -38,13 +38,13 @@
         ul { padding-left: 18px; margin: 4px 0; }
         li { margin: 4px 0; line-height: 1.5; }
       </style>
-      <h3>Fixed</h3><ul> <li><b>Crash on macOS 26 (Tahoe) when using beautify</b> — `BeautifyRenderer` was marked `@MainActor` which caused all rendering code inside `NSImage` drawing handler closures to violate actor isolation under macOS 26's stricter concurrency enforcement. Removed class-level `@MainActor`, now only applied to the SwiftUI `ImageRenderer` methods that actually require it.</li></ul>
+      <h3>Fixed</h3><ul> <li><b>Crash on macOS 26 (Tahoe) when using beautify</b> — `BeautifyRenderer` was marked `@MainActor` which caused all rendering code inside `NSImage` drawing handler closures to violate actor isolation under macOS 26's stricter concurrency enforcement. Removed class-level `@MainActor`, now only applied to the SwiftUI `ImageRenderer` methods that actually require it.</li> <li><b>Crash with negative style index</b> — `BeautifyConfig.style` used Swift's sign-preserving `%` operator, causing array out-of-bounds when `styleIndex` was `-1` (custom background image). Fixed modulo to always produce a valid index.</li></ul>
     ]]></description>
     <enclosure
-        url="https://github.com/sw33tLie/macshot/releases/download/v4.0.2-beta.1/MacShot.dmg"
-        length="5908410"
+        url="https://github.com/sw33tLie/macshot/releases/download/v4.0.2-beta.2/MacShot.dmg"
+        length="5897928"
         type="application/octet-stream"
-        sparkle:edSignature="UFJQaHcOoiE/w1j8SddlOe3RfqWvviNNPyxIsEdbqjOJfj10GetE3jAOLBUUdORljnaVDwWYdrmHt1dEihr8AQ=="
+        sparkle:edSignature="6WGwvwUGG7i5G/OYIaMqUHYt9APMEidd5joWB/sQyhhln2tCWWIlkpQV+iazM2lC0AOlR/0NPiUGidpPw2c3AA=="
     />
 </item>
     </channel>
