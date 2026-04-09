@@ -4,13 +4,32 @@
         <title>macshot</title>
         <link>https://github.com/sw33tLie/macshot</link>
         <description>macshot updates</description>
-<item>
+<item xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle">
     <title>v4.0.1</title>
     <pubDate>Thu, 09 Apr 2026 13:49:06 +0000</pubDate>
     <sparkle:version>23</sparkle:version>
     <sparkle:shortVersionString>4.0.1</sparkle:shortVersionString>
     <sparkle:minimumSystemVersion>12.3</sparkle:minimumSystemVersion>
 
+    <description>
+      &lt;style&gt;
+        body { font-family: -apple-system, sans-serif; font-size: 13px; padding: 12px; }
+        h3 { font-size: 14px; margin: 12px 0 6px 0; }
+        h3:first-child { margin-top: 0; }
+        ul { padding-left: 18px; margin: 4px 0; }
+        li { margin: 4px 0; line-height: 1.5; }
+      &lt;/style&gt;
+      &lt;h3&gt;Fixed&lt;/h3&gt;&lt;ul&gt; &lt;li&gt;&lt;b&gt;Crash on macOS 26 (Tahoe) when using beautify with mesh gradient styles&lt;/b&gt; — SwiftUI `ImageRenderer` was called from inside an `NSImage` drawing handler closure, violating `@MainActor` isolation under macOS 26's stricter concurrency enforcement. Mesh gradients are now pre-rendered before entering the drawing handler.&lt;/li&gt; &lt;li&gt;&lt;b&gt;Menu bar icon not centered&lt;/b&gt; — SVG viewBox was non-square (658×570) with misaligned origin, causing the icon to render off-center. Fixed to a properly centered square viewBox. Added `preserves-vector-representation` for crisp rendering.&lt;/li&gt;&lt;/ul&gt;
+    </description>
+    <enclosure url="https://github.com/sw33tLie/macshot/releases/download/v4.0.1/MacShot.dmg" length="5898809" type="application/octet-stream" sparkle:edSignature="PhTJ2x9txgjjNXgZ+YWVu/ozlN6O58mBkrsLRvQCyYKw6wY7PY25MfNc15mwbWVx8DkxlYPaetuU8Hi/sRSICQ==" />
+</item>
+<item>
+    <title>v4.0.2-beta.1</title>
+    <pubDate>Thu, 09 Apr 2026 14:20:49 +0000</pubDate>
+    <sparkle:version>25</sparkle:version>
+    <sparkle:shortVersionString>4.0.2-beta.1</sparkle:shortVersionString>
+    <sparkle:minimumSystemVersion>12.3</sparkle:minimumSystemVersion>
+    <sparkle:channel>beta</sparkle:channel>
     <description><![CDATA[
       <style>
         body { font-family: -apple-system, sans-serif; font-size: 13px; padding: 12px; }
@@ -19,13 +38,13 @@
         ul { padding-left: 18px; margin: 4px 0; }
         li { margin: 4px 0; line-height: 1.5; }
       </style>
-      <h3>Fixed</h3><ul> <li><b>Crash on macOS 26 (Tahoe) when using beautify with mesh gradient styles</b> — SwiftUI `ImageRenderer` was called from inside an `NSImage` drawing handler closure, violating `@MainActor` isolation under macOS 26's stricter concurrency enforcement. Mesh gradients are now pre-rendered before entering the drawing handler.</li> <li><b>Menu bar icon not centered</b> — SVG viewBox was non-square (658×570) with misaligned origin, causing the icon to render off-center. Fixed to a properly centered square viewBox. Added `preserves-vector-representation` for crisp rendering.</li></ul>
+      <h3>Fixed</h3><ul> <li><b>Crash on macOS 26 (Tahoe) when using beautify</b> — `BeautifyRenderer` was marked `@MainActor` which caused all rendering code inside `NSImage` drawing handler closures to violate actor isolation under macOS 26's stricter concurrency enforcement. Removed class-level `@MainActor`, now only applied to the SwiftUI `ImageRenderer` methods that actually require it.</li></ul>
     ]]></description>
     <enclosure
-        url="https://github.com/sw33tLie/macshot/releases/download/v4.0.1/MacShot.dmg"
-        length="5898809"
+        url="https://github.com/sw33tLie/macshot/releases/download/v4.0.2-beta.1/MacShot.dmg"
+        length="5908410"
         type="application/octet-stream"
-        sparkle:edSignature="PhTJ2x9txgjjNXgZ+YWVu/ozlN6O58mBkrsLRvQCyYKw6wY7PY25MfNc15mwbWVx8DkxlYPaetuU8Hi/sRSICQ=="
+        sparkle:edSignature="UFJQaHcOoiE/w1j8SddlOe3RfqWvviNNPyxIsEdbqjOJfj10GetE3jAOLBUUdORljnaVDwWYdrmHt1dEihr8AQ=="
     />
 </item>
     </channel>
