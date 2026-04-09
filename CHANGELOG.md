@@ -1,5 +1,11 @@
 # Changelog
 
+## [4.0.1] - 2026-04-09
+
+### Fixed
+- **Crash on macOS 26 (Tahoe) when using beautify with mesh gradient styles** — SwiftUI `ImageRenderer` was called from inside an `NSImage` drawing handler closure, violating `@MainActor` isolation under macOS 26's stricter concurrency enforcement. Mesh gradients are now pre-rendered before entering the drawing handler.
+- **Menu bar icon not centered** — SVG viewBox was non-square (658×570) with misaligned origin, causing the icon to render off-center. Fixed to a properly centered square viewBox. Added `preserves-vector-representation` for crisp rendering.
+
 ## [4.0.0] - 2026-04-09
 
 ### Added

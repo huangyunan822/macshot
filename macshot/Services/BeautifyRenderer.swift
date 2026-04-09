@@ -483,8 +483,20 @@ struct BeautifyConfig {
         }
     }
 
-    /// Draw just the background gradient (or custom image) into a rect (for live overlay preview)
-    static func drawGradientBackground(in rect: NSRect, config: BeautifyConfig, context: CGContext) {
+    /// Pre-render the mesh gradient for a given size (call before entering NSImage drawing handlers
+    /// to avoid calling @MainActor-isolated SwiftUI ImageRenderer from a non-isolated closure).
+    static func prerenderBackground(config: BeautifyConfig, width: Int, height: Int) -> CGImage? {
+        if config.isCustomBackground { return nil }
+        let style = config.style
+        if #available(macOS 15.0, *), let mesh = style.meshDef {
+            return renderMeshGradient(mesh, width: width, height: height)
+        }
+        return nil
+    }
+
+    /// Draw just the background gradient (or custom image) into a rect (for live overlay preview).
+    /// Pass `prerenderedMesh` from `prerenderBackground()` when calling from inside an NSImage drawing handler.
+    static func drawGradientBackground(in rect: NSRect, config: BeautifyConfig, context: CGContext, prerenderedMesh: CGImage? = nil) {
         // Custom image background
         if let bgImage = config.customBackgroundImage {
             var imageToDraw = bgImage
@@ -519,9 +531,15 @@ struct BeautifyConfig {
             return
         }
 
+        // Use pre-rendered mesh gradient if provided
+        if let meshImage = prerenderedMesh {
+            context.draw(meshImage, in: rect)
+            return
+        }
+
         let style = config.style
 
-        // Mesh gradient path (macOS 15+)
+        // Mesh gradient path (macOS 15+) — only reached from callers that don't pre-render (e.g. overlay preview)
         if #available(macOS 15.0, *), let mesh = style.meshDef {
             if let cgImage = renderMeshGradient(mesh, width: Int(rect.width), height: Int(rect.height)) {
                 context.draw(cgImage, in: rect)
@@ -598,6 +616,9 @@ struct BeautifyConfig {
         let totalWidth = windowWidth + padding * 2
         let totalHeight = windowHeight + padding * 2
 
+        // Pre-render mesh gradient outside the drawing handler to avoid @MainActor isolation issues
+        let prerenderedMesh = prerenderBackground(config: config, width: Int(totalWidth), height: Int(totalHeight))
+
         var success = false
         let result = NSImage(size: NSSize(width: totalWidth, height: totalHeight), flipped: false) { _ in
             guard let context = NSGraphicsContext.current?.cgContext else {
@@ -607,7 +628,7 @@ struct BeautifyConfig {
             // Gradient background — fill entire canvas, no outer rounding
             let bgRect = NSRect(x: 0, y: 0, width: totalWidth, height: totalHeight)
             context.saveGState()
-            drawGradientBackground(in: bgRect, config: config, context: context)
+            drawGradientBackground(in: bgRect, config: config, context: context, prerenderedMesh: prerenderedMesh)
             context.restoreGState()
 
             // Window frame position
@@ -703,6 +724,9 @@ struct BeautifyConfig {
         let totalWidth = imgSize.width + padding * 2
         let totalHeight = imgSize.height + padding * 2
 
+        // Pre-render mesh gradient outside the drawing handler to avoid @MainActor isolation issues
+        let prerenderedMesh = prerenderBackground(config: config, width: Int(totalWidth), height: Int(totalHeight))
+
         var success = false
         let result = NSImage(size: NSSize(width: totalWidth, height: totalHeight), flipped: false) { _ in
             guard let context = NSGraphicsContext.current?.cgContext else { return true }
@@ -710,7 +734,7 @@ struct BeautifyConfig {
             // Gradient background
             let bgRect = NSRect(x: 0, y: 0, width: totalWidth, height: totalHeight)
             context.saveGState()
-            drawGradientBackground(in: bgRect, config: config, context: context)
+            drawGradientBackground(in: bgRect, config: config, context: context, prerenderedMesh: prerenderedMesh)
             context.restoreGState()
 
             let imageRect = NSRect(x: padding, y: padding, width: imgSize.width, height: imgSize.height)
@@ -747,6 +771,9 @@ struct BeautifyConfig {
         let totalWidth = imgSize.width + padding * 2
         let totalHeight = imgSize.height + padding * 2
 
+        // Pre-render mesh gradient outside the drawing handler to avoid @MainActor isolation issues
+        let prerenderedMesh = prerenderBackground(config: config, width: Int(totalWidth), height: Int(totalHeight))
+
         var success = false
         let result = NSImage(size: NSSize(width: totalWidth, height: totalHeight), flipped: false) { _ in
             guard let context = NSGraphicsContext.current?.cgContext else {
@@ -756,7 +783,7 @@ struct BeautifyConfig {
             // Gradient background — fill entire canvas, no outer rounding
             let bgRect = NSRect(x: 0, y: 0, width: totalWidth, height: totalHeight)
             context.saveGState()
-            drawGradientBackground(in: bgRect, config: config, context: context)
+            drawGradientBackground(in: bgRect, config: config, context: context, prerenderedMesh: prerenderedMesh)
             context.restoreGState()
 
             let imageRect = NSRect(x: padding, y: padding, width: imgSize.width, height: imgSize.height)
