@@ -141,6 +141,6 @@ enum SaveDirectoryAccess {
     }
 
     static var recordingDisplayPath: String {
-        UserDefaults.standard.string(forKey: recPathKey) ?? "Same as screenshots"
+        UserDefaults.standard.string(forKey: recPathKey) ?? L("Same as screenshots")
     }
 }

@@ -55,9 +55,35 @@ struct BeautifyConfig {
     var isWindowSnap: Bool = false  // true = selection came from window snap, skip synthetic title bar
     var customBackgroundImage: NSImage?  // custom image background (nil = use gradient)
     var backgroundBlur: CGFloat = 0     // 0..50 blur radius for custom background
+    /// Pre-rendered CGImage of custom background (with blur applied). Set via `prepareBackgroundCache()`.
+    var cachedBackgroundCGImage: CGImage?
 
     /// Whether a custom background image is active
     var isCustomBackground: Bool { customBackgroundImage != nil }
+
+    /// Pre-render the custom background image (with blur) into a CGImage for fast drawing.
+    /// Call once when the image or blur changes, not on every draw.
+    mutating func prepareBackgroundCache() {
+        guard let bgImage = customBackgroundImage else {
+            cachedBackgroundCGImage = nil
+            return
+        }
+        var source = bgImage
+        if backgroundBlur > 0,
+           let cgImg = bgImage.cgImage(forProposedRect: nil, context: nil, hints: nil) {
+            let ciImage = CIImage(cgImage: cgImg)
+            if let filter = CIFilter(name: "CIGaussianBlur") {
+                filter.setValue(ciImage, forKey: kCIInputImageKey)
+                filter.setValue(backgroundBlur, forKey: kCIInputRadiusKey)
+                let ciCtx = CIContext()
+                if let output = filter.outputImage,
+                   let blurredCG = ciCtx.createCGImage(output, from: ciImage.extent) {
+                    source = NSImage(cgImage: blurredCG, size: bgImage.size)
+                }
+            }
+        }
+        cachedBackgroundCGImage = source.cgImage(forProposedRect: nil, context: nil, hints: nil)
+    }
 
     /// Convenience: the resolved style from styles array
     var style: BeautifyStyle {
@@ -500,37 +526,57 @@ class BeautifyRenderer {
     /// Pass `prerenderedMesh` from `prerenderBackground()` when calling from inside an NSImage drawing handler.
     static func drawGradientBackground(in rect: NSRect, config: BeautifyConfig, context: CGContext, prerenderedMesh: CGImage? = nil) {
         // Custom image background
-        if let bgImage = config.customBackgroundImage {
-            var imageToDraw = bgImage
-            // Apply blur if configured
-            if config.backgroundBlur > 0, let cgImg = bgImage.cgImage(forProposedRect: nil, context: nil, hints: nil) {
-                let ciImage = CIImage(cgImage: cgImg)
-                if let filter = CIFilter(name: "CIGaussianBlur") {
-                    filter.setValue(ciImage, forKey: kCIInputImageKey)
-                    filter.setValue(config.backgroundBlur, forKey: kCIInputRadiusKey)
-                    let ciCtx = CIContext()
-                    if let output = filter.outputImage,
-                       let blurredCG = ciCtx.createCGImage(output, from: ciImage.extent) {
-                        imageToDraw = NSImage(cgImage: blurredCG, size: bgImage.size)
+        if config.isCustomBackground {
+            // Use pre-rendered CGImage if available (fast path for live preview)
+            if let cached = config.cachedBackgroundCGImage {
+                let imgW = CGFloat(cached.width)
+                let imgH = CGFloat(cached.height)
+                let scaleX = rect.width / imgW
+                let scaleY = rect.height / imgH
+                let fillScale = max(scaleX, scaleY)
+                let drawW = imgW * fillScale
+                let drawH = imgH * fillScale
+                let drawRect = CGRect(
+                    x: rect.minX + (rect.width - drawW) / 2,
+                    y: rect.minY + (rect.height - drawH) / 2,
+                    width: drawW, height: drawH)
+                context.saveGState()
+                context.clip(to: rect)
+                context.draw(cached, in: drawRect)
+                context.restoreGState()
+                return
+            }
+            // Fallback: no cache (e.g. final render), process from NSImage
+            if let bgImage = config.customBackgroundImage {
+                var imageToDraw = bgImage
+                if config.backgroundBlur > 0, let cgImg = bgImage.cgImage(forProposedRect: nil, context: nil, hints: nil) {
+                    let ciImage = CIImage(cgImage: cgImg)
+                    if let filter = CIFilter(name: "CIGaussianBlur") {
+                        filter.setValue(ciImage, forKey: kCIInputImageKey)
+                        filter.setValue(config.backgroundBlur, forKey: kCIInputRadiusKey)
+                        let ciCtx = CIContext()
+                        if let output = filter.outputImage,
+                           let blurredCG = ciCtx.createCGImage(output, from: ciImage.extent) {
+                            imageToDraw = NSImage(cgImage: blurredCG, size: bgImage.size)
+                        }
                     }
                 }
+                let imgSize = imageToDraw.size
+                let scaleX = rect.width / imgSize.width
+                let scaleY = rect.height / imgSize.height
+                let fillScale = max(scaleX, scaleY)
+                let drawW = imgSize.width * fillScale
+                let drawH = imgSize.height * fillScale
+                let drawRect = NSRect(
+                    x: rect.minX + (rect.width - drawW) / 2,
+                    y: rect.minY + (rect.height - drawH) / 2,
+                    width: drawW, height: drawH)
+                context.saveGState()
+                context.clip(to: rect)
+                imageToDraw.draw(in: drawRect, from: .zero, operation: .copy, fraction: 1.0)
+                context.restoreGState()
+                return
             }
-            // Draw image scaled to fill the rect (aspect fill + center crop)
-            let imgSize = imageToDraw.size
-            let scaleX = rect.width / imgSize.width
-            let scaleY = rect.height / imgSize.height
-            let fillScale = max(scaleX, scaleY)
-            let drawW = imgSize.width * fillScale
-            let drawH = imgSize.height * fillScale
-            let drawRect = NSRect(
-                x: rect.minX + (rect.width - drawW) / 2,
-                y: rect.minY + (rect.height - drawH) / 2,
-                width: drawW, height: drawH)
-            context.saveGState()
-            context.clip(to: rect)
-            imageToDraw.draw(in: drawRect, from: .zero, operation: .copy, fraction: 1.0)
-            context.restoreGState()
-            return
         }
 
         // Use pre-rendered mesh gradient if provided

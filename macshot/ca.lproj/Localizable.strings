@@ -484,3 +484,12 @@
 "Position:" = "Posicio:";
 "Size:" = "Mida:";
 "Shape:" = "Forma:";
+
+"Same as screenshots" = "Igual que les captures de pantalla";
+"  Preview size:" = "  Mida de la previsualització:";
+"(0 = off)" = "(0 = desactivat)";
+"Clear All" = "Esborra-ho tot";
+"Clear History?" = "Esborrar l'historial?";
+"This will permanently delete all screenshots from history." = "Això eliminarà permanentment totes les captures de pantalla de l'historial.";
+"Click \"Set\" and press a key combination with at least one modifier (⌘, ⌥, ⌃, ⇧) to set a shortcut." = "Feu clic a \"Establir\" i premeu una combinació de tecles amb almenys un modificador (⌘, ⌥, ⌃, ⇧) per definir una drecera.";
+"Files are uploaded to a \"macshot\" folder in your Google Drive. Everything stays private — nothing is shared publicly." = "Els fitxers es pugen a una carpeta \"macshot\" del vostre Google Drive. Tot és privat — res no es comparteix públicament.";

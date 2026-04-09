@@ -482,3 +482,12 @@
 "Position:" = "Позиция:";
 "Size:" = "Размер:";
 "Shape:" = "Форма:";
+
+"Same as screenshots" = "Как у скриншотов";
+"  Preview size:" = "  Размер превью:";
+"(0 = off)" = "(0 = выкл)";
+"Clear All" = "Очистить всё";
+"Clear History?" = "Очистить историю?";
+"This will permanently delete all screenshots from history." = "Это безвозвратно удалит все скриншоты из истории.";
+"Click \"Set\" and press a key combination with at least one modifier (⌘, ⌥, ⌃, ⇧) to set a shortcut." = "Нажмите \"Задать\" и введите комбинацию клавиш с хотя бы одним модификатором (⌘, ⌥, ⌃, ⇧), чтобы установить сочетание.";
+"Files are uploaded to a \"macshot\" folder in your Google Drive. Everything stays private — nothing is shared publicly." = "Файлы загружаются в папку \"macshot\" на вашем Google Drive. Всё остаётся приватным — ничего не публикуется в открытый доступ.";

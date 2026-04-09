@@ -484,3 +484,12 @@
 "Position:" = "Posisjon:";
 "Size:" = "St\U00F8rrelse:";
 "Shape:" = "Form:";
+
+"Same as screenshots" = "Samme som skjermbilder";
+"  Preview size:" = "  Forhåndsvisningsstørrelse:";
+"(0 = off)" = "(0 = av)";
+"Clear All" = "Tøm alt";
+"Clear History?" = "Tøm historikk?";
+"This will permanently delete all screenshots from history." = "Dette vil slette alle skjermbilder fra historikken permanent.";
+"Click \"Set\" and press a key combination with at least one modifier (⌘, ⌥, ⌃, ⇧) to set a shortcut." = "Klikk \"Angi\" og trykk en tastekombinasjon med minst én modifikatortast (⌘, ⌥, ⌃, ⇧) for å angi en snarvei.";
+"Files are uploaded to a \"macshot\" folder in your Google Drive. Everything stays private — nothing is shared publicly." = "Filer lastes opp til en \"macshot\"-mappe i Google Disk. Alt forblir privat — ingenting deles offentlig.";

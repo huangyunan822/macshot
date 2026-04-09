@@ -482,3 +482,12 @@
 "Position:" = "Pozíció:";
 "Size:" = "Méret:";
 "Shape:" = "Alakzat:";
+
+"Same as screenshots" = "Megegyezik a képernyőképekkel";
+"  Preview size:" = "  Előnézet mérete:";
+"(0 = off)" = "(0 = ki)";
+"Clear All" = "Összes törlése";
+"Clear History?" = "Törli az előzményeket?";
+"This will permanently delete all screenshots from history." = "Ez véglegesen törli az összes képernyőképet az előzményekből.";
+"Click \"Set\" and press a key combination with at least one modifier (⌘, ⌥, ⌃, ⇧) to set a shortcut." = "Kattintson a \"Beállítás\" gombra, majd nyomjon meg egy billentyűkombinációt legalább egy módosítóbillentyűvel (⌘, ⌥, ⌃, ⇧) a gyorsbillentyű beállításához.";
+"Files are uploaded to a \"macshot\" folder in your Google Drive. Everything stays private — nothing is shared publicly." = "A fájlok a Google Drive-on lévő \"macshot\" mappába töltődnek fel. Minden privát marad — semmi nem kerül nyilvános megosztásra.";

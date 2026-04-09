@@ -482,3 +482,11 @@
 "Position:" = "Position:";
 "Size:" = "Size:";
 "Shape:" = "Shape:";
+"Same as screenshots" = "Same as screenshots";
+"  Preview size:" = "  Preview size:";
+"(0 = off)" = "(0 = off)";
+"Clear All" = "Clear All";
+"Clear History?" = "Clear History?";
+"This will permanently delete all screenshots from history." = "This will permanently delete all screenshots from history.";
+"Click \"Set\" and press a key combination with at least one modifier (⌘, ⌥, ⌃, ⇧) to set a shortcut." = "Click \"Set\" and press a key combination with at least one modifier (⌘, ⌥, ⌃, ⇧) to set a shortcut.";
+"Files are uploaded to a \"macshot\" folder in your Google Drive. Everything stays private — nothing is shared publicly." = "Files are uploaded to a \"macshot\" folder in your Google Drive. Everything stays private — nothing is shared publicly.";

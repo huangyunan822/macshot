@@ -482,3 +482,12 @@
 "Position:" = "ตำแหน่ง:";
 "Size:" = "ขนาด:";
 "Shape:" = "รูปร่าง:";
+
+"Same as screenshots" = "เหมือนกับภาพหน้าจอ";
+"  Preview size:" = "  ขนาดตัวอย่าง:";
+"(0 = off)" = "(0 = ปิด)";
+"Clear All" = "ล้างทั้งหมด";
+"Clear History?" = "ล้างประวัติ?";
+"This will permanently delete all screenshots from history." = "การดำเนินการนี้จะลบภาพหน้าจอทั้งหมดออกจากประวัติอย่างถาวร";
+"Click \"Set\" and press a key combination with at least one modifier (⌘, ⌥, ⌃, ⇧) to set a shortcut." = "คลิก \"ตั้งค่า\" แล้วกดคีย์ผสมที่มีปุ่มตัวแก้ไขอย่างน้อยหนึ่งปุ่ม (⌘, ⌥, ⌃, ⇧) เพื่อตั้งค่าทางลัด";
+"Files are uploaded to a \"macshot\" folder in your Google Drive. Everything stays private — nothing is shared publicly." = "ไฟล์จะถูกอัปโหลดไปยังโฟลเดอร์ \"macshot\" ใน Google Drive ของคุณ ทุกอย่างเป็นส่วนตัว — ไม่มีการแชร์สาธารณะ";

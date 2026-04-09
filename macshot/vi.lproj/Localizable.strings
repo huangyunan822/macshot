@@ -482,3 +482,12 @@
 "Position:" = "Vị trí:";
 "Size:" = "Kích thước:";
 "Shape:" = "Hình dạng:";
+
+"Same as screenshots" = "Giống như ảnh chụp màn hình";
+"  Preview size:" = "  Kích thước xem trước:";
+"(0 = off)" = "(0 = tắt)";
+"Clear All" = "Xóa tất cả";
+"Clear History?" = "Xóa lịch sử?";
+"This will permanently delete all screenshots from history." = "Thao tác này sẽ xóa vĩnh viễn tất cả ảnh chụp màn hình khỏi lịch sử.";
+"Click \"Set\" and press a key combination with at least one modifier (⌘, ⌥, ⌃, ⇧) to set a shortcut." = "Nhấp vào \"Đặt\" và nhấn tổ hợp phím có ít nhất một phím bổ trợ (⌘, ⌥, ⌃, ⇧) để đặt phím tắt.";
+"Files are uploaded to a \"macshot\" folder in your Google Drive. Everything stays private — nothing is shared publicly." = "Các tệp được tải lên thư mục \"macshot\" trong Google Drive của bạn. Mọi thứ đều được giữ bí mật — không có gì được chia sẻ công khai.";

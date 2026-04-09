@@ -205,6 +205,7 @@ extension OverlayView {
                 UserDefaults.standard.set(pngData, forKey: "beautifyCustomBgImageData")
             }
             self.customBeautifyBackground = image
+            self.prepareBeautifyBackgroundCache()
             self.beautifyStyleIndex = -1
             UserDefaults.standard.set(-1, forKey: "beautifyStyleIndex")
             self.cachedCompositedImage = nil
@@ -218,6 +219,7 @@ extension OverlayView {
         guard let data = UserDefaults.standard.data(forKey: "beautifyCustomBgImageData"),
               let image = NSImage(data: data) else { return }
         customBeautifyBackground = image
+        prepareBeautifyBackgroundCache()
     }
 
     func showEmojiPopover(anchorView: NSView? = nil, anchorRect: NSRect = .zero) {

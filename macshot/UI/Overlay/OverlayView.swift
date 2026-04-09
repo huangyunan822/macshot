@@ -325,14 +325,32 @@ class OverlayView: NSView {
         return v != nil ? CGFloat(v!) : 8
     }()
 
-    var customBeautifyBackground: NSImage?
-    var beautifyBackgroundBlur: CGFloat = UserDefaults.standard.object(forKey: "beautifyBgBlur") as? CGFloat ?? 0
+    var customBeautifyBackground: NSImage? {
+        didSet { cachedBeautifyBgCGImage = nil }
+    }
+    var beautifyBackgroundBlur: CGFloat = UserDefaults.standard.object(forKey: "beautifyBgBlur") as? CGFloat ?? 0 {
+        didSet {
+            cachedBeautifyBgCGImage = nil
+            prepareBeautifyBackgroundCache()
+        }
+    }
+    private var cachedBeautifyBgCGImage: CGImage?
+
+    func prepareBeautifyBackgroundCache() {
+        guard let bg = customBeautifyBackground else { return }
+        var cfg = BeautifyConfig(customBackgroundImage: bg, backgroundBlur: beautifyBackgroundBlur)
+        cfg.prepareBackgroundCache()
+        cachedBeautifyBgCGImage = cfg.cachedBackgroundCGImage
+    }
 
     var beautifyConfig: BeautifyConfig {
         // Lazy-load custom background from UserDefaults if needed
         if beautifyStyleIndex == -1 && customBeautifyBackground == nil {
             if let data = UserDefaults.standard.data(forKey: "beautifyCustomBgImageData"),
-               let img = NSImage(data: data) { customBeautifyBackground = img }
+               let img = NSImage(data: data) {
+                customBeautifyBackground = img
+                prepareBeautifyBackgroundCache()
+            }
         }
         return BeautifyConfig(
             mode: beautifyMode,
@@ -343,7 +361,8 @@ class OverlayView: NSView {
             bgRadius: 0,
             isWindowSnap: selectionIsWindowSnap,
             customBackgroundImage: beautifyStyleIndex == -1 ? customBeautifyBackground : nil,
-            backgroundBlur: beautifyBackgroundBlur
+            backgroundBlur: beautifyBackgroundBlur,
+            cachedBackgroundCGImage: beautifyStyleIndex == -1 ? cachedBeautifyBgCGImage : nil
         )
     }
 
