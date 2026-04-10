@@ -3760,7 +3760,7 @@ class OverlayView: NSView {
             // White rotate icon
             let cfg = NSImage.SymbolConfiguration(pointSize: 9, weight: .bold)
             if let img = NSImage(
-                systemSymbolName: "arrow.trianglehead.2.clockwise.rotate.90",
+                systemSymbolName: "arrow.triangle.2.circlepath",
                 accessibilityDescription: nil)?.withSymbolConfiguration(cfg)
             {
                 let tinted = NSImage(size: img.size, flipped: false) { rect in
@@ -3770,7 +3770,7 @@ class OverlayView: NSView {
                     return true
                 }
                 tinted.draw(in: NSRect(
-                    x: rotRect.midX - img.size.width / 2, y: rotRect.midY - img.size.height / 2,
+                    x: rotRect.midX - img.size.width / 2 + 0.5, y: rotRect.midY - img.size.height / 2,
                     width: img.size.width, height: img.size.height))
             }
         }
