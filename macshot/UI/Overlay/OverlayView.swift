@@ -6024,6 +6024,7 @@ class OverlayView: NSView {
         if let idx = bottomButtons.firstIndex(where: { if case .color = $0.action { return true } else { return false } }) {
             bottomButtons[idx].bgColor = currentColor
             bottomStripView?.updateState(from: bottomButtons)
+            bottomStripView?.needsDisplay = true
         }
     }
 
