@@ -1,5 +1,20 @@
 # Changelog
 
+## [4.0.4-beta.1] - 2026-04-10
+
+### Added
+- **Export dimensions dropdown** — scale down recordings before saving (Original, 75%, 50%, 33%, 25%). Applied at export time; recordings always capture at full resolution.
+- **Estimated export file size** — shows estimated output size in the video editor when trim, scale, or format change would affect the result.
+
+### Fixed
+- **Cursor flicker after finishing a stroke** — the annotation cache is now incrementally updated on commit instead of rebuilt from scratch, eliminating the frame gap.
+- **Video editor bottom bar overlap** — left-side info gracefully hides when the window is narrow instead of overlapping action buttons.
+- **Timeline thumbnail seams** — sub-pixel gaps between thumbnail tiles eliminated with floor/ceil rounding.
+
+### Changed
+- **Video editor minimum width** increased to 820px to ensure all controls fit.
+- **~785 lines of dead code removed** — identified by Periphery static analysis across 5 cleanup batches.
+
 ## [4.0.3] - 2026-04-10
 
 ### Added
