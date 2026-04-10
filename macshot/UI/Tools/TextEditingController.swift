@@ -52,14 +52,6 @@ class TextEditingController {
     /// The annotation being re-edited (removed from canvas, restored on cancel).
     var editingAnnotation: Annotation?
 
-    // MARK: - Font list
-
-    static let fontFamilies: [String] = {
-        var families = ["System"]
-        families.append(contentsOf: NSFontManager.shared.availableFontFamilies.sorted())
-        return families
-    }()
-
     // MARK: - Font construction
 
     func currentFont() -> NSFont {

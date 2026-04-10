@@ -465,8 +465,7 @@ class OverlayView: NSView {
     var currentPressure: CGFloat = 1.0
     var smartMarkerEnabled: Bool =
         UserDefaults.standard.object(forKey: "smartMarkerEnabled") as? Bool ?? false
-    private var roundedRectEnabled: Bool =
-        UserDefaults.standard.object(forKey: "roundedRectEnabled") as? Bool ?? false
+
 
     var currentLoupeSize: CGFloat = {
         let saved = UserDefaults.standard.object(forKey: "loupeSize") as? Double
@@ -731,8 +730,6 @@ class OverlayView: NSView {
         }
     }
 
-    var isAnnotating: Bool = false
-
     // Window snapping
     var windowSnapEnabled: Bool {
         get { UserDefaults.standard.object(forKey: "windowSnapEnabled") as? Bool ?? true }
@@ -969,53 +966,6 @@ class OverlayView: NSView {
         let img = NSImage(size: NSSize(width: 1, height: 1))
         return NSCursor(image: img, hotSpot: .zero)
     }()
-
-    /// Render an SF Symbol as a cursor image: white icon with dark shadow for visibility on any background.
-    private static func cursorFromSymbol(
-        _ name: String, pointSize: CGFloat, hotSpot: NSPoint, canvasSize: CGFloat = 22
-    ) -> NSCursor {
-        let size = canvasSize
-        let image = NSImage(size: NSSize(width: size, height: size), flipped: false) { _ in
-            if let sym = NSImage(systemSymbolName: name, accessibilityDescription: nil) {
-                let cfg = NSImage.SymbolConfiguration(pointSize: pointSize, weight: .semibold)
-                let colored = sym.withSymbolConfiguration(cfg) ?? sym
-                let iconRect = NSRect(x: 1, y: 1, width: size - 2, height: size - 2)
-
-                // Tint to white by drawing into a separate image
-                let tinted = NSImage(size: colored.size, flipped: false) { rect in
-                    NSColor.white.setFill()
-                    rect.fill()
-                    colored.draw(in: rect, from: .zero, operation: .destinationIn, fraction: 1.0)
-                    return true
-                }
-
-                // Dark outline/shadow for contrast on light backgrounds
-                let dark = NSImage(size: colored.size, flipped: false) { rect in
-                    NSColor(white: 0, alpha: 0.6).setFill()
-                    rect.fill()
-                    colored.draw(in: rect, from: .zero, operation: .destinationIn, fraction: 1.0)
-                    return true
-                }
-
-                // Draw dark shadow offset in multiple directions
-                for dx: CGFloat in [-1, 0, 1] {
-                    for dy: CGFloat in [-1, 0, 1] {
-                        if dx == 0 && dy == 0 { continue }
-                        dark.draw(
-                            in: iconRect.offsetBy(dx: dx, dy: dy), from: .zero,
-                            operation: .sourceOver, fraction: 1.0)
-                    }
-                }
-                // Draw white icon on top
-                tinted.draw(in: iconRect, from: .zero, operation: .sourceOver, fraction: 1.0)
-            }
-            return true
-        }
-        return NSCursor(image: image, hotSpot: hotSpot)
-    }
-
-    private static let moveCursor: NSCursor = cursorFromSymbol(
-        "arrow.up.and.down.and.arrow.left.and.right", pointSize: 13, hotSpot: NSPoint(x: 11, y: 11))
 
     // Diagonal resize cursors (macOS doesn't provide these publicly)
     private static let nwseCursor: NSCursor = {
@@ -2204,20 +2154,7 @@ class OverlayView: NSView {
         UserDefaults.standard.set(hexArray, forKey: "customColors")
     }
     /// The expanded rect including beautify padding (for live preview).
-    /// Returns selectionRect if beautify is off.
-    var beautifyPreviewRect: NSRect {
-        guard beautifyEnabled else { return selectionRect }
-        let config = beautifyConfig
-        let pad = config.padding
-        let shadowBleed = config.shadowRadius + min(config.shadowRadius * 0.4, 10)
-        let titleBarH: CGFloat = (config.mode == .window && !config.isWindowSnap) ? 28 : 0
-        return NSRect(
-            x: selectionRect.minX - pad - shadowBleed,
-            y: selectionRect.minY - pad - shadowBleed,
-            width: selectionRect.width + pad * 2 + shadowBleed * 2,
-            height: selectionRect.height + titleBarH + pad * 2 + shadowBleed * 2
-        )
-    }
+
 
     private func drawBeautifyPreview(context: NSGraphicsContext) {
         let config = beautifyConfig

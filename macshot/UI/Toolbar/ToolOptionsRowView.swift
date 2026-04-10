@@ -14,9 +14,6 @@ class ToolOptionsRowView: NSView {
     private let padding: CGFloat = 8
     /// The natural content width calculated during rebuild, before any external resizing.
     private(set) var contentWidth: CGFloat = 200
-    private var accent: NSColor { ToolbarLayout.accentColor }
-    private var iconColor: NSColor { ToolbarLayout.iconColor }
-
     // Consume clicks on gaps between controls so they don't fall through to OverlayView.
     // In editor mode, let gap clicks pass through so drawing works over the options area.
     override func hitTest(_ point: NSPoint) -> NSView? {

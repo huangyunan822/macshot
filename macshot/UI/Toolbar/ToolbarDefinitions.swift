@@ -407,7 +407,4 @@ class ToolbarLayout {
 
         return buttons
     }
-
-    // Layout bottom toolbar rects    // Layout bottom toolbar inside the selection (for full-screen selections)    // Layout right toolbar inside the selection (for full-screen selections)    // Layout right toolbar rects    // Icon cache: [symbolName: [isSelected: tintedImage]]
-    private static let symbolConfig = NSImage.SymbolConfiguration(pointSize: 14, weight: .medium)
 }

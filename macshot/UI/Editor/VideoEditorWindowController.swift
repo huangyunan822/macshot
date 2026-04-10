@@ -116,7 +116,6 @@ private final class VideoEditorView: NSView {
     private var formatToggleRect: NSRect = .zero
     private var formatMP4Rect: NSRect = .zero
     private var formatGIFRect: NSRect = .zero
-    private var isConvertingGIF: Bool = false
 
     // Export dimensions
     private var originalWidth: Int = 0
@@ -1108,7 +1107,6 @@ private final class VideoEditorView: NSView {
 
     private func convertToGIF(destURL: URL, completion: ((Bool) -> Void)? = nil) {
         guard let asset = asset else { completion?(false); return }
-        isConvertingGIF = true
         showStatus(L("Converting to GIF…"))
 
         let startTime = CMTime(seconds: trimStart, preferredTimescale: 600)
@@ -1123,7 +1121,6 @@ private final class VideoEditorView: NSView {
                 let reader = try AVAssetReader(asset: asset)
                 guard let videoTrack = asset.tracks(withMediaType: .video).first else {
                     await MainActor.run {
-                        self?.isConvertingGIF = false
                         self?.showStatus(L("No video track found"), isError: true)
                         completion?(false)
                     }
@@ -1165,7 +1162,6 @@ private final class VideoEditorView: NSView {
                 try FileManager.default.moveItem(at: tmpURL, to: destURL)
 
                 await MainActor.run {
-                    self?.isConvertingGIF = false
                     self?.savedURL = destURL
                     self?.showStatus(String(format: L("Saved to %@"), destURL.lastPathComponent))
                     self?.needsDisplay = true
@@ -1173,7 +1169,6 @@ private final class VideoEditorView: NSView {
                 }
             } catch {
                 await MainActor.run {
-                    self?.isConvertingGIF = false
                     self?.showStatus(L("GIF conversion failed"), isError: true)
                     completion?(false)
                 }

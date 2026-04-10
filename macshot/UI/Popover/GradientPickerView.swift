@@ -18,9 +18,6 @@ class GradientPickerView: NSView {
     private var hasCustomImage: Bool {
         UserDefaults.standard.data(forKey: "beautifyCustomBgImageData") != nil
     }
-    /// Total swatch count: gradients + custom image thumbnail (if set) + "+" button.
-    private var totalCount: Int { styles.count + (hasCustomImage ? 1 : 0) + 1 }
-
     init(selectedIndex: Int) {
         self.selectedIndex = selectedIndex
         let hasCustom = UserDefaults.standard.data(forKey: "beautifyCustomBgImageData") != nil

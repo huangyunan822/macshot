@@ -12,7 +12,6 @@ class ToolbarStripView: NSView {
     var passesThrough = false
 
     var onClick: ((ToolbarButtonAction) -> Void)?
-    var onMouseDown: ((ToolbarButtonAction) -> Void)?
     var onRightClick: ((ToolbarButtonAction, NSView) -> Void)?
     var onHover: ((ToolbarButtonAction, Bool) -> Void)?
 
