@@ -90,10 +90,6 @@ class UploadToastController {
         statusLabel?.stringValue = String(format: L("Uploading... %d%%"), Int(fraction * 100))
     }
 
-    func updateStatus(_ text: String) {
-        statusLabel?.stringValue = text
-    }
-
     func showSuccess(link: String, deleteURL: String) {
         guard let window = window, let contentView = window.contentView else { return }
         self.currentLink = link
@@ -226,10 +222,6 @@ class UploadToastController {
     @objc private func openLink() {
         guard let link = currentLink, let url = URL(string: link) else { return }
         NSWorkspace.shared.open(url)
-        dismiss()
-    }
-
-    @objc private func dismissClicked() {
         dismiss()
     }
 

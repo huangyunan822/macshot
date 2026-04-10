@@ -452,53 +452,6 @@ class Annotation {
         }
     }
 
-    /// Draw a selection highlight around this annotation
-    func drawSelectionHighlight() {
-        // Pencil/marker: trace the actual stroke path with a glowing outline
-        if tool == .pencil || tool == .marker {
-            guard let points = points, points.count >= 2 else { return }
-            let ctx = NSGraphicsContext.current?.cgContext
-            ctx?.saveGState()
-            ctx?.setAlpha(0.35)
-            ctx?.beginTransparencyLayer(auxiliaryInfo: nil)
-            let path = NSBezierPath()
-            path.move(to: points[0])
-            for i in 1..<points.count { path.line(to: points[i]) }
-            let effectiveWidth = tool == .marker ? strokeWidth * 6 : strokeWidth
-            path.lineWidth = effectiveWidth + 6
-            path.lineCapStyle = .round
-            path.lineJoinStyle = .round
-            ToolbarLayout.accentColor.setStroke()
-            path.stroke()
-            ctx?.endTransparencyLayer()
-            ctx?.restoreGState()
-            return
-        }
-
-        let highlightRect: NSRect
-        switch tool {
-        case .text:
-            highlightRect = textDrawRect != .zero ? textDrawRect : boundingRect
-        case .number:
-            let radius = 8 + strokeWidth * 3
-            highlightRect = NSRect(x: startPoint.x - radius, y: startPoint.y - radius, width: radius * 2, height: radius * 2)
-        case .loupe:
-            highlightRect = boundingRect
-        default:
-            // Expand by half the stroke width so the highlight matches the visible shape
-            let strokePad = strokeWidth / 2
-            highlightRect = boundingRect.insetBy(dx: -strokePad, dy: -strokePad)
-        }
-
-        let padded = highlightRect.insetBy(dx: -4, dy: -4)
-        let path = NSBezierPath(roundedRect: padded, xRadius: 3, yRadius: 3)
-        path.lineWidth = 1.5
-        let pattern: [CGFloat] = [4, 4]
-        path.setLineDash(pattern, count: 2, phase: 0)
-        ToolbarLayout.accentColor.withAlphaComponent(0.6).setStroke()
-        path.stroke()
-    }
-
     // MARK: - Geometry helpers
 
     /// Approximate the arc length of a cubic bezier by sampling.
@@ -1040,50 +993,6 @@ class Annotation {
             let circleRect = NSRect(x: firstPt.x - tailRadius, y: firstPt.y - tailRadius,
                                     width: tailRadius * 2, height: tailRadius * 2)
             NSBezierPath(ovalIn: circleRect).fill()
-        }
-    }
-
-    /// Sample a point and tangent along the annotation's curve at parameter t (0..1).
-    /// Works for legacy bezier (controlPoint) and multi-anchor (Catmull-Rom).
-    /// Returns (position, tangent) where tangent is unnormalized.
-    private func sampleCurve(t: CGFloat, from start: NSPoint, to end: NSPoint) -> (pos: NSPoint, tan: NSPoint) {
-        if hasMultiAnchor {
-            let pts = waypoints
-            let totalSegs = CGFloat(pts.count - 1)
-            let segF = t * totalSegs
-            let seg = min(Int(segF), pts.count - 2)
-            let lt = segF - CGFloat(seg)
-
-            let p0 = seg > 0 ? pts[seg - 1] : pts[seg]
-            let p1 = pts[seg]
-            let p2 = pts[seg + 1]
-            let p3 = seg + 2 < pts.count ? pts[seg + 2] : pts[seg + 1]
-
-            let cp1 = NSPoint(x: p1.x + (p2.x - p0.x) / 6, y: p1.y + (p2.y - p0.y) / 6)
-            let cp2 = NSPoint(x: p2.x - (p3.x - p1.x) / 6, y: p2.y - (p3.y - p1.y) / 6)
-
-            let u = 1 - lt
-            let px = u*u*u*p1.x + 3*u*u*lt*cp1.x + 3*u*lt*lt*cp2.x + lt*lt*lt*p2.x
-            let py = u*u*u*p1.y + 3*u*u*lt*cp1.y + 3*u*lt*lt*cp2.y + lt*lt*lt*p2.y
-            // Derivative of cubic bezier
-            let tx = 3*u*u*(cp1.x-p1.x) + 6*u*lt*(cp2.x-cp1.x) + 3*lt*lt*(p2.x-cp2.x)
-            let ty = 3*u*u*(cp1.y-p1.y) + 6*u*lt*(cp2.y-cp1.y) + 3*lt*lt*(p2.y-cp2.y)
-            return (NSPoint(x: px, y: py), NSPoint(x: tx, y: ty))
-        } else if let cp = controlPoint {
-            // Legacy quadratic bezier (cp1 == cp2)
-            let mt = 1 - t
-            let bx = mt * mt * start.x + 2 * mt * t * cp.x + t * t * end.x
-            let by = mt * mt * start.y + 2 * mt * t * cp.y + t * t * end.y
-            let tx = 2 * mt * (cp.x - start.x) + 2 * t * (end.x - cp.x)
-            let ty = 2 * mt * (cp.y - start.y) + 2 * t * (end.y - cp.y)
-            return (NSPoint(x: bx, y: by), NSPoint(x: tx, y: ty))
-        } else {
-            // Straight line
-            let bx = start.x + t * (end.x - start.x)
-            let by = start.y + t * (end.y - start.y)
-            let tx = end.x - start.x
-            let ty = end.y - start.y
-            return (NSPoint(x: bx, y: by), NSPoint(x: tx, y: ty))
         }
     }
 
@@ -2174,12 +2083,3 @@ class Annotation {
     }
 }
 
-extension NSColor {
-    var bestContrastColor: NSColor {
-        guard let rgb = usingColorSpace(.sRGB) else { return .white }
-        var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
-        rgb.getRed(&r, green: &g, blue: &b, alpha: &a)
-        let luminance = 0.299 * r + 0.587 * g + 0.114 * b
-        return (luminance * a) > 0.5 ? .black : .white
-    }
-}

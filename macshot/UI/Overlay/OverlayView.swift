@@ -7412,11 +7412,6 @@ class OverlayView: NSView {
         return NSImage(cgImage: cgImage, size: selectionRect.size)
     }
 
-    func copyToClipboard() {
-        guard let image = captureSelectedRegion() else { return }
-        ImageEncoder.copyToClipboard(image)
-    }
-
     // MARK: - Cleanup
 
     /// Pre-set a selection (used by delay capture to restore the previous region)

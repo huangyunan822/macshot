@@ -222,11 +222,6 @@ class HotkeyManager {
         return modifierString(from: modifiers) + keyString(from: keyCode)
     }
 
-    /// Legacy display string (for capture area).
-    static func shortcutDisplayString() -> String {
-        return displayString(for: .captureArea)
-    }
-
     /// Returns true if the keyCode is a function key (F1–F20), safe to use without modifiers.
     static func isFunctionKey(_ keyCode: UInt32) -> Bool {
         let functionKeyCodes: Set<UInt32> = [
