@@ -178,7 +178,19 @@ class OverlayView: NSView {
             }
         }
     }
-    var currentColor: NSColor = .systemRed
+    var currentColor: NSColor = {
+        if let data = UserDefaults.standard.data(forKey: "lastUsedColor"),
+           let color = try? NSKeyedUnarchiver.unarchivedObject(ofClass: NSColor.self, from: data) {
+            return color
+        }
+        return .systemRed
+    }() {
+        didSet {
+            if let data = try? NSKeyedArchiver.archivedData(withRootObject: currentColor, requiringSecureCoding: true) {
+                UserDefaults.standard.set(data, forKey: "lastUsedColor")
+            }
+        }
+    }
     /// currentColor with opacity applied — used for all tools except marker, loupe, measure, pixelate, blur
     private var annotationColor: NSColor { currentColor.withAlphaComponent(currentColorOpacity) }
     var currentStrokeWidth: CGFloat = {
@@ -738,7 +750,10 @@ class OverlayView: NSView {
 
     private var customColors: [NSColor?] = Array(repeating: nil, count: 7)
     private var selectedColorSlot: Int = 0  // which custom slot is selected for saving colors
-    private static var lastUsedOpacity: CGFloat = 1.0
+    private static var lastUsedOpacity: CGFloat = {
+        let saved = UserDefaults.standard.object(forKey: "lastUsedColorOpacity") as? Double
+        return saved != nil ? CGFloat(saved!) : 1.0
+    }()
     private var currentColorOpacity: CGFloat = OverlayView.lastUsedOpacity
 
     // Radial color wheel (right-click in drawing mode)
@@ -6347,6 +6362,7 @@ class OverlayView: NSView {
                 currentColor = result.color
                 currentColorOpacity = 1.0
                 OverlayView.lastUsedOpacity = 1.0
+                UserDefaults.standard.set(1.0, forKey: "lastUsedColorOpacity")
                 // Also save to selected custom slot
                 if selectedColorSlot >= 0 && selectedColorSlot < customColors.count {
                     customColors[selectedColorSlot] = result.color.withAlphaComponent(1.0)
@@ -7496,6 +7512,7 @@ class OverlayView: NSView {
             guard let self = self else { return }
             self.currentColorOpacity = opacity
             OverlayView.lastUsedOpacity = opacity
+            UserDefaults.standard.set(Double(opacity), forKey: "lastUsedColorOpacity")
             self.applyColorToSelectedAnnotation()
             self.needsDisplay = true
         }
