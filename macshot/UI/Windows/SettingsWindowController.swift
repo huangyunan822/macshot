@@ -357,6 +357,11 @@ class SettingsWindowController: NSWindowController, NSTabViewDelegate, NSWindowD
         stack.addArrangedSubview(indented(hideNote))
         stack.setCustomSpacing(6, after: stack.arrangedSubviews.last!)
 
+        let urlSchemeCheckbox = NSButton(checkboxWithTitle: "Enable macshot:// URL scheme", target: self, action: #selector(urlSchemeChanged(_:)))
+        urlSchemeCheckbox.state = (UserDefaults.standard.object(forKey: "urlSchemeEnabled") as? Bool ?? true) ? .on : .off
+        stack.addArrangedSubview(indented(urlSchemeCheckbox))
+        stack.setCustomSpacing(6, after: stack.arrangedSubviews.last!)
+
         autoUpdateCheckbox = NSButton(checkboxWithTitle: L("Check for updates automatically"), target: self, action: #selector(autoUpdateChanged(_:)))
         stack.addArrangedSubview(indented(autoUpdateCheckbox))
         stack.setCustomSpacing(4, after: stack.arrangedSubviews.last!)
@@ -1976,6 +1981,10 @@ class SettingsWindowController: NSWindowController, NSTabViewDelegate, NSWindowD
                 #endif
             }
         }
+    }
+
+    @objc private func urlSchemeChanged(_ sender: NSButton) {
+        UserDefaults.standard.set(sender.state == .on, forKey: "urlSchemeEnabled")
     }
 
     @objc private func hideMenuBarIconChanged(_ sender: NSButton) {

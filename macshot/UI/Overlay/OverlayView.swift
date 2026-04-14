@@ -90,7 +90,16 @@ class OverlayView: NSView {
     weak var chromeParentView: NSView?
 
     var screenshotImage: NSImage? {
-        didSet { needsDisplay = true }
+        didSet {
+            needsDisplay = true
+            // Screenshot just arrived (async capture) — enable snap queries now.
+            if screenshotImage != nil && windowSnapCooldown {
+                windowSnapCooldown = false
+                if state == .idle && windowSnapEnabled && !windowSnapQueryInFlight {
+                    queryWindowSnap(at: NSEvent.mouseLocation)
+                }
+            }
+        }
     }
 
     // State
@@ -822,18 +831,11 @@ class OverlayView: NSView {
             owner: self, userInfo: nil)
         addTrackingArea(area)
 
-        // Brief cooldown so the window server finishes compositing the overlay
-        // before we query CGWindowListCopyWindowInfo.
+        // Don't run the initial snap query here — it fires before the screenshot
+        // arrives (async capture). The snap query is triggered when screenshotImage
+        // is set (via didSet → needsDisplay → mouseMoved), or we kick it off
+        // explicitly in the screenshotImage setter below.
         windowSnapCooldown = true
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.01) { [weak self] in
-            guard let self = self else { return }
-            self.windowSnapCooldown = false
-            // Perform an initial snap query at the current mouse position so the
-            // highlight appears immediately without requiring the user to move the mouse.
-            if self.state == .idle && self.windowSnapEnabled && !self.windowSnapQueryInFlight {
-                self.queryWindowSnap(at: NSEvent.mouseLocation)
-            }
-        }
 
         NotificationCenter.default.addObserver(
             self, selector: #selector(handleToolbarColorsChanged),
@@ -1331,14 +1333,16 @@ class OverlayView: NSView {
             // live screen content everywhere (not just inside the selection).
             context.cgContext.clear(bounds)
         } else if !isRecording {
-            // Draw screenshot
             if let image = screenshotImage {
+                // Screenshot ready — draw it with dark overlay
                 image.draw(in: bounds, from: .zero, operation: .copy, fraction: 1.0)
+                NSColor.black.withAlphaComponent(0.45).setFill()
+                NSBezierPath(rect: bounds).fill()
+            } else {
+                // No screenshot yet — fully transparent. User sees live desktop
+                // through the overlay and can start selecting immediately.
+                context.cgContext.clear(bounds)
             }
-
-            // Draw dark overlay
-            NSColor.black.withAlphaComponent(0.45).setFill()
-            NSBezierPath(rect: bounds).fill()
         }
 
         // Window snap highlight (drawn before helper text so text appears on top)
@@ -1346,7 +1350,9 @@ class OverlayView: NSView {
 
         // Helper text
         if state == .idle {
-            drawIdleHelperText()
+            if screenshotImage != nil {
+                drawIdleHelperText()
+            }
         } else if state == .selecting {
             drawSelectingHelperText()
         }

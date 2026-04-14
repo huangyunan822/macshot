@@ -62,14 +62,26 @@ class OverlayWindowController {
     init(capture: ScreenCapture) {
         let screen = capture.screen
         self.screen = screen
+        setupWindow(screen: screen)
+        let nsImage = NSImage(cgImage: capture.image, size: screen.frame.size)
+        overlayView?.screenshotImage = nsImage
+    }
 
+    /// Create an overlay without a screenshot — shows instantly as transparent.
+    /// Screenshot is captured and set later via setScreenshot().
+    init(screen: NSScreen) {
+        self.screen = screen
+        setupWindow(screen: screen)
+    }
+
+    private func setupWindow(screen: NSScreen) {
         let window = OverlayWindow(
             contentRect: screen.frame,
             styleMask: [.borderless],
             backing: .buffered,
             defer: false
         )
-        window.level = NSWindow.Level(257)  // above modal panels, alerts, and security popups
+        window.level = NSWindow.Level(257)
         window.isOpaque = false
         window.backgroundColor = .clear
         window.hasShadow = false
@@ -79,8 +91,6 @@ class OverlayWindowController {
         window.isReleasedWhenClosed = false
 
         let view = OverlayView()
-        let nsImage = NSImage(cgImage: capture.image, size: screen.frame.size)
-        view.screenshotImage = nsImage
         view.frame = NSRect(origin: .zero, size: screen.frame.size)
         view.autoresizingMask = [.width, .height]
         view.overlayDelegate = self
@@ -90,17 +100,29 @@ class OverlayWindowController {
         self.overlayView = view
     }
 
+    /// Set the screenshot after the overlay is visible.
+    func setScreenshot(_ image: CGImage) {
+        let nsImage = NSImage(cgImage: image, size: screen.frame.size)
+        overlayView?.screenshotImage = nsImage
+        // Enable interaction now that the screenshot is ready.
+        overlayWindow?.ignoresMouseEvents = false
+        overlayWindow?.makeKeyAndOrderFront(nil)
+        if let view = overlayView {
+            overlayWindow?.makeFirstResponder(view)
+        }
+    }
+
     func showOverlay() {
         guard let window = overlayWindow else { return }
-        // Force the view to render into its backing store before showing the window.
-        // This ensures the screenshot is fully drawn when the window appears,
-        // preventing a flash of the deactivating app underneath.
-        if let view = overlayView {
-            view.displayIfNeeded()
-        }
-        window.makeKeyAndOrderFront(nil)
-        if let view = overlayView {
-            window.makeFirstResponder(view)
+        if overlayView?.screenshotImage != nil {
+            // Screenshot already set (sync init path) — interactive immediately.
+            if let view = overlayView { view.displayIfNeeded() }
+            window.makeKeyAndOrderFront(nil)
+            if let view = overlayView { window.makeFirstResponder(view) }
+        } else {
+            // Async path — show transparent but block input until screenshot arrives.
+            window.ignoresMouseEvents = true
+            window.orderFront(nil)
         }
     }
 
