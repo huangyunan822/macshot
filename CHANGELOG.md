@@ -1,10 +1,16 @@
 # Changelog
 
-## [4.0.5-beta.2] - 2026-04-14
+## [4.0.5-beta.3] - 2026-04-14
+
+### Added
+- **URL scheme for external tools** — trigger macshot actions from Raycast, Alfred, BetterTouchTool, Shortcuts, or any automation tool via `macshot://capture`, `macshot://ocr`, `macshot://record`, and more. Run `open macshot://capture` from Terminal to test.
 
 ### Fixed
 - **Color dithering in pinned images and editor window** — macOS's window compositor applies ordered dithering to layer content rendered via `draw()`, altering pixel values in solid-color areas (e.g. `#111D2F` becomes an alternating pattern of `#121D2F`, `#101D2E`, `#131D2D`). This was visible when re-capturing pinned screenshots or the editor window with the overlay. Fixed by disabling the `AutomaticAppKit` layer content format in favor of explicit `RGBA8`, ensuring pixel-perfect color reproduction.
 - **Editor window color shift** — "Open in Editor Window" cropped the selection into a `CGColorSpaceCreateDeviceRGB` context, converting Display P3 pixels to DeviceRGB and shifting colors. Now uses zero-copy `CGImage.cropping()` which preserves the original color space.
+- **Slow first capture with window snapping** — every capture with floating thumbnails visible bypassed the ScreenCaptureKit content cache, causing a slow window server enumeration on each capture. Now uses the cache and only re-fetches if an excluded window isn't found.
+- **Untranslated "None" in hotkey settings** — unassigned hotkey slots showed English "None" regardless of app language.
+- **Minor translation fixes** — corrected missing diacritics in Catalan and Romanian translations.
 
 ## [4.0.4] - 2026-04-13
 

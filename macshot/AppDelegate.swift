@@ -67,6 +67,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
             setMenuBarIconVisible(false)
         }
         registerHotkey()
+        // Pre-warm ScreenCaptureKit so the first capture isn't slow.
+        ScreenCaptureManager.prewarm()
         // Pre-warm CoreAudio so the first capture sound doesn't stall ~1s.
         if let sound = Self.captureSound {
             sound.volume = 0

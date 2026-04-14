@@ -39,14 +39,16 @@ class ScreenCaptureManager {
     static func captureAllScreens(excludingWindowNumbers: [CGWindowID] = [], completion: @escaping ([ScreenCapture]) -> Void) {
         Task {
             do {
-                // When excluding windows, fetch fresh content so newly-created
-                // windows (e.g. thumbnails spawned after the cache was built) are
-                // present in the window list and can actually be excluded.
-                let content: SCShareableContent
+                // Try cache first, then re-fetch only if an excluded window
+                // isn't found (e.g. thumbnail created after the cache was built).
+                var content = try await shareableContent()
                 if !excludingWindowNumbers.isEmpty {
-                    content = try await SCShareableContent.excludingDesktopWindows(true, onScreenWindowsOnly: true)
-                } else {
-                    content = try await shareableContent()
+                    let cachedIDs = Set(content.windows.map { CGWindowID($0.windowID) })
+                    if !excludingWindowNumbers.allSatisfy({ cachedIDs.contains($0) }) {
+                        content = try await SCShareableContent.excludingDesktopWindows(true, onScreenWindowsOnly: true)
+                        cachedContent = content
+                        cachedContentTime = Date()
+                    }
                 }
                 let displays = content.displays
                 let screens = NSScreen.screens
