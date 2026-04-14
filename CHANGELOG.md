@@ -1,15 +1,24 @@
 # Changelog
 
-## [4.0.5-beta.4] - 2026-04-14
+## [4.0.5-beta.5] - 2026-04-14
+
+### Added
+- **DMG drag-to-install layout** — DMG now shows app icon + Applications folder with arrow background, matching the standard macOS install experience.
+- **Move to Applications prompt** — when launched from a DMG or translocated path, offers to copy the app to /Applications with one click.
+- **Duplicate instance alert** — shows a message instead of silently quitting when macshot is already running.
 
 ### Fixed
 - **Saved screenshots have wrong colors on multi-monitor setups** — the save pipeline was converting Display P3 pixels to sRGB, shifting colors on mixed-colorspace setups (P3 built-in + sRGB external). Now embeds the native display color profile without altering pixel values. Removed the "Embed sRGB color profile" toggle — native profile is always embedded.
 - **GIF export crash on longer recordings** — `CGImageDestinationFinalize` read freed pixel buffer memory (use-after-free) because `alwaysCopiesSampleData=false` allowed buffer recycling. Each frame's pixels are now copied into an owned context immediately.
 - **GIF export freezes the UI** — switched from Swift concurrency `Task.detached` (cooperative thread pool shares threads with the main actor) to GCD `.background` queue (real kernel thread that macOS deprioritizes).
 - **GIF export shows no progress** — "Processing GIF…" status now persists with a percentage indicator (0–50% during frame reading, then 100% after finalize).
-- **Overlay appears instantly** — overlay windows now show immediately (transparent) while screenshots capture in the background. Eliminates the 0.5–1s delay on first capture. Core Animation/Metal pipeline pre-warmed at app launch.
 - **Focus not returning to previous app** — `dismissOverlays` in `startCapture` was consuming `previousApp` before the new capture started, so focus couldn't be returned after the capture finished.
-- **Stale helper text during fast capture** — idle helper text and dark tint are no longer drawn until the screenshot arrives, preventing ghost text from lingering due to partial redraws.
+- **Text tool can't select other annotations** — clicking an arrow/rectangle while in text mode now selects it instead of requiring a tool switch.
+- **Text annotation bounding box too wide** — width now shrinks to fit the actual text content on commit instead of keeping the original drag width. Fixed single-character minimum width.
+- **Multi-select conflicts with Shift constraining** — multi-select moved from Shift+click to Ctrl+click, consistent with Ctrl+drag for lasso. Shift is now purely for angle/shape constraining.
+
+### Changed
+- **Faster first capture** — Core Animation/Metal pipeline pre-warmed at app launch. ScreenCaptureKit content cache no longer bypassed on every capture.
 
 ## [4.0.5-beta.3] - 2026-04-14
 
