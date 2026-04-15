@@ -842,7 +842,12 @@ class OverlayView: NSView {
         // arrives (async capture). The snap query is triggered when screenshotImage
         // is set (via didSet → needsDisplay → mouseMoved), or we kick it off
         // explicitly in the screenshotImage setter below.
-        windowSnapCooldown = true
+        // Skip cooldown in editor mode — screenshotImage is set before the view
+        // moves to the window, so the didSet won't clear it. Window snap is
+        // irrelevant in editor anyway.
+        if !isEditorMode {
+            windowSnapCooldown = true
+        }
 
         NotificationCenter.default.addObserver(
             self, selector: #selector(handleToolbarColorsChanged),
