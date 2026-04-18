@@ -6,7 +6,8 @@
 
 <p align="center">
   <b>The most feature-rich open-source screenshot tool on macOS.</b><br>
-  18+ annotation tools, screen recording with a full video editor (cuts, speed, freeze, zoom), OCR + translation, auto-redact PII, scroll capture, beautify — all native, all free.
+  18+ annotation tools, screen recording with a full video editor, OCR + translation,<br>
+  auto-redact PII, scroll capture, beautify — all native, all free.
 </p>
 
 <p align="center">
