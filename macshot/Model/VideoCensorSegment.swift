@@ -25,7 +25,9 @@ final class VideoCensorSegment: Codable {
         /// Intensity baked in at build time — we deliberately avoid exposing
         /// tuning knobs for a simpler UX.
         static let pixelateBlockSize: CGFloat = 20
-        static let blurRadius: CGFloat = 15
+        // Strong enough to make text unreadable and shapes unrecognizable.
+        // Values below ~25 tend to leave faint shapes/edges visible.
+        static let blurRadius: CGFloat = 30
     }
 
     var id: UUID
