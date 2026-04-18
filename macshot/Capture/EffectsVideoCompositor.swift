@@ -204,6 +204,13 @@ final class EffectsVideoCompositor: NSObject, AVVideoCompositing {
 
         // 2. Apply active zoom transform (there's at most one active zoom —
         //    the UI prevents overlap within a single segment type).
+        //
+        //    `zoomTranslation` is computed in image-space (y-down, 0 = top
+        //    edge) to match the normalized rect the user drew. CIImage
+        //    transforms work in math-space (y-up, 0 = bottom edge), so we
+        //    negate the y component before feeding it into the concatenated
+        //    transform. Without this, zooming into a point near the top of
+        //    the video ends up showing content from the bottom.
         let (zoomLevel, zoomTranslation) = activeZoom(at: assetTime, segments: instruction.zoomSegments, naturalSize: naturalSize)
         if zoomLevel > 1.0001 {
             let renderCx = renderSize.width / 2
@@ -213,7 +220,7 @@ final class EffectsVideoCompositor: NSObject, AVVideoCompositing {
             var t = CGAffineTransform(translationX: -renderCx, y: -renderCy)
             t = t.concatenating(CGAffineTransform(scaleX: zoomLevel, y: zoomLevel))
             t = t.concatenating(CGAffineTransform(translationX: renderCx + zoomTranslation.x * scaleX * zoomLevel,
-                                                   y: renderCy + zoomTranslation.y * scaleY * zoomLevel))
+                                                   y: renderCy - zoomTranslation.y * scaleY * zoomLevel))
             image = image.transformed(by: t)
         }
 
@@ -311,8 +318,11 @@ final class EffectsVideoCompositor: NSObject, AVVideoCompositing {
                 let dy = py - cy
                 let sx = dx * zoomLevel
                 let sy = dy * zoomLevel
+                // zoomTranslation.y is in image-space (y-down); flip to match
+                // CIImage's y-up convention — same correction applied in the
+                // main zoom transform above.
                 return (cx + sx + zoomTranslation.x * scaleX * zoomLevel,
-                        cy + sy + zoomTranslation.y * scaleY * zoomLevel)
+                        cy + sy - zoomTranslation.y * scaleY * zoomLevel)
             }
             let (lx, ly) = transformPoint(rectLeft, rectBottom)
             let (rx, ry) = transformPoint(rectRight, rectTop)
