@@ -334,7 +334,14 @@ private final class HistoryPanelView: NSView, NSDraggingSource {
     private var filteredIndices: [Int] = []
     private var previews: [String: NSImage] = [:]
     private var cardRects: [NSRect] = []
+    /// Filtered-index of the card the mouse is currently over, or -1.
+    /// Drives the darkened overlay + "Click to copy" hint.
     private var hoveredIndex: Int = -1
+    /// Filtered-index of the card currently selected via keyboard. Drawn with
+    /// the same accent outline as hover, but without the dim/hint overlay so
+    /// the user can still see the content clearly while navigating with arrows.
+    /// -1 until loadEntries lands a default (0 = leftmost).
+    private var selectedIndex: Int = -1
     private var activeFilter: HistoryFilter = .all
     private var filterTabRects: [NSRect] = []
 
@@ -401,6 +408,9 @@ private final class HistoryPanelView: NSView, NSDraggingSource {
             activeFilter.matches(entry) ? i : nil
         }
         scrollOffset = 0
+        // Default keyboard focus to the leftmost (most recent) card so the user
+        // can immediately arrow/Enter without moving the mouse.
+        selectedIndex = filteredIndices.isEmpty ? -1 : 0
         layoutCards()
         needsDisplay = true
     }
@@ -456,7 +466,11 @@ private final class HistoryPanelView: NSView, NSDraggingSource {
 
             let entry = entries[globalIndex]
             let isHovered = (fi == hoveredIndex)
-            drawCard(entry: entry, rect: rect, isHovered: isHovered)
+            // Only show keyboard selection when the mouse isn't already on a
+            // card, so hover and arrow navigation don't paint two borders at
+            // once.
+            let isSelected = (fi == selectedIndex) && hoveredIndex == -1
+            drawCard(entry: entry, rect: rect, isHovered: isHovered, isSelected: isSelected)
         }
 
         drawScrollFades(in: cardClip)
@@ -547,16 +561,18 @@ private final class HistoryPanelView: NSView, NSDraggingSource {
         }
     }
 
-    private func drawCard(entry: HistoryEntry, rect: NSRect, isHovered: Bool) {
-        // Card background
-        let bgColor = isHovered
+    private func drawCard(entry: HistoryEntry, rect: NSRect, isHovered: Bool, isSelected: Bool) {
+        // Card background — same slight lift for hover OR keyboard selection
+        // so both states feel equivalent.
+        let lifted = isHovered || isSelected
+        let bgColor = lifted
             ? NSColor.white.withAlphaComponent(0.12)
             : NSColor.white.withAlphaComponent(0.05)
         bgColor.setFill()
         NSBezierPath(roundedRect: rect, xRadius: 10, yRadius: 10).fill()
 
-        // Hover border
-        if isHovered {
+        // Accent outline for hover AND keyboard selection.
+        if lifted {
             ToolbarLayout.accentColor.withAlphaComponent(0.7).setStroke()
             let border = NSBezierPath(roundedRect: rect.insetBy(dx: 1, dy: 1), xRadius: 9, yRadius: 9)
             border.lineWidth = 1.5
@@ -619,7 +635,7 @@ private final class HistoryPanelView: NSView, NSDraggingSource {
         let labelStr = "\(entry.pixelWidth) x \(entry.pixelHeight)  ·  \(entry.timeAgoString)" as NSString
         let labelAttrs: [NSAttributedString.Key: Any] = [
             .font: NSFont.systemFont(ofSize: 11, weight: .medium),
-            .foregroundColor: NSColor.white.withAlphaComponent(isHovered ? 0.85 : 0.45),
+            .foregroundColor: NSColor.white.withAlphaComponent(lifted ? 0.85 : 0.45),
         ]
         let labelSize = labelStr.size(withAttributes: labelAttrs)
         labelStr.draw(
@@ -829,8 +845,87 @@ private final class HistoryPanelView: NSView, NSDraggingSource {
     // MARK: - Keyboard
 
     override func keyDown(with event: NSEvent) {
-        if event.keyCode == 53 { // ESC
+        let cmd = event.modifierFlags.contains(.command)
+
+        switch event.keyCode {
+        case 53: // ESC
             controller?.dismiss()
+        case 123: // Left arrow
+            moveSelection(by: -1)
+        case 124: // Right arrow
+            moveSelection(by: +1)
+        case 36, 76: // Return / Enter
+            activateSelectedForCopy()
+        case 49 where !cmd: // Space
+            activateSelectedForQuickLook()
+        case 51, 117: // Delete / Forward-Delete
+            activateSelectedForDelete()
+        case 8 where cmd: // Cmd+C
+            activateSelectedForCopy()
+        case 14 where cmd: // Cmd+E
+            activateSelectedForOpenEditor()
+        default:
+            super.keyDown(with: event)
         }
+    }
+
+    private func moveSelection(by delta: Int) {
+        guard !filteredIndices.isEmpty else { return }
+        // If no selection yet, start at the leftmost (when moving right) or
+        // the rightmost (when moving left).
+        let current = selectedIndex
+        let next: Int
+        if current < 0 {
+            next = delta > 0 ? 0 : filteredIndices.count - 1
+        } else {
+            next = max(0, min(filteredIndices.count - 1, current + delta))
+        }
+        guard next != current else { return }
+        selectedIndex = next
+        scrollSelectedCardIntoView()
+        needsDisplay = true
+    }
+
+    /// Scrolls the card strip so the selected card is fully visible, with a
+    /// small leading/trailing margin so it doesn't hug the fade edges.
+    private func scrollSelectedCardIntoView() {
+        guard selectedIndex >= 0, selectedIndex < cardRects.count else { return }
+        let cardRect = cardRects[selectedIndex]
+        let margin: CGFloat = 24
+        let visibleMinX = scrollOffset + margin
+        let visibleMaxX = scrollOffset + bounds.width - margin
+        let maxScroll = max(contentWidth - bounds.width, 0)
+        if cardRect.minX < visibleMinX {
+            scrollOffset = max(0, cardRect.minX - margin)
+        } else if cardRect.maxX > visibleMaxX {
+            scrollOffset = min(maxScroll, cardRect.maxX - bounds.width + margin)
+        }
+    }
+
+    private func globalIndexForSelected() -> Int? {
+        guard selectedIndex >= 0, selectedIndex < filteredIndices.count else { return nil }
+        return filteredIndices[selectedIndex]
+    }
+
+    private func activateSelectedForCopy() {
+        guard let idx = globalIndexForSelected() else { return }
+        controller?.copyAndDismiss(index: idx)
+    }
+
+    private func activateSelectedForOpenEditor() {
+        guard let idx = globalIndexForSelected() else { return }
+        controller?.openInEditor(index: idx)
+    }
+
+    private func activateSelectedForQuickLook() {
+        guard let idx = globalIndexForSelected() else { return }
+        controller?.quickLook(index: idx)
+    }
+
+    private func activateSelectedForDelete() {
+        guard let idx = globalIndexForSelected() else { return }
+        // loadEntries (called from deleteEntry) resets selectedIndex via
+        // applyFilter → 0, so arrows keep working after a deletion.
+        controller?.deleteEntry(index: idx)
     }
 }
