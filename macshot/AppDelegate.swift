@@ -65,6 +65,18 @@ class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
 
         migrateFilenameTemplateIfNeeded()
 
+        // Reclaim disk from stale tmp leftovers (cancelled recordings,
+        // legacy clipboard PNGs, etc.). Runs off the main thread so it
+        // can't delay launch.
+        TmpDirectoryCleaner.sweep()
+        TmpScratchDirectory.sweep()
+
+        // Force-init the history singleton so its launch-time orphan
+        // prune runs even if the user doesn't take a screenshot this
+        // session. Without this, the prune only fires the first time
+        // something references ScreenshotHistory.shared.
+        _ = ScreenshotHistory.shared
+
         updaterController = SPUStandardUpdaterController(startingUpdater: true, updaterDelegate: self, userDriverDelegate: nil)
         setupMainMenu()
         setupStatusBar()
@@ -1784,17 +1796,34 @@ extension AppDelegate: OverlayWindowControllerDelegate {
         let pasteboard = NSPasteboard.general
         pasteboard.clearContents()
 
+        // Move the recording to a fixed clipboard path so we only ever have
+        // one-per-extension on disk. The user's recording tmp at `url` would
+        // otherwise linger forever (the pasteboard keeps the file URL
+        // reference so we can't delete it; but we can overwrite the same
+        // fixed path on the next clipboard copy).
         let ext = url.pathExtension.lowercased()
-        if ext == "gif", let data = try? Data(contentsOf: url) {
+        let fixedURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("macshot-clipboard-recording.\(ext)")
+        try? FileManager.default.removeItem(at: fixedURL)
+        let pasteURL: URL
+        if (try? FileManager.default.moveItem(at: url, to: fixedURL)) != nil {
+            pasteURL = fixedURL
+        } else {
+            // Move failed (cross-volume? permissions?) — fall back to the
+            // original path. Launch sweep will still clean it up later.
+            pasteURL = url
+        }
+
+        if ext == "gif", let data = try? Data(contentsOf: pasteURL) {
             // Write raw GIF data so apps can render the animation inline
             let item = NSPasteboardItem()
             item.setData(data, forType: NSPasteboard.PasteboardType("com.compuserve.gif"))
             // Also add file URL for Finder compatibility
-            item.setString(url.absoluteString, forType: .fileURL)
+            item.setString(pasteURL.absoluteString, forType: .fileURL)
             pasteboard.writeObjects([item])
         } else {
             // MP4: write file URL (apps like Slack/Discord accept file drops)
-            pasteboard.writeObjects([url as NSURL])
+            pasteboard.writeObjects([pasteURL as NSURL])
         }
         playCopySound()
     }

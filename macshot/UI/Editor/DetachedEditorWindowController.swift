@@ -452,8 +452,7 @@ extension DetachedEditorWindowController: OverlayViewDelegate {
         guard let raw = overlayView?.captureSelectedRegion() else { return }
         let image = applyPostProcessing(raw)
         guard let imageData = ImageEncoder.encode(image) else { return }
-        let tempURL = URL(fileURLWithPath: NSTemporaryDirectory())
-            .appendingPathComponent(FilenameFormatter.defaultImageFilename())
+        let tempURL = TmpScratchDirectory.makeURL(filename: FilenameFormatter.defaultImageFilename())
         try? imageData.write(to: tempURL)
 
         let picker = NSSharingServicePicker(items: [tempURL])

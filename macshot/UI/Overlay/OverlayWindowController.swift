@@ -447,8 +447,8 @@ extension OverlayWindowController: OverlayViewDelegate {
         guard var image = captureRegion() else { return }
         image = applyBeautifyIfNeeded(image) ?? image
         guard let imageData = ImageEncoder.encode(image) else { return }
-        let tempURL = URL(fileURLWithPath: NSTemporaryDirectory())
-            .appendingPathComponent(FilenameFormatter.defaultImageFilename(windowTitle: capturedWindowTitle))
+        let tempURL = TmpScratchDirectory.makeURL(
+            filename: FilenameFormatter.defaultImageFilename(windowTitle: capturedWindowTitle))
         try? imageData.write(to: tempURL)
 
         // Get the screen position of the share button

@@ -53,6 +53,43 @@ class ScreenshotHistory {
         }
 
         loadIndex()
+        pruneOrphanedFiles()
+    }
+
+    /// Delete files in the history directory that aren't referenced by any
+    /// entry in `index.json`. Catches orphans from past bugs where a
+    /// `_preview.png` / `_raw.png` / `_annotations.json` was written but
+    /// never cleaned up. Runs once at startup off the main thread.
+    private func pruneOrphanedFiles() {
+        DispatchQueue.global(qos: .utility).async { [historyDir, indexFile, entries] in
+            let fm = FileManager.default
+            guard let contents = try? fm.contentsOfDirectory(
+                at: historyDir,
+                includingPropertiesForKeys: [.isRegularFileKey],
+                options: [.skipsHiddenFiles, .skipsSubdirectoryDescendants]
+            ) else { return }
+
+            // Build the set of valid IDs from the in-memory entries. Files
+            // for an entry ID all start with that UUID; anything not
+            // matching is an orphan we can safely remove.
+            let validIDs = Set(entries.map { $0.id })
+
+            for url in contents {
+                // Never touch the index itself.
+                if url == indexFile { continue }
+                let name = url.lastPathComponent
+
+                // Expect "<UUID>.<ext>" or "<UUID>_<suffix>.<ext>".
+                // Extract the UUID prefix (first 36 chars if valid UUID).
+                guard name.count >= 36 else { continue }
+                let uuidCandidate = String(name.prefix(36))
+                guard UUID(uuidString: uuidCandidate) != nil else { continue }
+
+                if !validIDs.contains(uuidCandidate) {
+                    try? fm.removeItem(at: url)
+                }
+            }
+        }
     }
 
     // MARK: - Public API

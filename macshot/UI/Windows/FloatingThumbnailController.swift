@@ -182,8 +182,7 @@ class FloatingThumbnailController: NSObject, NSDraggingSource {
         guard let view = thumbnailView else { return }
         guard let encodedData = ImageEncoder.encode(image) else { return }
 
-        let tempURL = URL(fileURLWithPath: NSTemporaryDirectory())
-            .appendingPathComponent(FilenameFormatter.defaultImageFilename())
+        let tempURL = TmpScratchDirectory.makeURL(filename: FilenameFormatter.defaultImageFilename())
         do { try encodedData.write(to: tempURL) } catch { return }
 
         let draggingItem = NSDraggingItem(pasteboardWriter: tempURL as NSURL)
