@@ -1,5 +1,29 @@
 # Changelog
 
+## [4.1.0-beta.3] - 2026-04-18
+
+### Added
+- **Cut segments in the video editor** — remove a range of frames from the exported video. Cuts are temporal (frames physically skipped) and integrate into preview, MP4/GIF export, and upload. Trim bar shows striped red overlays over cut ranges.
+- **Speed segments in the video editor** — retime a source range at 0.25×, 0.5×, 0.75×, 2×, 3×, 5×, or 10×. Shared `buildProcessedComposition` pipeline bakes trim + cuts + speed into a single composition via `scaleTimeRange`, keeping video and audio in sync across all three effects.
+- **Right-click to anchor capture rect** — right-click an empty overlay to start a selection at that point, then move the cursor without holding any button. Left-click (or a second right-click) commits; ESC cancels. Shift-constrain and Space-reposition work the same as in drag mode. Closes #127.
+- **"Open Video…" menu entry** — opens a user-owned video in the editor for trimming / effects / export without touching the source file.
+- **Keyboard navigation in the history overlay** — left/right arrows, Enter/Cmd+C to copy, Cmd+E to open in editor, Space for Quick Look, Delete to remove. Hover now updates the keyboard selection so arrow keys always step from wherever the mouse last pointed.
+- **Dock right-click shows each window individually** — editor, video editor, and preferences windows each appear as their own menu item; clicking brings that specific window forward.
+
+### Changed
+- **Background windows no longer jump forward when triggering a capture** — editor/preferences/Sparkle windows stay behind the user's frontmost app during a screenshot. Stashing only kicks in when another app was frontmost, so screenshotting a macshot window that's already in focus still works.
+- **Video editor title now includes the source filename (or timestamp for image editor)** so multiple editor windows are distinguishable in Mission Control and the Window menu.
+- **Video editor min width bumped** so the quality dropdown fits without clipping.
+- **Video editor time label shows the actual output duration** (post cuts + speed) instead of just the raw trim span.
+- **Stronger default blur radius** for censored video regions — previous value left faint shapes visible.
+- **High / Medium / Low label in the quality dropdown now follows the UI language** (was always English).
+
+### Fixed
+- **Video editor no longer flickers to black** when editing a zoom or censor rect while cuts are present. Player-item swaps are now guarded by a cut/speed topology fingerprint, so rect edits on existing effects stay flicker-free.
+- **History panel selection flicker** when mixing mouse hover and arrow keys — hover and keyboard selection now share a single outlined-card state.
+- **Settings window filename templates** now persist correctly across close/reopen (were reverting to the default).
+- **Video editor status/time label placement** when the effects band grows to multiple rows.
+
 ## [4.1.0-beta.2] - 2026-04-18
 
 ### Added
