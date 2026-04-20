@@ -249,6 +249,7 @@
 "Frame rate:" = "프레임 레이트:";
 "After recording:" = "녹화 후:";
 "Save recording to:" = "녹화 저장 위치:";
+"Save Recording" = "녹화 저장";
 "Clear" = "지우기";
 "Max height:" = "최대 높이:";
 "px (0 = unlimited)" = "px (0 = 무제한)";
@@ -554,4 +555,5 @@
 "The file extension is appended automatically. Slashes and colons in {window} become dashes." = "파일 확장자는 자동으로 추가됩니다. {window}의 슬래시와 콜론은 대시로 변환됩니다.";
 "Trigger macshot from Raycast, Alfred, Shortcuts, or any tool that opens URLs." = "Raycast, Alfred, Shortcuts 또는 URL을 여는 모든 도구에서 macshot을 실행하세요.";
 "URL scheme info" = "URL 스킴 정보";
+"Enable macshot:// URL scheme" = "macshot:// URL 스킴 사용";
 "sec (0 = never)" = "초 (0 = 사용 안 함)";

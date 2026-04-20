@@ -51,6 +51,7 @@
 /* Floating Thumbnail */
 "Close All" = "Close All";
 "Save All to Folder…" = "Save All to Folder…";
+"Save Recording" = "Save Recording";
 "Save" = "Save";
 
 /* Editor Top Bar */
@@ -221,6 +222,7 @@
 "Halves dimensions on Retina displays, ~4x smaller files" = "Halves dimensions on Retina displays, ~4x smaller files";
 "Embed sRGB color profile" = "Embed sRGB color profile";
 "Ensures consistent colors across different displays" = "Ensures consistent colors across different displays";
+"Enable macshot:// URL scheme" = "Enable macshot:// URL scheme";
 "Screenshot History" = "Screenshot History";
 "History size:" = "History size:";
 "screenshots kept on disk (0 = off)" = "screenshots kept on disk (0 = off)";

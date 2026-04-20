@@ -249,6 +249,7 @@
 "Frame rate:" = "Tốc độ khung hình:";
 "After recording:" = "Sau khi quay:";
 "Save recording to:" = "Lưu bản quay vào:";
+"Save Recording" = "Lưu bản quay";
 "Clear" = "Xóa";
 "Max height:" = "Chiều cao tối đa:";
 "px (0 = unlimited)" = "px (0 = không giới hạn)";
@@ -552,4 +553,5 @@
 "The file extension is appended automatically. Slashes and colons in {window} become dashes." = "Phần mở rộng tệp sẽ được thêm tự động. Dấu gạch chéo và hai chấm trong {window} sẽ chuyển thành dấu gạch ngang.";
 "Trigger macshot from Raycast, Alfred, Shortcuts, or any tool that opens URLs." = "Kích hoạt macshot từ Raycast, Alfred, Shortcuts, hoặc bất kỳ công cụ nào mở URL.";
 "URL scheme info" = "Thông tin URL scheme";
+"Enable macshot:// URL scheme" = "Bật URL scheme macshot://";
 "sec (0 = never)" = "giây (0 = không bao giờ)";

@@ -249,6 +249,7 @@
 "Frame rate:" = "קצב פריימים:";
 "After recording:" = "לאחר הקלטה:";
 "Save recording to:" = "שמור הקלטה אל:";
+"Save Recording" = "שמור הקלטה";
 "Clear" = "נקה";
 "Max height:" = "גובה מקסימלי:";
 "px (0 = unlimited)" = "px (0 = ללא הגבלה)";
@@ -544,6 +545,7 @@
 "Re-capture the last selected area" = "לכוד שוב את האזור שנבחר אחרון";
 "Screenshots only — captured window title (blank otherwise)" = "צילומי מסך בלבד — כותרת החלון שנלכד (ריק אחרת)";
 "Show available filename tokens" = "הצג אסימוני שם קובץ זמינים";
+"Enable macshot:// URL scheme" = "הפעל סכמת URL של macshot://";
 "Show supported URL scheme commands" = "הצג פקודות סכמת URL נתמכות";
 "Start area capture" = "התחל לכידת אזור";
 "Start area recording" = "התחל הקלטת אזור";

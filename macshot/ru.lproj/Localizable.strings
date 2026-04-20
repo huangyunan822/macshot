@@ -249,6 +249,7 @@
 "Frame rate:" = "Частота кадров:";
 "After recording:" = "После записи:";
 "Save recording to:" = "Сохранять запись в:";
+"Save Recording" = "Сохранить запись";
 "Clear" = "Очистить";
 "Max height:" = "Макс. высота:";
 "px (0 = unlimited)" = "px (0 = без ограничений)";
@@ -551,5 +552,6 @@
 "Supported URL Scheme Commands" = "Поддерживаемые команды URL-схемы";
 "The file extension is appended automatically. Slashes and colons in {window} become dashes." = "Расширение файла добавляется автоматически. Слэши и двоеточия в {window} заменяются дефисами.";
 "Trigger macshot from Raycast, Alfred, Shortcuts, or any tool that opens URLs." = "Запускайте macshot из Raycast, Alfred, Shortcuts или любого инструмента, открывающего URL.";
+"Enable macshot:// URL scheme" = "Включить URL-схему macshot://";
 "URL scheme info" = "Информация об URL-схеме";
 "sec (0 = never)" = "сек. (0 = никогда)";

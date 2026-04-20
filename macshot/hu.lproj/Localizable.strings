@@ -249,6 +249,7 @@
 "Frame rate:" = "Képkockaszám:";
 "After recording:" = "Felvétel után:";
 "Save recording to:" = "Felvétel mentése ide:";
+"Save Recording" = "Felvétel mentése";
 "Clear" = "Törlés";
 "Max height:" = "Max magasság:";
 "px (0 = unlimited)" = "px (0 = korlátlan)";
@@ -542,6 +543,7 @@
 "Re-capture the last selected area" = "Utoljára kiválasztott terület újbóli rögzítése";
 "Screenshots only — captured window title (blank otherwise)" = "Csak képernyőképeknél — rögzített ablak címe (egyébként üres)";
 "Show available filename tokens" = "Elérhető fájlnév tokenek megjelenítése";
+"Enable macshot:// URL scheme" = "macshot:// URL séma engedélyezése";
 "Show supported URL scheme commands" = "Támogatott URL séma parancsok megjelenítése";
 "Start area capture" = "Terület rögzítés indítása";
 "Start area recording" = "Terület felvétel indítása";

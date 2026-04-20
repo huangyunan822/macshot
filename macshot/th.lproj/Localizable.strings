@@ -249,6 +249,7 @@
 "Frame rate:" = "อัตราเฟรม:";
 "After recording:" = "หลังบันทึก:";
 "Save recording to:" = "บันทึกวิดีโอไปยัง:";
+"Save Recording" = "บันทึกวิดีโอ";
 "Clear" = "ล้าง";
 "Max height:" = "ความสูงสูงสุด:";
 "px (0 = unlimited)" = "px (0 = ไม่จำกัด)";
@@ -552,4 +553,5 @@
 "The file extension is appended automatically. Slashes and colons in {window} become dashes." = "นามสกุลไฟล์จะถูกเพิ่มโดยอัตโนมัติ เครื่องหมายทับและโคลอนใน {window} จะกลายเป็นเครื่องหมายขีด";
 "Trigger macshot from Raycast, Alfred, Shortcuts, or any tool that opens URLs." = "เรียกใช้ macshot จาก Raycast, Alfred, Shortcuts หรือเครื่องมือใดก็ตามที่เปิด URL";
 "URL scheme info" = "ข้อมูล URL scheme";
+"Enable macshot:// URL scheme" = "เปิดใช้งาน URL scheme macshot://";
 "sec (0 = never)" = "วินาที (0 = ไม่เลย)";

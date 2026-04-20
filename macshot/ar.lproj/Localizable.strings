@@ -249,6 +249,7 @@
 "Frame rate:" = "معدل الإطارات:";
 "After recording:" = "بعد التسجيل:";
 "Save recording to:" = "حفظ التسجيل في:";
+"Save Recording" = "حفظ التسجيل";
 "Clear" = "مسح";
 "Max height:" = "الارتفاع الأقصى:";
 "px (0 = unlimited)" = "px (0 = بلا حدود)";
@@ -544,6 +545,7 @@
 "Re-capture the last selected area" = "إعادة التقاط آخر منطقة محددة";
 "Screenshots only — captured window title (blank otherwise)" = "لقطات الشاشة فقط — عنوان النافذة الملتقطة (فارغ خلاف ذلك)";
 "Show available filename tokens" = "عرض رموز اسم الملف المتاحة";
+"Enable macshot:// URL scheme" = "تفعيل مخطط URL الخاص بـ macshot://";
 "Show supported URL scheme commands" = "عرض أوامر مخطط URL المدعومة";
 "Start area capture" = "بدء التقاط منطقة";
 "Start area recording" = "بدء تسجيل منطقة";

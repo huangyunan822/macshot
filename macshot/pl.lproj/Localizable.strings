@@ -376,6 +376,7 @@
 
 /* Save Panel */
 "Save As..." = "Zachowaj jako...";
+"Save Recording" = "Zachowaj nagranie";
 "Choose a folder" = "Wybierz folder";
 "Save All to Folder…" = "Zachowaj wszystkie do folderu…";
 
@@ -543,6 +544,7 @@
 "Screenshots only — captured window title (blank otherwise)" = "Tylko zrzuty ekranu — tytuł przechwyconego okna (w przeciwnym razie puste)";
 "Show available filename tokens" = "Pokaż dostępne tokeny nazwy pliku";
 "Show supported URL scheme commands" = "Pokaż obsługiwane polecenia schematu URL";
+"Enable macshot:// URL scheme" = "Włącz schemat URL macshot://";
 "Start area capture" = "Rozpocznij przechwytywanie obszaru";
 "Start area recording" = "Rozpocznij nagrywanie obszaru";
 "Start full-screen recording" = "Rozpocznij nagrywanie pełnego ekranu";

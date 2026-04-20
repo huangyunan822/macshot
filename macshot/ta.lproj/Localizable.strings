@@ -249,6 +249,7 @@
 "Frame rate:" = "பிரேம் வீதம்:";
 "After recording:" = "பதிவுக்குப் பிறகு:";
 "Save recording to:" = "பதிவை இங்கே சேமி:";
+"Save Recording" = "பதிவைச் சேமி";
 "Clear" = "அழி";
 "Max height:" = "அதிகபட்ச உயரம்:";
 "px (0 = unlimited)" = "px (0 = வரம்பில்லை)";
@@ -544,6 +545,7 @@
 "Re-capture the last selected area" = "கடைசியாக தேர்ந்தெடுத்த பகுதியை மீண்டும் பிடி";
 "Screenshots only — captured window title (blank otherwise)" = "திரைப்பிடிப்புகள் மட்டும் — பிடிக்கப்பட்ட சாளரத் தலைப்பு (இல்லையெனில் காலி)";
 "Show available filename tokens" = "கிடைக்கும் கோப்புப்பெயர் டோக்கன்களைக் காட்டு";
+"Enable macshot:// URL scheme" = "macshot:// URL திட்டத்தை இயக்கு";
 "Show supported URL scheme commands" = "ஆதரிக்கப்படும் URL திட்ட கட்டளைகளைக் காட்டு";
 "Start area capture" = "பகுதி பிடிப்பைத் தொடங்கு";
 "Start area recording" = "பகுதி பதிவைத் தொடங்கு";

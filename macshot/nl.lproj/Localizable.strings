@@ -376,6 +376,7 @@
 
 /* Save Panel */
 "Save As..." = "Bewaar als...";
+"Save Recording" = "Bewaar opname";
 "Choose a folder" = "Kies een map";
 "Save All to Folder…" = "Bewaar alles in map…";
 
@@ -543,6 +544,7 @@
 "Screenshots only — captured window title (blank otherwise)" = "Alleen schermafbeeldingen — titel van het vastgelegde venster (anders leeg)";
 "Show available filename tokens" = "Beschikbare bestandsnaam-tokens tonen";
 "Show supported URL scheme commands" = "Ondersteunde URL-schemacommando's tonen";
+"Enable macshot:// URL scheme" = "macshot:// URL-schema inschakelen";
 "Start area capture" = "Gebiedsopname starten";
 "Start area recording" = "Gebiedsopname (video) starten";
 "Start full-screen recording" = "Volledige schermopname starten";

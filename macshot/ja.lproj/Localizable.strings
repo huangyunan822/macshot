@@ -249,6 +249,7 @@
 "Frame rate:" = "フレームレート:";
 "After recording:" = "録画後:";
 "Save recording to:" = "録画の保存先:";
+"Save Recording" = "録画を保存";
 "Clear" = "クリア";
 "Max height:" = "最大高さ:";
 "px (0 = unlimited)" = "px (0 = 無制限)";
@@ -552,4 +553,5 @@
 "The file extension is appended automatically. Slashes and colons in {window} become dashes." = "ファイル拡張子は自動的に追加されます。{window} 内のスラッシュとコロンはダッシュになります。";
 "Trigger macshot from Raycast, Alfred, Shortcuts, or any tool that opens URLs." = "Raycast、Alfred、Shortcuts、または URL を開くツールから macshot を起動します。";
 "URL scheme info" = "URL スキーム情報";
+"Enable macshot:// URL scheme" = "macshot:// URL スキームを有効にする";
 "sec (0 = never)" = "秒 (0 = 無効)";

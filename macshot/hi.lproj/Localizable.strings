@@ -249,6 +249,7 @@
 "Frame rate:" = "फ़्रेम दर:";
 "After recording:" = "रिकॉर्डिंग के बाद:";
 "Save recording to:" = "रिकॉर्डिंग यहाँ सहेजें:";
+"Save Recording" = "रिकॉर्डिंग सहेजें";
 "Clear" = "मिटाएँ";
 "Max height:" = "अधिकतम ऊँचाई:";
 "px (0 = unlimited)" = "px (0 = असीमित)";
@@ -544,6 +545,7 @@
 "Re-capture the last selected area" = "अंतिम चयनित क्षेत्र पुनः कैप्चर करें";
 "Screenshots only — captured window title (blank otherwise)" = "केवल स्क्रीनशॉट — कैप्चर किए गए विंडो का शीर्षक (अन्यथा खाली)";
 "Show available filename tokens" = "उपलब्ध फ़ाइलनाम टोकन दिखाएँ";
+"Enable macshot:// URL scheme" = "macshot:// URL स्कीम सक्षम करें";
 "Show supported URL scheme commands" = "समर्थित URL स्कीम कमांड दिखाएँ";
 "Start area capture" = "क्षेत्र कैप्चर शुरू करें";
 "Start area recording" = "क्षेत्र रिकॉर्डिंग शुरू करें";

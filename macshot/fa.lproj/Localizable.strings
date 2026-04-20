@@ -249,6 +249,7 @@
 "Frame rate:" = "نرخ فریم:";
 "After recording:" = "پس از ضبط ویدیو:";
 "Save recording to:" = "ذخیره ضبط ویدیو در:";
+"Save Recording" = "ذخیره ضبط";
 "Clear" = "پاک کردن";
 "Max height:" = "حداکثر ارتفاع:";
 "px (0 = unlimited)" = "px (0 = نامحدود)";
@@ -544,6 +545,7 @@
 "Re-capture the last selected area" = "ضبط مجدد آخرین ناحیه انتخاب‌شده";
 "Screenshots only — captured window title (blank otherwise)" = "فقط اسکرین‌شات — عنوان پنجره ضبط‌شده (در غیر این صورت خالی)";
 "Show available filename tokens" = "نمایش توکن‌های موجود نام فایل";
+"Enable macshot:// URL scheme" = "فعال‌سازی طرح URL با macshot://";
 "Show supported URL scheme commands" = "نمایش دستورات پشتیبانی‌شده طرح URL";
 "Start area capture" = "شروع ضبط ناحیه";
 "Start area recording" = "شروع ضبط ویدیوی ناحیه";

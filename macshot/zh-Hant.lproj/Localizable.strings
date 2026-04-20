@@ -249,6 +249,7 @@
 "Frame rate:" = "影格率：";
 "After recording:" = "錄製後：";
 "Save recording to:" = "將錄製儲存至：";
+"Save Recording" = "儲存錄製";
 "Clear" = "清除";
 "Max height:" = "最大高度：";
 "px (0 = unlimited)" = "px（0 = 不限）";
@@ -554,4 +555,5 @@
 "The file extension is appended automatically. Slashes and colons in {window} become dashes." = "副檔名會自動附加。{window} 中的斜線與冒號會變成破折號。";
 "Trigger macshot from Raycast, Alfred, Shortcuts, or any tool that opens URLs." = "從 Raycast、Alfred、Shortcuts 或任何可開啟 URL 的工具觸發 macshot。";
 "URL scheme info" = "URL scheme 資訊";
+"Enable macshot:// URL scheme" = "啟用 macshot:// URL scheme";
 "sec (0 = never)" = "秒（0 = 永不）";

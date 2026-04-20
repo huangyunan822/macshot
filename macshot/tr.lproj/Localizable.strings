@@ -249,6 +249,7 @@
 "Frame rate:" = "Kare hızı:";
 "After recording:" = "Kayıttan sonra:";
 "Save recording to:" = "Kaydı şuraya kaydet:";
+"Save Recording" = "Kaydı Kaydet";
 "Clear" = "Temizle";
 "Max height:" = "Maks. yükseklik:";
 "px (0 = unlimited)" = "px (0 = sınırsız)";
@@ -544,6 +545,7 @@
 "Re-capture the last selected area" = "Son seçilen alanı yeniden yakala";
 "Screenshots only — captured window title (blank otherwise)" = "Yalnızca ekran görüntüleri — yakalanan pencere başlığı (aksi halde boş)";
 "Show available filename tokens" = "Kullanılabilir dosya adı belirteçlerini göster";
+"Enable macshot:// URL scheme" = "macshot:// URL şemasını etkinleştir";
 "Show supported URL scheme commands" = "Desteklenen URL şeması komutlarını göster";
 "Start area capture" = "Alan yakalamayı başlat";
 "Start area recording" = "Alan kaydını başlat";

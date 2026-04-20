@@ -249,6 +249,7 @@
 "Frame rate:" = "Billedfrekvens:";
 "After recording:" = "Efter optagelse:";
 "Save recording to:" = "Gem optagelse i:";
+"Save Recording" = "Gem optagelse";
 "Clear" = "Ryd";
 "Max height:" = "Maks h\U00F8jde:";
 "px (0 = unlimited)" = "px (0 = ubegr\U00E6nset)";
@@ -554,4 +555,5 @@
 "The file extension is appended automatically. Slashes and colons in {window} become dashes." = "Filendelsen tilf\U00F8jes automatisk. Skr\U00E5streger og koloner i {window} bliver til bindestreger.";
 "Trigger macshot from Raycast, Alfred, Shortcuts, or any tool that opens URLs." = "Udl\U00F8s macshot fra Raycast, Alfred, Shortcuts eller ethvert v\U00E6rkt\U00F8j, der \U00E5bner URL'er.";
 "URL scheme info" = "URL-skema-info";
+"Enable macshot:// URL scheme" = "Aktiv\U00E9r macshot://-URL-skema";
 "sec (0 = never)" = "sek (0 = aldrig)";

@@ -249,6 +249,7 @@
 "Frame rate:" = "Брзина кадрова:";
 "After recording:" = "После снимања:";
 "Save recording to:" = "Сачувај снимак у:";
+"Save Recording" = "Сачувај снимак";
 "Clear" = "Обриши";
 "Max height:" = "Максимална висина:";
 "px (0 = unlimited)" = "px (0 = неограничено)";
@@ -553,5 +554,6 @@
 "Supported URL Scheme Commands" = "Подржане команде URL шеме";
 "The file extension is appended automatically. Slashes and colons in {window} become dashes." = "Екстензија датотеке се додаје аутоматски. Косе црте и двотачке у {window} постају цртице.";
 "Trigger macshot from Raycast, Alfred, Shortcuts, or any tool that opens URLs." = "Покрените macshot из Raycast, Alfred, Shortcuts или било ког алата који отвара URL-ове.";
+"Enable macshot:// URL scheme" = "Омогући URL шему macshot://";
 "URL scheme info" = "Информације о URL шеми";
 "sec (0 = never)" = "сек (0 = никад)";

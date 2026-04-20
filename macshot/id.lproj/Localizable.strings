@@ -249,6 +249,7 @@
 "Frame rate:" = "Laju bingkai:";
 "After recording:" = "Setelah merekam:";
 "Save recording to:" = "Simpan rekaman ke:";
+"Save Recording" = "Simpan Rekaman";
 "Clear" = "Hapus";
 "Max height:" = "Tinggi maks:";
 "px (0 = unlimited)" = "px (0 = tak terbatas)";
@@ -552,4 +553,5 @@
 "The file extension is appended automatically. Slashes and colons in {window} become dashes." = "Ekstensi file ditambahkan secara otomatis. Garis miring dan titik dua di {window} menjadi tanda hubung.";
 "Trigger macshot from Raycast, Alfred, Shortcuts, or any tool that opens URLs." = "Picu macshot dari Raycast, Alfred, Shortcuts, atau alat apa pun yang membuka URL.";
 "URL scheme info" = "Info skema URL";
+"Enable macshot:// URL scheme" = "Aktifkan skema URL macshot://";
 "sec (0 = never)" = "detik (0 = tidak pernah)";

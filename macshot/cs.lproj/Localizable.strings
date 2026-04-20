@@ -249,6 +249,7 @@
 "Frame rate:" = "Snímková frekvence:";
 "After recording:" = "Po nahrávání:";
 "Save recording to:" = "Uložit nahrávku do:";
+"Save Recording" = "Uložit nahrávku";
 "Clear" = "Vymazat";
 "Max height:" = "Maximální výška:";
 "px (0 = unlimited)" = "px (0 = bez omezení)";
@@ -551,5 +552,6 @@
 "Supported URL Scheme Commands" = "Podporované příkazy URL schématu";
 "The file extension is appended automatically. Slashes and colons in {window} become dashes." = "Přípona souboru se přidá automaticky. Lomítka a dvojtečky v {window} se změní na pomlčky.";
 "Trigger macshot from Raycast, Alfred, Shortcuts, or any tool that opens URLs." = "Spusťte macshot z Raycast, Alfred, Shortcuts nebo jakéhokoli nástroje, který otevírá URL.";
+"Enable macshot:// URL scheme" = "Povolit URL schéma macshot://";
 "URL scheme info" = "Informace o URL schématu";
 "sec (0 = never)" = "s (0 = nikdy)";

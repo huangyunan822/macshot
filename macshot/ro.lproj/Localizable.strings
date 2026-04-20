@@ -249,6 +249,7 @@
 "Frame rate:" = "Rata de cadre:";
 "After recording:" = "Dupa inregistrare:";
 "Save recording to:" = "Salveaza inregistrarea in:";
+"Save Recording" = "Salveaza inregistrarea";
 "Clear" = "Sterge";
 "Max height:" = "Inaltime maxima:";
 "px (0 = unlimited)" = "px (0 = nelimitat)";
@@ -542,6 +543,7 @@
 "Re-capture the last selected area" = "Recaptureaza ultima zona selectata";
 "Screenshots only — captured window title (blank otherwise)" = "Doar capturi de ecran — titlul ferestrei capturate (gol altfel)";
 "Show available filename tokens" = "Afiseaza jetoanele disponibile pentru nume fisier";
+"Enable macshot:// URL scheme" = "Activeaza schema URL macshot://";
 "Show supported URL scheme commands" = "Afiseaza comenzile schemei URL suportate";
 "Start area capture" = "Porneste captura de zona";
 "Start area recording" = "Porneste inregistrarea de zona";

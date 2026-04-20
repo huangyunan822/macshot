@@ -249,6 +249,7 @@
 "Frame rate:" = "Ρυθμός καρέ:";
 "After recording:" = "Μετά την εγγραφή:";
 "Save recording to:" = "Αποθήκευση εγγραφής σε:";
+"Save Recording" = "Αποθήκευση εγγραφής";
 "Clear" = "Εκκαθάριση";
 "Max height:" = "Μέγιστο ύψος:";
 "px (0 = unlimited)" = "px (0 = απεριόριστο)";
@@ -544,6 +545,7 @@
 "Re-capture the last selected area" = "Επανάληψη λήψης της τελευταίας επιλεγμένης περιοχής";
 "Screenshots only — captured window title (blank otherwise)" = "Μόνο στιγμιότυπα — τίτλος παραθύρου λήψης (κενό διαφορετικά)";
 "Show available filename tokens" = "Εμφάνιση διαθέσιμων διακριτικών ονόματος αρχείου";
+"Enable macshot:// URL scheme" = "Ενεργοποίηση URL scheme macshot://";
 "Show supported URL scheme commands" = "Εμφάνιση υποστηριζόμενων εντολών URL scheme";
 "Start area capture" = "Έναρξη λήψης περιοχής";
 "Start area recording" = "Έναρξη εγγραφής περιοχής";

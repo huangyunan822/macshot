@@ -249,6 +249,7 @@
 "Frame rate:" = "Velocitat de fotogrames:";
 "After recording:" = "Despres de gravar:";
 "Save recording to:" = "Desar gravacio a:";
+"Save Recording" = "Desar gravació";
 "Clear" = "Esborrar";
 "Max height:" = "Alcada maxima:";
 "px (0 = unlimited)" = "px (0 = il·limitat)";
@@ -544,6 +545,7 @@
 "Re-capture the last selected area" = "Tornar a capturar l'última àrea seleccionada";
 "Screenshots only — captured window title (blank otherwise)" = "Només captures de pantalla — títol de la finestra capturada (en blanc en cas contrari)";
 "Show available filename tokens" = "Mostrar els testimonis de nom de fitxer disponibles";
+"Enable macshot:// URL scheme" = "Activar l'esquema d'URL macshot://";
 "Show supported URL scheme commands" = "Mostrar les ordres d'esquema d'URL compatibles";
 "Start area capture" = "Iniciar captura d'àrea";
 "Start area recording" = "Iniciar gravació d'àrea";

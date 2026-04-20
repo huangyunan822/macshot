@@ -249,6 +249,7 @@
 "Frame rate:" = "Kuvataajuus:";
 "After recording:" = "Nauhoituksen jalkeen:";
 "Save recording to:" = "Tallenna nauhoitus kohteeseen:";
+"Save Recording" = "Tallenna nauhoitus";
 "Clear" = "Tyhjenna";
 "Max height:" = "Enimmäiskorkeus:";
 "px (0 = unlimited)" = "px (0 = rajoittamaton)";
@@ -554,4 +555,5 @@
 "The file extension is appended automatically. Slashes and colons in {window} become dashes." = "Tiedostopääte lisätään automaattisesti. {window}-kentän vinoviivat ja kaksoispisteet muuttuvat viivoiksi.";
 "Trigger macshot from Raycast, Alfred, Shortcuts, or any tool that opens URLs." = "Käynnistä macshot Raycastista, Alfredista, Shortcuts-sovelluksesta tai mistä tahansa työkalusta, joka avaa URL-osoitteita.";
 "URL scheme info" = "URL-skeeman tiedot";
+"Enable macshot:// URL scheme" = "Ota macshot://-URL-skeema k\U00E4ytt\U00F6\U00F6n";
 "sec (0 = never)" = "s (0 = ei koskaan)";

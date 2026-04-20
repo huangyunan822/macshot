@@ -249,6 +249,7 @@
 "Frame rate:" = "Frame rate:";
 "After recording:" = "Pagkatapos mag-record:";
 "Save recording to:" = "I-save ang recording sa:";
+"Save Recording" = "I-save ang Recording";
 "Clear" = "Burahin";
 "Max height:" = "Pinakamataas na taas:";
 "px (0 = unlimited)" = "px (0 = walang limitasyon)";
@@ -554,4 +555,5 @@
 "The file extension is appended automatically. Slashes and colons in {window} become dashes." = "Awtomatikong idinaragdag ang extension ng file. Ang mga slash at colon sa {window} ay nagiging mga gitling.";
 "Trigger macshot from Raycast, Alfred, Shortcuts, or any tool that opens URLs." = "I-trigger ang macshot mula sa Raycast, Alfred, Shortcuts, o anumang tool na nagbubukas ng URL.";
 "URL scheme info" = "Impormasyon ng URL scheme";
+"Enable macshot:// URL scheme" = "I-enable ang macshot:// URL scheme";
 "sec (0 = never)" = "seg (0 = hindi kailanman)";
