@@ -1,5 +1,17 @@
 # Changelog
 
+## [4.1.0-beta.6] - 2026-04-21
+
+### Added
+- **`{random}` filename token** — screenshot and recording filename templates now support a `{random}` placeholder that renders a fresh 8-character lowercase base36 string per file. Closes #136.
+
+### Changed
+- **Clicking a history entry in the menu bar now shows the floating thumbnail** for visual confirmation, instead of silently copying to clipboard with no feedback. The thumbnail's Edit action opens the original history entry. Closes #133.
+
+### Fixed
+- **Stroke width, line style, arrow style, shape fill, corner radius, and arrow Flip now persist globally even when an annotation is selected.** Changing these while editing an existing annotation only mutated that annotation — the UserDefaults write was in an `else` branch that never ran in edit mode — so the next capture reverted to whatever was last persisted (stroke defaulted to 3). Refs #58.
+- **"Enable macshot:// URL scheme" checkbox was not localized** (raw string literal, not wrapped in `L()`). Also added the missing `"Save Recording"` key that was referenced in `AppDelegate` but absent from every `.strings` file. Closes #134.
+
 ## [4.1.0-beta.5] - 2026-04-19
 
 ### Fixed
