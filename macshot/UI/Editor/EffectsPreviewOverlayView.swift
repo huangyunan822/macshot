@@ -17,6 +17,7 @@ final class EffectsPreviewOverlayView: NSView {
     enum Kind {
         case zoom
         case censor(VideoCensorSegment.Style)
+        case text
     }
 
     /// The selection currently shown, or `nil` to hide the overlay.
@@ -41,6 +42,12 @@ final class EffectsPreviewOverlayView: NSView {
     /// is responsible for clamping, writing to the model, and triggering a
     /// composition rebuild.
     var onChange: ((CGRect) -> Void)?
+
+    /// Fires when the user double-clicks inside a text selection's rect.
+    /// Reports the **view-space** rect of the selection so the controller
+    /// can place an NSTextField over the player at exactly that position.
+    /// Only invoked when the current selection is `.text`.
+    var onTextEditRequested: ((NSRect) -> Void)?
 
     // MARK: - Drag state
 
@@ -86,11 +93,13 @@ final class EffectsPreviewOverlayView: NSView {
             switch selection.kind {
             case .zoom:    return NSColor(calibratedRed: 0.25, green: 0.55, blue: 1.0, alpha: 1.0)
             case .censor:  return NSColor(calibratedRed: 0.95, green: 0.35, blue: 0.35, alpha: 1.0)
+            case .text:    return NSColor(calibratedRed: 1.0,  green: 0.78, blue: 0.30, alpha: 1.0)
             }
         }()
 
         // Dim outside the rect for zoom (so the zoom target is the "bright"
-        // area) — skip for censor since the censor content itself is shown.
+        // area) — skip for censor and text since the styled content shows
+        // through directly.
         if case .zoom = selection.kind {
             NSColor.black.withAlphaComponent(0.45).setFill()
             let outer = NSBezierPath(rect: videoRectInView())
@@ -106,6 +115,11 @@ final class EffectsPreviewOverlayView: NSView {
         case .censor:
             color.withAlphaComponent(0.15).setFill()
             NSBezierPath(rect: rect).fill()
+        case .text:
+            // No fill — the rasterized text image already shows through. We
+            // only render the marching border + handles so the user can
+            // reposition/resize.
+            break
         }
 
         // Border
@@ -134,6 +148,19 @@ final class EffectsPreviewOverlayView: NSView {
         let p = convert(event.locationInWindow, from: nil)
         let r = viewRect(from: selection.rect)
         rectAtDragStart = selection.rect
+
+        // Double-click on a text selection → start in-place text editing.
+        // The body of the rect is reserved for editing; the corner/edge
+        // handle slop still wins so the user can resize a text by
+        // double-clicking exactly on a handle.
+        if event.clickCount >= 2,
+           case .text = selection.kind,
+           hitCorner(point: p, in: r) == nil,
+           r.contains(p) {
+            onTextEditRequested?(r)
+            dragMode = nil
+            return
+        }
 
         if let corner = hitCorner(point: p, in: r) {
             dragMode = .resize(corner: corner)
@@ -199,6 +226,13 @@ final class EffectsPreviewOverlayView: NSView {
             let h = w / videoAspect
             return NSRect(x: 0, y: (bounds.height - h) / 2, width: w, height: h)
         }
+    }
+
+    /// Public wrapper around the normalized → view-space converter so the
+    /// editor controller can position an inline NSTextField over a text
+    /// selection rect without reaching into private state.
+    func viewRectFromNormalized(_ n: CGRect) -> NSRect {
+        viewRect(from: n)
     }
 
     /// Normalized video rect (y-top) → view-space rect (y-bottom).

@@ -167,7 +167,26 @@ private final class VideoEditorView: NSView {
     private var zoomSegments: [VideoZoomSegment] { effectsBand?.zoomSegments ?? [] }
     private var censorSegments: [VideoCensorSegment] { effectsBand?.censorSegments ?? [] }
     private var cutSegments: [VideoCutSegment] { effectsBand?.cutSegments ?? [] }
+    private var textSegments: [VideoTextSegment] { effectsBand?.textSegments ?? [] }
     private var selectedSegmentID: UUID? { effectsBand?.selectedSegmentID }
+
+    // Cached rasterized text overlays. Keyed by segment id; the value carries
+    // the spec used to produce the cached CGImage so we can invalidate when
+    // any visible property changes. Lives on the editor (main actor) and is
+    // snapshotted into the compositor instruction at composition-build time.
+    private var textRasterCache: [UUID: (spec: VideoTextRasterizer.Spec, image: CGImage)] = [:]
+
+    // Inline text-editor state for "Edit Text…". Lives on the editor view so
+    // we can place a borderless NSTextView over the player at the same rect
+    // the EffectsPreviewOverlayView is showing.
+    private var inlineTextEditor: NSTextView?
+    private var inlineTextEditorScrollView: NSScrollView?
+    private var inlineTextEditingSegmentID: UUID?
+    private var pausedForTextEdit: Bool = false
+
+    // NSColorPanel binding state for the "Custom…" color menu action.
+    fileprivate var textColorPickerSegmentID: UUID?
+    fileprivate var textColorPickerIsBackground: Bool = false
 
     // Button rects
     private var playBtnRect: NSRect = .zero
@@ -387,6 +406,12 @@ private final class VideoEditorView: NSView {
         }
         overlay.onChange = { [weak self] newRect in
             self?.overlayRectChanged(newRect)
+        }
+        overlay.onTextEditRequested = { [weak self] viewRect in
+            guard let self = self,
+                  let id = self.selectedSegmentID,
+                  self.textSegments.contains(where: { $0.id == id }) else { return }
+            self.beginInlineTextEdit(segmentID: id, atViewRect: viewRect, hostView: overlay)
         }
         addSubview(overlay)
         NSLayoutConstraint.activate([
@@ -1187,6 +1212,8 @@ private final class VideoEditorView: NSView {
                 seekPreview(to: max(0, seg.startTime - 0.05))
             } else if let seg = censorSegments.first(where: { $0.id == id }) {
                 seekPreview(to: (seg.startTime + seg.endTime) / 2)
+            } else if let seg = textSegments.first(where: { $0.id == id }) {
+                seekPreview(to: (seg.startTime + seg.endTime) / 2)
             }
         }
     }
@@ -1203,6 +1230,10 @@ private final class VideoEditorView: NSView {
             }
             if let seg = censorSegments.first(where: { $0.id == id }) {
                 overlay.selection = .init(kind: .censor(seg.style), rect: seg.rect)
+                return
+            }
+            if let seg = textSegments.first(where: { $0.id == id }) {
+                overlay.selection = .init(kind: .text, rect: seg.rect)
                 return
             }
         }
@@ -1260,6 +1291,12 @@ private final class VideoEditorView: NSView {
             seg.center = CGPoint(x: rect.midX, y: rect.midY)
         } else if let seg = censorSegments.first(where: { $0.id == id }) {
             seg.rect = VideoCensorSegment.clampedRect(rect)
+        } else if let seg = textSegments.first(where: { $0.id == id }) {
+            seg.rect = VideoTextSegment.clampedRect(rect)
+            // Rect resize changes pixel size → invalidate raster cache for
+            // this segment so the next composition rebuild re-rasterizes
+            // at the new size. Drop only this entry; keep other texts cached.
+            textRasterCache.removeValue(forKey: id)
         }
         applyZoomTransformForCurrentTime()
         effectsBand?.refreshAfterParentEdit()
@@ -1460,7 +1497,7 @@ private final class VideoEditorView: NSView {
 
     private func exportSession(asset: AVAsset, timeRange: CMTimeRange, outputURL: URL) -> AVAssetExportSession? {
         let needsScale = exportScale < 0.999
-        let hasEffects = !zoomSegments.isEmpty || !censorSegments.isEmpty
+        let hasEffects = !zoomSegments.isEmpty || !censorSegments.isEmpty || !textSegments.isEmpty
         // Freezes force the custom compositor on — AVAssetExportSession fails
         // on the extreme scaleTimeRange a freeze bakes into the composition
         // track (1/600s source slice stretched to ~1s = 600× scale).
@@ -1624,7 +1661,7 @@ private final class VideoEditorView: NSView {
         // GIF capped at 15fps
         let gifFPS = min(15, asset.tracks(withMediaType: .video).first.map { Int($0.nominalFrameRate.rounded()) } ?? 15)
         let scale = exportScale
-        let hasEffects = !zoomSegments.isEmpty || !censorSegments.isEmpty
+        let hasEffects = !zoomSegments.isEmpty || !censorSegments.isEmpty || !textSegments.isEmpty
 
         // Build the effects-composition pipeline on the main thread before jumping
         // to background so the video composition builder sees our current state.
@@ -1763,7 +1800,7 @@ private final class VideoEditorView: NSView {
         let needsTrim = trimStart > 0.01 || (duration - trimEnd) > 0.01
         let needsScale = exportScale < 0.999
         let needsRecompress = exportQuality != .high
-        let needsEffects = !zoomSegments.isEmpty || !censorSegments.isEmpty
+        let needsEffects = !zoomSegments.isEmpty || !censorSegments.isEmpty || !textSegments.isEmpty
         let needsCuts = !cutSegments.isEmpty
         let needsSpeed = !speedSegments.isEmpty
         let needsFreeze = !freezeSegments.isEmpty
@@ -1848,7 +1885,7 @@ private final class VideoEditorView: NSView {
 
         let includeAudio = !isMuted
         let srcAudioTracks = asset.tracks(withMediaType: .audio)
-        let hasEffects = !zoomSegments.isEmpty || !censorSegments.isEmpty
+        let hasEffects = !zoomSegments.isEmpty || !censorSegments.isEmpty || !textSegments.isEmpty
         let hasCuts = !cutSegments.isEmpty
         let hasSpeed = !speedSegments.isEmpty
         let hasFreeze = !freezeSegments.isEmpty
@@ -2092,7 +2129,7 @@ private final class VideoEditorView: NSView {
         }
 
         let needsTrim = trimStart > 0.01 || (duration - trimEnd) > 0.01
-        let needsEffects = !zoomSegments.isEmpty || !censorSegments.isEmpty
+        let needsEffects = !zoomSegments.isEmpty || !censorSegments.isEmpty || !textSegments.isEmpty
         let needsCuts = !cutSegments.isEmpty
         let needsSpeed = !speedSegments.isEmpty
         let needsFreeze = !freezeSegments.isEmpty
@@ -2164,7 +2201,7 @@ private final class VideoEditorView: NSView {
         let hasCuts = !cutSegments.isEmpty
         let hasSpeed = !speedSegments.isEmpty
         let hasFreeze = !freezeSegments.isEmpty
-        let hasEffects = !zoomSegments.isEmpty || !censorSegments.isEmpty
+        let hasEffects = !zoomSegments.isEmpty || !censorSegments.isEmpty || !textSegments.isEmpty
         let needsComposition = hasCuts || hasSpeed || hasFreeze
         // Fingerprint of the full timeline topology (cuts + speeds +
         // freezes). When unchanged we can keep the existing composition-
@@ -2427,7 +2464,7 @@ private final class VideoEditorView: NSView {
         // which AVAssetExportSession can't handle via bare scaleTimeRange.
         // Routing through our compositor lets the time-map resolve comp time
         // back to source time frame-by-frame, producing a clean frame hold.
-        guard !zoomSegments.isEmpty || !censorSegments.isEmpty || !freezeSegments.isEmpty else {
+        guard !zoomSegments.isEmpty || !censorSegments.isEmpty || !freezeSegments.isEmpty || !textSegments.isEmpty else {
             return nil
         }
 
@@ -2447,6 +2484,14 @@ private final class VideoEditorView: NSView {
             .filter { $0.endTime > $0.startTime }
             .sorted { $0.startTime < $1.startTime }
 
+        // Build text snapshots: rasterize each visible text segment at its
+        // render-pixel size, reusing cached images when the spec is
+        // unchanged. The cache stays on the main actor; we hand the
+        // background-safe `TextSnapshot` (CIImage + scalars) to the
+        // compositor instruction.
+        let textSnapshots = buildTextSnapshots(renderSize: CGSize(width: renderW, height: renderH),
+                                                 naturalSize: CGSize(width: naturalW, height: naturalH))
+
         let instruction = EffectsCompositionInstruction(
             timeRange: CMTimeRange(
                 start: .zero,
@@ -2458,7 +2503,8 @@ private final class VideoEditorView: NSView {
             baseTransform: baseTransform,
             timeMap: timeMap,
             zoomSegments: zoomSnapshot,
-            censorSegments: censorSnapshot
+            censorSegments: censorSnapshot,
+            textSnapshots: textSnapshots
         )
 
         let composition = AVMutableVideoComposition()
@@ -2673,6 +2719,210 @@ private final class VideoEditorView: NSView {
         // (visible × stride − gap) + 2× vertical inset (matches EffectsBandView.verticalInset = 4)
         return CGFloat(visible) * effectsRowStride - 2 + 8
     }
+
+    // MARK: - Text segment rasterization (cached)
+
+    /// Build per-segment text snapshots used by the compositor. Each visible
+    /// text segment is rasterized once at its rect's pixel size; subsequent
+    /// builds reuse the cached image when the spec hasn't changed.
+    ///
+    /// Performance: rasterization is a CGContext draw with a single
+    /// NSAttributedString — sub-millisecond at typical sizes. It runs only
+    /// when the spec changes (text typed, color/size/bg edited, rect
+    /// resized, or render-size changed). Per-frame rendering then composites
+    /// the cached CIImage with one transform + one composite.
+    fileprivate func buildTextSnapshots(renderSize: CGSize,
+                                          naturalSize: CGSize)
+        -> [EffectsCompositionInstruction.TextSnapshot]
+    {
+        guard renderSize.width > 0, renderSize.height > 0 else { return [] }
+        var snapshots: [EffectsCompositionInstruction.TextSnapshot] = []
+        snapshots.reserveCapacity(textSegments.count)
+
+        // Track which segment ids we still need so we can drop stale entries
+        // (e.g. a segment was deleted) at the end.
+        var liveIDs = Set<UUID>()
+
+        for seg in textSegments where seg.endTime > seg.startTime {
+            // Pixel size of the segment's rect at the render resolution.
+            // The rasterizer uses this to size the canvas; the per-frame
+            // composite scales it 1:1 into render-space.
+            let pxW = max(2, Int((seg.rect.width * renderSize.width).rounded()))
+            let pxH = max(2, Int((seg.rect.height * renderSize.height).rounded()))
+            let spec = VideoTextRasterizer.spec(for: seg,
+                                                  pixelWidth: pxW,
+                                                  pixelHeight: pxH,
+                                                  renderHeight: Int(renderSize.height.rounded()))
+
+            let cgImage: CGImage
+            if let cached = textRasterCache[seg.id], cached.spec == spec {
+                cgImage = cached.image
+            } else {
+                guard let rendered = VideoTextRasterizer.render(spec) else { continue }
+                cgImage = rendered
+                textRasterCache[seg.id] = (spec, rendered)
+            }
+            liveIDs.insert(seg.id)
+
+            let ci = CIImage(cgImage: cgImage)
+            snapshots.append(.init(id: seg.id,
+                                    startTime: seg.startTime,
+                                    endTime: seg.endTime,
+                                    rect: seg.rect,
+                                    fadeIn: seg.fadeIn,
+                                    fadeOut: seg.fadeOut,
+                                    image: ci))
+        }
+
+        // Evict cache entries for segments that no longer exist. Keeps the
+        // dictionary's footprint bounded in long editing sessions.
+        for key in Array(textRasterCache.keys) where !liveIDs.contains(key) {
+            textRasterCache.removeValue(forKey: key)
+        }
+
+        return snapshots
+    }
+
+    // MARK: - Inline text editing
+
+    /// Pop a borderless NSTextView at `viewRect` (in `hostView` coordinates)
+    /// so the user can type the segment's contents in place. Player pauses
+    /// while editing so the user isn't fighting against playback.
+    fileprivate func beginInlineTextEdit(segmentID: UUID,
+                                          atViewRect viewRect: NSRect,
+                                          hostView: NSView) {
+        guard let seg = textSegments.first(where: { $0.id == segmentID }) else { return }
+        // Cancel any prior edit first.
+        cancelInlineTextEdit(commit: false)
+
+        // Pause playback during editing so AVPlayer doesn't drive the rect
+        // out from under the text field.
+        if let player = player, player.rate > 0 {
+            player.pause()
+            pausedForTextEdit = true
+        }
+
+        // Convert host-view coords to our (editor view's) coords so we can
+        // place the field as a sibling of the player view.
+        let frame = hostView.convert(viewRect, to: self)
+
+        // Borderless scrollable text view sized to the segment rect. We use
+        // NSTextView (not NSTextField) so multiline edits and large fonts
+        // render predictably.
+        let scroll = NSScrollView(frame: frame)
+        scroll.hasVerticalScroller = false
+        scroll.hasHorizontalScroller = false
+        scroll.borderType = .noBorder
+        scroll.drawsBackground = true
+        scroll.backgroundColor = NSColor.black.withAlphaComponent(0.5)
+        scroll.wantsLayer = true
+        scroll.layer?.cornerRadius = 6
+        scroll.layer?.borderColor = NSColor(calibratedRed: 1.0, green: 0.78, blue: 0.30, alpha: 1.0).cgColor
+        scroll.layer?.borderWidth = 1.5
+        scroll.autoresizingMask = []
+
+        let tv = NSTextView(frame: NSRect(origin: .zero, size: frame.size))
+        tv.isRichText = false
+        tv.allowsUndo = true
+        tv.isVerticallyResizable = true
+        tv.isHorizontallyResizable = false
+        tv.textContainerInset = NSSize(width: 8, height: 6)
+        tv.drawsBackground = false
+        tv.font = NSFont.systemFont(ofSize: max(14, min(28, frame.height * 0.55)),
+                                       weight: seg.bold ? .bold : .regular)
+        tv.textColor = NSColor.white
+        tv.insertionPointColor = NSColor(calibratedRed: 1.0, green: 0.78, blue: 0.30, alpha: 1.0)
+        tv.string = seg.text
+        // Select all so typing replaces the placeholder ("Text") immediately.
+        tv.selectAll(nil)
+        tv.delegate = self
+
+        scroll.documentView = tv
+        addSubview(scroll)
+        window?.makeFirstResponder(tv)
+
+        inlineTextEditor = tv
+        inlineTextEditorScrollView = scroll
+        inlineTextEditingSegmentID = segmentID
+    }
+
+    fileprivate func commitInlineTextEdit() {
+        guard let id = inlineTextEditingSegmentID,
+              let tv = inlineTextEditor,
+              let seg = textSegments.first(where: { $0.id == id }) else {
+            cancelInlineTextEdit(commit: false)
+            return
+        }
+        let newText = tv.string
+        if newText != seg.text {
+            seg.text = newText
+            // Drop the cache for this segment so the next composition
+            // rebuild re-rasterizes with the new text.
+            textRasterCache.removeValue(forKey: id)
+            savedURL = nil
+            applyZoomTransformForCurrentTime()
+            effectsBand?.refreshAfterParentEdit()
+        }
+        cancelInlineTextEdit(commit: false)
+    }
+
+    fileprivate func cancelInlineTextEdit(commit: Bool) {
+        if commit {
+            commitInlineTextEdit()
+            return
+        }
+        inlineTextEditorScrollView?.removeFromSuperview()
+        inlineTextEditor = nil
+        inlineTextEditorScrollView = nil
+        inlineTextEditingSegmentID = nil
+        if pausedForTextEdit {
+            pausedForTextEdit = false
+        }
+        window?.makeFirstResponder(self)
+        needsDisplay = true
+    }
+
+    // MARK: - Custom color picker
+
+    /// Open NSColorPanel and bind it to the given segment's text or bg
+    /// color field. The panel stays modal-less so the user can keep
+    /// editing other things; we observe `colorDidChange` notifications
+    /// while it's relevant and unbind on close.
+    fileprivate func presentTextColorPicker(segmentID: UUID, isBackground: Bool) {
+        guard textSegments.contains(where: { $0.id == segmentID }) else { return }
+        textColorPickerSegmentID = segmentID
+        textColorPickerIsBackground = isBackground
+        let panel = NSColorPanel.shared
+        panel.showsAlpha = true
+        if let seg = textSegments.first(where: { $0.id == segmentID }) {
+            let rgba = isBackground ? seg.bgColor : seg.textColor
+            panel.color = NSColor(srgbRed: rgba.r, green: rgba.g, blue: rgba.b, alpha: rgba.a)
+        }
+        // Hook up the action target. Reuse a single observer per editor.
+        panel.setTarget(self)
+        panel.setAction(#selector(textColorPanelDidChange(_:)))
+        panel.makeKeyAndOrderFront(nil)
+    }
+
+    @objc fileprivate func textColorPanelDidChange(_ sender: NSColorPanel) {
+        guard let id = textColorPickerSegmentID,
+              let seg = textSegments.first(where: { $0.id == id }) else { return }
+        let c = sender.color.usingColorSpace(.sRGB) ?? sender.color
+        let rgba = VideoTextSegment.RGBA(
+            r: Double(c.redComponent),
+            g: Double(c.greenComponent),
+            b: Double(c.blueComponent),
+            a: Double(c.alphaComponent))
+        if textColorPickerIsBackground {
+            seg.bgColor = rgba
+        } else {
+            seg.textColor = rgba
+        }
+        textRasterCache.removeValue(forKey: id)
+        savedURL = nil
+        applyZoomTransformForCurrentTime()
+        effectsBand?.refreshAfterParentEdit()
+    }
 }
 
 extension VideoEditorView: EffectsBandViewDelegate {
@@ -2698,6 +2948,50 @@ extension VideoEditorView: EffectsBandViewDelegate {
 
     func effectsBand(_ view: EffectsBandView, showStatus message: String, isError: Bool) {
         showStatus(message, isError: isError)
+    }
+
+    func effectsBandDidRequestTextEdit(_ view: EffectsBandView, segmentID: UUID) {
+        // Reposition the overlay first so the rect we read is accurate for
+        // the current selection state.
+        updateEffectsOverlay()
+        guard let overlay = effectsOverlay,
+              let seg = textSegments.first(where: { $0.id == segmentID }) else { return }
+        let viewRect = overlay.viewRectFromNormalized(seg.rect)
+        beginInlineTextEdit(segmentID: segmentID, atViewRect: viewRect, hostView: overlay)
+    }
+
+    func effectsBandDidRequestTextColorPick(_ view: EffectsBandView,
+                                              segmentID: UUID,
+                                              isBackground: Bool) {
+        presentTextColorPicker(segmentID: segmentID, isBackground: isBackground)
+    }
+}
+
+extension VideoEditorView: NSTextViewDelegate {
+    func textView(_ textView: NSTextView, doCommandBy commandSelector: Selector) -> Bool {
+        // Return commits, Escape cancels. Allow Shift+Return for newlines so
+        // multi-line text labels stay possible without leaving the editor.
+        if commandSelector == #selector(NSResponder.insertNewline(_:)) {
+            commitInlineTextEdit()
+            return true
+        }
+        if commandSelector == #selector(NSResponder.cancelOperation(_:)) {
+            cancelInlineTextEdit(commit: false)
+            return true
+        }
+        return false
+    }
+
+    func textDidChange(_ notification: Notification) {
+        // Re-rasterize on every keystroke would burn CPU; instead, cache
+        // invalidation happens at commit time. The user sees the new text
+        // appear in the inline NSTextView itself while typing — the rasterized
+        // overlay just stays at its previous content until commit.
+    }
+
+    func textDidEndEditing(_ notification: Notification) {
+        // Lost focus → commit. Matches Finder rename behavior.
+        commitInlineTextEdit()
     }
 }
 

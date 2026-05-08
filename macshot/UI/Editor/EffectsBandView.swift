@@ -18,6 +18,25 @@ protocol EffectsBandViewDelegate: AnyObject {
     /// Convenience hook for "please show this status string" — mirrors the
     /// editor's in-view status banner so we don't duplicate that machinery.
     func effectsBand(_ view: EffectsBandView, showStatus message: String, isError: Bool)
+
+    /// User asked to edit a text segment's content. Controller should pop
+    /// up an inline NSTextField over the player at the segment's rect.
+    /// Default impl is a no-op so existing call sites compile.
+    func effectsBandDidRequestTextEdit(_ view: EffectsBandView, segmentID: UUID)
+
+    /// User asked to pick a custom color for a text segment. Controller
+    /// should open `NSColorPanel` and write the chosen color into the
+    /// segment's textColor (or bgColor when `isBackground` is true).
+    func effectsBandDidRequestTextColorPick(_ view: EffectsBandView,
+                                              segmentID: UUID,
+                                              isBackground: Bool)
+}
+
+extension EffectsBandViewDelegate {
+    func effectsBandDidRequestTextEdit(_ view: EffectsBandView, segmentID: UUID) {}
+    func effectsBandDidRequestTextColorPick(_ view: EffectsBandView,
+                                              segmentID: UUID,
+                                              isBackground: Bool) {}
 }
 
 @MainActor
@@ -35,6 +54,10 @@ final class EffectsBandView: NSView {
 
     private(set) var zoomSegments: [VideoZoomSegment] = []
     private(set) var censorSegments: [VideoCensorSegment] = []
+    /// Text overlay segments. Same temporal model as censor — they render
+    /// as an amber pill on the band and as styled text rasterized over the
+    /// video at export. See `VideoTextSegment`.
+    private(set) var textSegments: [VideoTextSegment] = []
     /// Cuts are temporal — frames in their range never reach the output.
     /// They render as a dimmed "deleted film" pill distinct from zoom/censor.
     private(set) var cutSegments: [VideoCutSegment] = []
@@ -98,12 +121,14 @@ final class EffectsBandView: NSView {
                      censor: [VideoCensorSegment],
                      cut: [VideoCutSegment] = [],
                      speed: [VideoSpeedSegment] = [],
-                     freeze: [VideoFreezeSegment] = []) {
+                     freeze: [VideoFreezeSegment] = [],
+                     text: [VideoTextSegment] = []) {
         self.zoomSegments = zoom
         self.censorSegments = censor
         self.cutSegments = cut
         self.speedSegments = speed
         self.freezeSegments = freeze
+        self.textSegments = text
         relayoutAndNotify()
     }
 
@@ -114,6 +139,7 @@ final class EffectsBandView: NSView {
         cutSegments.removeAll { $0.id == id }
         speedSegments.removeAll { $0.id == id }
         freezeSegments.removeAll { $0.id == id }
+        textSegments.removeAll { $0.id == id }
         if selectedSegmentID == id { selectedSegmentID = nil }
         relayoutAndNotify()
     }
@@ -161,6 +187,10 @@ final class EffectsBandView: NSView {
     }
 
     private func censorPillRect(for segment: VideoCensorSegment) -> NSRect {
+        pillRect(id: segment.id, startTime: segment.startTime, endTime: segment.endTime)
+    }
+
+    private func textPillRect(for segment: VideoTextSegment) -> NSRect {
         pillRect(id: segment.id, startTime: segment.startTime, endTime: segment.endTime)
     }
 
@@ -220,6 +250,9 @@ final class EffectsBandView: NSView {
         }
         for c in censorSegments where c.endTime > c.startTime {
             items.append(Item(id: c.id, start: c.startTime, end: c.endTime))
+        }
+        for tx in textSegments where tx.endTime > tx.startTime {
+            items.append(Item(id: tx.id, start: tx.startTime, end: tx.endTime))
         }
         for k in cutSegments where k.endTime > k.startTime {
             items.append(Item(id: k.id, start: k.startTime, end: k.endTime))
@@ -352,6 +385,29 @@ final class EffectsBandView: NSView {
                 label: styleLabel
             )
         }
+        // Text — amber pill with the textformat icon and a truncated preview
+        // of the actual text content.
+        for seg in textSegments {
+            let rect = textPillRect(for: seg)
+            guard rect.width > 0 else { continue }
+            // Truncate the displayed string to keep the pill readable.
+            let preview: String = {
+                let trimmed = seg.text.replacingOccurrences(of: "\n", with: " ")
+                if trimmed.isEmpty { return L("Text") }
+                if trimmed.count > 18 { return String(trimmed.prefix(18)) + "…" }
+                return trimmed
+            }()
+            drawEffectPill(
+                rect: rect,
+                isSelected: seg.id == selectedSegmentID,
+                baseFillColor: NSColor(calibratedRed: 1.0, green: 0.78, blue: 0.30, alpha: 1.0),
+                fadeInFrac: seg.effectiveFadeIn / max(seg.duration, 0.001),
+                fadeOutFrac: seg.effectiveFadeOut / max(seg.duration, 0.001),
+                iconSymbol: "textformat",
+                label: preview,
+                iconLabelGap: 8
+            )
+        }
         // Speed — drawn before cuts but after zoom/censor. Teal pill with
         // factor text.
         for seg in speedSegments {
@@ -398,7 +454,7 @@ final class EffectsBandView: NSView {
         }
 
         // Empty-state hint.
-        if zoomSegments.isEmpty && censorSegments.isEmpty && cutSegments.isEmpty && speedSegments.isEmpty && freezeSegments.isEmpty {
+        if zoomSegments.isEmpty && censorSegments.isEmpty && cutSegments.isEmpty && speedSegments.isEmpty && freezeSegments.isEmpty && textSegments.isEmpty {
             let hint = L("Click to add effects") as NSString
             let attrs: [NSAttributedString.Key: Any] = [
                 .font: NSFont.systemFont(ofSize: 11, weight: .medium),
@@ -667,6 +723,9 @@ final class EffectsBandView: NSView {
         for seg in freezeSegments {
             if freezePillRect(for: seg).insetBy(dx: -slop, dy: -5).contains(p) { return true }
         }
+        for seg in textSegments {
+            if textPillRect(for: seg).insetBy(dx: -slop, dy: -5).contains(p) { return true }
+        }
         return false
     }
 
@@ -759,6 +818,17 @@ final class EffectsBandView: NSView {
                 return
             }
         }
+        for seg in textSegments.reversed() {
+            let pill = textPillRect(for: seg)
+            if pill.insetBy(dx: -edgeHitW, dy: -5).contains(p) {
+                beginSegmentDrag(id: seg.id,
+                                  edge: edgeHitForX(p.x, pill: pill, hitW: edgeHitW),
+                                  clickTime: clickTime,
+                                  segStart: seg.startTime,
+                                  segEnd: seg.endTime)
+                return
+            }
+        }
         // Empty band — open add menu at click point.
         showAddEffectMenu(at: p, clickTime: clickTime)
     }
@@ -796,6 +866,8 @@ final class EffectsBandView: NSView {
             dragSpeedSegment(seg, kind: kind, time: t)
         } else if let seg = freezeSegments.first(where: { $0.id == id }) {
             dragFreezeSegment(seg, time: t)
+        } else if let seg = textSegments.first(where: { $0.id == id }) {
+            dragTextSegment(seg, kind: kind, time: t)
         }
     }
 
@@ -912,6 +984,25 @@ final class EffectsBandView: NSView {
         needsDisplay = true
     }
 
+    private func dragTextSegment(_ seg: VideoTextSegment, kind: SegmentDragKind, time t: Double) {
+        // Texts can overlap each other freely — same shape as censor drag.
+        switch kind {
+        case .move:
+            let (newStart, newEnd) = resolveMove(segment: (seg.startTime, seg.endTime),
+                                                  to: t - draggingSegmentAnchor,
+                                                  others: [])
+            seg.startTime = max(0, newStart); seg.endTime = min(duration, newEnd)
+        case .resizeStart:
+            let minEnd = seg.endTime - VideoTextSegment.minDuration
+            seg.startTime = max(0, min(minEnd, t - draggingSegmentAnchor))
+        case .resizeEnd:
+            let minStart = seg.startTime + VideoTextSegment.minDuration
+            seg.endTime = max(minStart, min(duration, t - draggingSegmentAnchor))
+        }
+        layoutRows()
+        needsDisplay = true
+    }
+
     private func resolveMove(segment: (Double, Double),
                               to desiredStart: Double,
                               others: [(start: Double, end: Double)]) -> (Double, Double) {
@@ -979,6 +1070,15 @@ final class EffectsBandView: NSView {
                 selectedSegmentID = seg.id
                 needsDisplay = true
                 showCensorPillContextMenu(for: seg, at: event)
+                return
+            }
+        }
+        for seg in textSegments.reversed() {
+            let pill = textPillRect(for: seg)
+            if pill.insetBy(dx: -edgeSlop, dy: -5).contains(p) {
+                selectedSegmentID = seg.id
+                needsDisplay = true
+                showTextPillContextMenu(for: seg, at: event)
                 return
             }
         }
@@ -1093,6 +1193,196 @@ final class EffectsBandView: NSView {
         NSMenu.popUpContextMenu(menu, with: event, for: self)
     }
 
+    private func showTextPillContextMenu(for seg: VideoTextSegment, at event: NSEvent) {
+        let menu = NSMenu()
+
+        // "Edit Text…" first — most common action on a text pill.
+        let editItem = NSMenuItem(title: L("Edit Text…"),
+                                   action: #selector(handleEditTextFromMenu(_:)),
+                                   keyEquivalent: "")
+        editItem.target = self
+        editItem.representedObject = TextSegmentRefContext(segmentID: seg.id)
+        menu.addItem(editItem)
+        menu.addItem(.separator())
+
+        // Size submenu
+        let sizeParent = NSMenuItem(title: L("Size"), action: nil, keyEquivalent: "")
+        let sizeSub = NSMenu()
+        let sizes: [(String, CGFloat)] = [
+            (L("Small"),  32),
+            (L("Medium"), 48),
+            (L("Large"),  72),
+            (L("Huge"),   104),
+        ]
+        for (title, pt) in sizes {
+            let item = NSMenuItem(title: title,
+                                   action: #selector(handleSetTextSizeFromMenu(_:)),
+                                   keyEquivalent: "")
+            item.target = self
+            item.representedObject = TextSizeMenuContext(segmentID: seg.id, fontSize: pt)
+            item.state = (abs(seg.fontSize - pt) < 0.5) ? .on : .off
+            sizeSub.addItem(item)
+        }
+        sizeParent.submenu = sizeSub
+        menu.addItem(sizeParent)
+
+        // Bold toggle
+        let boldItem = NSMenuItem(title: L("Bold"),
+                                   action: #selector(handleToggleTextBoldFromMenu(_:)),
+                                   keyEquivalent: "")
+        boldItem.target = self
+        boldItem.representedObject = TextSegmentRefContext(segmentID: seg.id)
+        boldItem.state = seg.bold ? .on : .off
+        menu.addItem(boldItem)
+
+        // Italic toggle
+        let italicItem = NSMenuItem(title: L("Italic"),
+                                     action: #selector(handleToggleTextItalicFromMenu(_:)),
+                                     keyEquivalent: "")
+        italicItem.target = self
+        italicItem.representedObject = TextSegmentRefContext(segmentID: seg.id)
+        italicItem.state = seg.italic ? .on : .off
+        menu.addItem(italicItem)
+
+        // Alignment submenu
+        let alignParent = NSMenuItem(title: L("Alignment"), action: nil, keyEquivalent: "")
+        let alignSub = NSMenu()
+        let aligns: [(String, VideoTextSegment.Alignment)] = [
+            (L("Left"),   .left),
+            (L("Center"), .center),
+            (L("Right"),  .right),
+        ]
+        for (title, a) in aligns {
+            let item = NSMenuItem(title: title,
+                                   action: #selector(handleSetTextAlignmentFromMenu(_:)),
+                                   keyEquivalent: "")
+            item.target = self
+            item.representedObject = TextAlignmentMenuContext(segmentID: seg.id, alignment: a)
+            item.state = (seg.alignment == a) ? .on : .off
+            alignSub.addItem(item)
+        }
+        alignParent.submenu = alignSub
+        menu.addItem(alignParent)
+
+        menu.addItem(.separator())
+
+        // Text color submenu — preset palette + Custom… via NSColorPanel
+        attachTextColorSubmenu(menu: menu,
+                                title: L("Text Color"),
+                                segmentID: seg.id,
+                                currentColor: seg.textColor,
+                                isBackground: false)
+
+        // Background style submenu
+        let bgStyleParent = NSMenuItem(title: L("Background"), action: nil, keyEquivalent: "")
+        let bgStyleSub = NSMenu()
+        let bgStyles: [(String, VideoTextSegment.BackgroundStyle)] = [
+            (L("None"),    .none),
+            (L("Solid"),   .solid),
+            (L("Rounded"), .rounded),
+        ]
+        for (title, style) in bgStyles {
+            let item = NSMenuItem(title: title,
+                                   action: #selector(handleSetTextBgStyleFromMenu(_:)),
+                                   keyEquivalent: "")
+            item.target = self
+            item.representedObject = TextBgStyleMenuContext(segmentID: seg.id, style: style)
+            item.state = (seg.bgStyle == style) ? .on : .off
+            bgStyleSub.addItem(item)
+        }
+        bgStyleParent.submenu = bgStyleSub
+        menu.addItem(bgStyleParent)
+
+        // Background color submenu (only useful when bg != .none, but always shown)
+        attachTextColorSubmenu(menu: menu,
+                                title: L("Background Color"),
+                                segmentID: seg.id,
+                                currentColor: seg.bgColor,
+                                isBackground: true)
+
+        menu.addItem(.separator())
+        attachFadeSubmenu(to: menu, segmentID: seg.id, currentFade: seg.fadeIn)
+        menu.addItem(.separator())
+        attachAddEffectSubmenu(to: menu, event: event)
+        menu.addItem(.separator())
+        let del = NSMenuItem(title: L("Delete Text"),
+                              action: #selector(handleDeleteSelectedFromMenu),
+                              keyEquivalent: "")
+        del.target = self
+        menu.addItem(del)
+        NSMenu.popUpContextMenu(menu, with: event, for: self)
+    }
+
+    /// Six-swatch color palette + Custom… that opens NSColorPanel. Same
+    /// helper handles both the text and background color submenus —
+    /// `isBackground` flips which model field gets written.
+    private func attachTextColorSubmenu(menu: NSMenu,
+                                         title: String,
+                                         segmentID: UUID,
+                                         currentColor: VideoTextSegment.RGBA,
+                                         isBackground: Bool) {
+        let parent = NSMenuItem(title: title, action: nil, keyEquivalent: "")
+        let sub = NSMenu()
+        let presets: [(String, VideoTextSegment.RGBA)] = isBackground
+            ? [
+                (L("Transparent"),    VideoTextSegment.RGBA(r: 0, g: 0, b: 0, a: 0)),
+                (L("Black"),          VideoTextSegment.RGBA(r: 0, g: 0, b: 0, a: 0.7)),
+                (L("White"),          VideoTextSegment.RGBA(r: 1, g: 1, b: 1, a: 0.85)),
+                (L("Yellow"),         VideoTextSegment.RGBA(r: 1.0, g: 0.85, b: 0.20, a: 0.95)),
+                (L("Red"),            VideoTextSegment.RGBA(r: 0.85, g: 0.20, b: 0.20, a: 0.92)),
+                (L("Blue"),           VideoTextSegment.RGBA(r: 0.20, g: 0.45, b: 0.95, a: 0.92)),
+              ]
+            : [
+                (L("White"),          VideoTextSegment.RGBA(r: 1, g: 1, b: 1, a: 1)),
+                (L("Black"),          VideoTextSegment.RGBA(r: 0, g: 0, b: 0, a: 1)),
+                (L("Yellow"),         VideoTextSegment.RGBA(r: 1.0, g: 0.92, b: 0.30, a: 1)),
+                (L("Red"),            VideoTextSegment.RGBA(r: 0.95, g: 0.25, b: 0.25, a: 1)),
+                (L("Green"),          VideoTextSegment.RGBA(r: 0.20, g: 0.80, b: 0.40, a: 1)),
+                (L("Blue"),           VideoTextSegment.RGBA(r: 0.25, g: 0.55, b: 1.0, a: 1)),
+              ]
+        for (presetTitle, rgba) in presets {
+            let item = NSMenuItem(title: presetTitle,
+                                   action: #selector(handleSetTextColorFromMenu(_:)),
+                                   keyEquivalent: "")
+            item.target = self
+            item.representedObject = TextColorMenuContext(segmentID: segmentID,
+                                                            color: rgba,
+                                                            isBackground: isBackground)
+            item.state = (rgba == currentColor) ? .on : .off
+            // Color swatch: small filled image as the menu item's image so
+            // the user can scan colors at a glance.
+            item.image = colorSwatchImage(for: rgba)
+            sub.addItem(item)
+        }
+        sub.addItem(.separator())
+        let custom = NSMenuItem(title: L("Custom…"),
+                                 action: #selector(handlePickTextCustomColorFromMenu(_:)),
+                                 keyEquivalent: "")
+        custom.target = self
+        custom.representedObject = TextColorPickContext(segmentID: segmentID,
+                                                          isBackground: isBackground)
+        sub.addItem(custom)
+        parent.submenu = sub
+        menu.addItem(parent)
+    }
+
+    /// 12×12 swatch with a 1pt outline so light colors are still visible
+    /// against the menu background. Cached implicitly because NSImage's
+    /// `init(size:flipped:drawingHandler:)` defers drawing until needed.
+    private func colorSwatchImage(for rgba: VideoTextSegment.RGBA) -> NSImage {
+        let size = NSSize(width: 14, height: 14)
+        return NSImage(size: size, flipped: false) { rect in
+            let path = NSBezierPath(roundedRect: rect.insetBy(dx: 1, dy: 1),
+                                     xRadius: 3, yRadius: 3)
+            NSColor(srgbRed: rgba.r, green: rgba.g, blue: rgba.b, alpha: rgba.a).setFill()
+            path.fill()
+            NSColor.black.withAlphaComponent(0.35).setStroke()
+            path.lineWidth = 1
+            path.stroke()
+            return true
+        }
+    }
+
     /// Adds a "Fade" submenu to `menu` listing a few preset durations. The
     /// same value is applied to both fade-in and fade-out since exposing two
     /// knobs is overkill for this UI.
@@ -1171,6 +1461,14 @@ final class EffectsBandView: NSView {
         freezeItem.representedObject = AddEffectContext(clickTime: clickTime, gapStart: 0, gapEnd: duration)
         menu.addItem(freezeItem)
 
+        let textItem = NSMenuItem(title: L("Add Text"),
+                                   action: #selector(handleAddTextFromMenu(_:)),
+                                   keyEquivalent: "")
+        textItem.image = NSImage(systemSymbolName: "textformat", accessibilityDescription: nil)
+        textItem.target = self
+        textItem.representedObject = AddEffectContext(clickTime: clickTime, gapStart: 0, gapEnd: duration)
+        menu.addItem(textItem)
+
         menu.popUp(positioning: nil, at: point, in: self)
     }
 
@@ -1227,6 +1525,12 @@ final class EffectsBandView: NSView {
         freezeItem.target = self
         freezeItem.representedObject = AddEffectContext(clickTime: clickTime, gapStart: 0, gapEnd: duration)
         sub.addItem(freezeItem)
+        let textItem = NSMenuItem(title: L("Add Text"),
+                                   action: #selector(handleAddTextFromMenu(_:)),
+                                   keyEquivalent: "")
+        textItem.target = self
+        textItem.representedObject = AddEffectContext(clickTime: clickTime, gapStart: 0, gapEnd: duration)
+        sub.addItem(textItem)
         parent.submenu = sub
         menu.addItem(parent)
     }
@@ -1303,6 +1607,9 @@ final class EffectsBandView: NSView {
         } else if let seg = censorSegments.first(where: { $0.id == ctx.segmentID }) {
             seg.fadeIn = ctx.seconds
             seg.fadeOut = ctx.seconds
+        } else if let seg = textSegments.first(where: { $0.id == ctx.segmentID }) {
+            seg.fadeIn = ctx.seconds
+            seg.fadeOut = ctx.seconds
         } else {
             return
         }
@@ -1333,6 +1640,79 @@ final class EffectsBandView: NSView {
     @objc private func handleAddFreezeFromMenu(_ sender: NSMenuItem) {
         guard let ctx = sender.representedObject as? AddEffectContext else { return }
         addFreezeSegment(atTime: ctx.clickTime)
+    }
+
+    @objc private func handleAddTextFromMenu(_ sender: NSMenuItem) {
+        guard let ctx = sender.representedObject as? AddEffectContext else { return }
+        addTextSegment(clickTime: ctx.clickTime)
+    }
+
+    // MARK: - Text segment menu callbacks
+
+    @objc private func handleEditTextFromMenu(_ sender: NSMenuItem) {
+        guard let ctx = sender.representedObject as? TextSegmentRefContext,
+              textSegments.contains(where: { $0.id == ctx.segmentID }) else { return }
+        delegate?.effectsBandDidRequestTextEdit(self, segmentID: ctx.segmentID)
+    }
+
+    @objc private func handleSetTextSizeFromMenu(_ sender: NSMenuItem) {
+        guard let ctx = sender.representedObject as? TextSizeMenuContext,
+              let seg = textSegments.first(where: { $0.id == ctx.segmentID }) else { return }
+        seg.fontSize = ctx.fontSize
+        delegate?.effectsBandDidMutate(self)
+        needsDisplay = true
+    }
+
+    @objc private func handleToggleTextBoldFromMenu(_ sender: NSMenuItem) {
+        guard let ctx = sender.representedObject as? TextSegmentRefContext,
+              let seg = textSegments.first(where: { $0.id == ctx.segmentID }) else { return }
+        seg.bold.toggle()
+        delegate?.effectsBandDidMutate(self)
+        needsDisplay = true
+    }
+
+    @objc private func handleToggleTextItalicFromMenu(_ sender: NSMenuItem) {
+        guard let ctx = sender.representedObject as? TextSegmentRefContext,
+              let seg = textSegments.first(where: { $0.id == ctx.segmentID }) else { return }
+        seg.italic.toggle()
+        delegate?.effectsBandDidMutate(self)
+        needsDisplay = true
+    }
+
+    @objc private func handleSetTextAlignmentFromMenu(_ sender: NSMenuItem) {
+        guard let ctx = sender.representedObject as? TextAlignmentMenuContext,
+              let seg = textSegments.first(where: { $0.id == ctx.segmentID }) else { return }
+        seg.alignment = ctx.alignment
+        delegate?.effectsBandDidMutate(self)
+        needsDisplay = true
+    }
+
+    @objc private func handleSetTextBgStyleFromMenu(_ sender: NSMenuItem) {
+        guard let ctx = sender.representedObject as? TextBgStyleMenuContext,
+              let seg = textSegments.first(where: { $0.id == ctx.segmentID }) else { return }
+        seg.bgStyle = ctx.style
+        delegate?.effectsBandDidMutate(self)
+        needsDisplay = true
+    }
+
+    @objc private func handleSetTextColorFromMenu(_ sender: NSMenuItem) {
+        guard let ctx = sender.representedObject as? TextColorMenuContext,
+              let seg = textSegments.first(where: { $0.id == ctx.segmentID }) else { return }
+        if ctx.isBackground {
+            seg.bgColor = ctx.color
+        } else {
+            seg.textColor = ctx.color
+        }
+        delegate?.effectsBandDidMutate(self)
+        needsDisplay = true
+    }
+
+    @objc private func handlePickTextCustomColorFromMenu(_ sender: NSMenuItem) {
+        guard let ctx = sender.representedObject as? TextColorPickContext,
+              textSegments.contains(where: { $0.id == ctx.segmentID }) else { return }
+        delegate?.effectsBandDidRequestTextColorPick(self,
+                                                       segmentID: ctx.segmentID,
+                                                       isBackground: ctx.isBackground)
     }
 
     @objc private func handleSetFreezeDurationFromMenu(_ sender: NSMenuItem) {
@@ -1432,6 +1812,17 @@ final class EffectsBandView: NSView {
         relayoutAndNotify()
     }
 
+    private func addTextSegment(clickTime: Double) {
+        guard duration > 0 else { return }
+        let segDuration = min(3.0, max(VideoTextSegment.minDuration, duration))
+        var start = clickTime - segDuration / 2
+        start = max(0, min(duration - segDuration, start))
+        let seg = VideoTextSegment(startTime: start, endTime: start + segDuration)
+        textSegments.append(seg)
+        selectedSegmentID = seg.id
+        relayoutAndNotify()
+    }
+
     // MARK: - Keyboard
 
     override func keyDown(with event: NSEvent) {
@@ -1493,6 +1884,60 @@ final class EffectsBandView: NSView {
         init(segmentID: UUID, seconds: Double) {
             self.segmentID = segmentID
             self.seconds = seconds
+        }
+    }
+
+    private final class TextSegmentRefContext: NSObject {
+        let segmentID: UUID
+        init(segmentID: UUID) {
+            self.segmentID = segmentID
+        }
+    }
+
+    private final class TextSizeMenuContext: NSObject {
+        let segmentID: UUID
+        let fontSize: CGFloat
+        init(segmentID: UUID, fontSize: CGFloat) {
+            self.segmentID = segmentID
+            self.fontSize = fontSize
+        }
+    }
+
+    private final class TextAlignmentMenuContext: NSObject {
+        let segmentID: UUID
+        let alignment: VideoTextSegment.Alignment
+        init(segmentID: UUID, alignment: VideoTextSegment.Alignment) {
+            self.segmentID = segmentID
+            self.alignment = alignment
+        }
+    }
+
+    private final class TextBgStyleMenuContext: NSObject {
+        let segmentID: UUID
+        let style: VideoTextSegment.BackgroundStyle
+        init(segmentID: UUID, style: VideoTextSegment.BackgroundStyle) {
+            self.segmentID = segmentID
+            self.style = style
+        }
+    }
+
+    private final class TextColorMenuContext: NSObject {
+        let segmentID: UUID
+        let color: VideoTextSegment.RGBA
+        let isBackground: Bool
+        init(segmentID: UUID, color: VideoTextSegment.RGBA, isBackground: Bool) {
+            self.segmentID = segmentID
+            self.color = color
+            self.isBackground = isBackground
+        }
+    }
+
+    private final class TextColorPickContext: NSObject {
+        let segmentID: UUID
+        let isBackground: Bool
+        init(segmentID: UUID, isBackground: Bool) {
+            self.segmentID = segmentID
+            self.isBackground = isBackground
         }
     }
 }

@@ -54,6 +54,44 @@ final class EffectsCompositionInstruction: NSObject, AVVideoCompositionInstructi
     let timeMap: [TimeMapEntry]
     let zoomSegments: [VideoZoomSegment]
     let censorSegments: [VideoCensorSegment]
+    /// Text segments paired with their pre-rasterized images. Keeping the
+    /// CIImage inside the snapshot means per-frame rendering does no font
+    /// shaping or NSAttributedString work — we just composite the cached
+    /// image. Built on the main actor at snapshot time and never mutated.
+    let textSnapshots: [TextSnapshot]
+
+    /// Pre-rasterized text overlay paired with timing/positioning.
+    /// `image` extent is in pixels; the compositor scales it to the segment's
+    /// rect in render-space at draw time.
+    struct TextSnapshot {
+        let id: UUID
+        let startTime: Double
+        let endTime: Double
+        let rect: CGRect
+        /// Same opacity curve as the segment — captured here so the compositor
+        /// doesn't depend on `VideoTextSegment` directly (which is main-actor
+        /// state we shouldn't share with background queues).
+        let fadeIn: Double
+        let fadeOut: Double
+        let image: CIImage
+
+        func opacity(at t: Double) -> CGFloat {
+            guard t >= startTime, t <= endTime, endTime > startTime else { return 0 }
+            let dur = endTime - startTime
+            let fIn = min(max(fadeIn, 0), max(0, dur / 2 - 0.001))
+            let fOut = min(max(fadeOut, 0), max(0, dur / 2 - 0.001))
+            let into = t - startTime
+            let toEnd = endTime - t
+            if into < fIn, fIn > 0 {
+                let c = max(0, min(1, CGFloat(into / fIn)))
+                return c * c * (3 - 2 * c)
+            } else if toEnd < fOut, fOut > 0 {
+                let c = max(0, min(1, CGFloat(toEnd / fOut)))
+                return c * c * (3 - 2 * c)
+            }
+            return 1.0
+        }
+    }
 
     init(timeRange: CMTimeRange,
          videoTrackID: CMPersistentTrackID,
@@ -62,7 +100,8 @@ final class EffectsCompositionInstruction: NSObject, AVVideoCompositionInstructi
          baseTransform: CGAffineTransform,
          timeMap: [TimeMapEntry],
          zoomSegments: [VideoZoomSegment],
-         censorSegments: [VideoCensorSegment]) {
+         censorSegments: [VideoCensorSegment],
+         textSnapshots: [TextSnapshot] = []) {
         self.timeRange = timeRange
         self.videoTrackID = videoTrackID
         self.naturalSize = naturalSize
@@ -71,6 +110,7 @@ final class EffectsCompositionInstruction: NSObject, AVVideoCompositionInstructi
         self.timeMap = timeMap
         self.zoomSegments = zoomSegments
         self.censorSegments = censorSegments
+        self.textSnapshots = textSnapshots
         self.requiredSourceTrackIDs = [NSNumber(value: Int(videoTrackID))]
         super.init()
     }
@@ -251,6 +291,41 @@ final class EffectsVideoCompositor: NSObject, AVVideoCompositing {
                                 rectInRenderSpace: censorRect,
                                 to: image,
                                 fullRenderRect: renderRect)
+        }
+
+        // 4b. Apply text overlays. Each text image is pre-rasterized at the
+        //     pixel size of its rect in render-space, so the per-frame work
+        //     is just a transform + composite. Text follows the same zoom
+        //     transform as censor (positionally tied to the source content).
+        for text in instruction.textSnapshots {
+            let opacity = text.opacity(at: assetTime)
+            guard opacity > 0.001 else { continue }
+            let outRect = censorOutputRect(
+                normalizedRect: text.rect,
+                renderSize: renderSize,
+                naturalSize: naturalSize,
+                zoomLevel: zoomLevel,
+                zoomTranslation: zoomTranslation
+            )
+            guard outRect.width > 1, outRect.height > 1 else { continue }
+            // Scale the cached image (in source pixels) into the output rect.
+            let imgExtent = text.image.extent
+            guard imgExtent.width > 0, imgExtent.height > 0 else { continue }
+            let sx = outRect.width / imgExtent.width
+            let sy = outRect.height / imgExtent.height
+            var t = CGAffineTransform(scaleX: sx, y: sy)
+            t = t.concatenating(CGAffineTransform(translationX: outRect.minX,
+                                                   y: outRect.minY))
+            var overlay = text.image.transformed(by: t).cropped(to: renderRect)
+            if opacity < 0.999 {
+                let cm = CIFilter.colorMatrix()
+                cm.inputImage = overlay
+                cm.aVector = CIVector(x: 0, y: 0, z: 0, w: opacity)
+                if let out = cm.outputImage {
+                    overlay = out.cropped(to: outRect.intersection(renderRect))
+                }
+            }
+            image = overlay.composited(over: image)
         }
 
         // 5. Render into the output pixel buffer. Tag with the SOURCE buffer's
