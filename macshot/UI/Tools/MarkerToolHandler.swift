@@ -171,20 +171,18 @@ final class MarkerToolHandler: AnnotationToolHandler {
             return
         }
 
-        let request = VisionOCR.makeTextRecognitionRequest { [weak self, weak canvas] request, _ in
-            guard let self = self, let canvas = canvas else { return }
-            let observations = request.results as? [VNRecognizedTextObservation] ?? []
-            DispatchQueue.main.async {
-                self.cachedObservations = observations
-                self.cachedSelectionRect = selectionRect
-                self.applySmartSnap(annotation: annotation, observations: observations,
-                                    strokeMinX: minX, strokeMaxX: maxX, strokeY: strokeY,
-                                    selectionRect: selectionRect, canvas: canvas)
-            }
-        }
-
         DispatchQueue.global(qos: .userInitiated).async {
-            try? VNImageRequestHandler(cgImage: cgImage, options: [:]).perform([request])
+            VisionOCR.performTextRecognition(cgImage: cgImage) { [weak self, weak canvas] request, _ in
+                guard let self = self, let canvas = canvas else { return }
+                let observations = request.results as? [VNRecognizedTextObservation] ?? []
+                DispatchQueue.main.async {
+                    self.cachedObservations = observations
+                    self.cachedSelectionRect = selectionRect
+                    self.applySmartSnap(annotation: annotation, observations: observations,
+                                        strokeMinX: minX, strokeMaxX: maxX, strokeY: strokeY,
+                                        selectionRect: selectionRect, canvas: canvas)
+                }
+            }
         }
     }
 
@@ -274,16 +272,15 @@ final class MarkerToolHandler: AnnotationToolHandler {
             return
         }
 
-        let request = VisionOCR.makeTextRecognitionRequest { [weak self] request, _ in
-            let observations = request.results as? [VNRecognizedTextObservation] ?? []
-            DispatchQueue.main.async { [weak self] in
-                self?.cachedObservations = observations
-                self?.cachedSelectionRect = selectionRect
-                self?.ocrInFlight = false
-            }
-        }
         DispatchQueue.global(qos: .userInitiated).async {
-            try? VNImageRequestHandler(cgImage: cgImage, options: [:]).perform([request])
+            VisionOCR.performTextRecognition(cgImage: cgImage) { [weak self] request, _ in
+                let observations = request.results as? [VNRecognizedTextObservation] ?? []
+                DispatchQueue.main.async { [weak self] in
+                    self?.cachedObservations = observations
+                    self?.cachedSelectionRect = selectionRect
+                    self?.ocrInFlight = false
+                }
+            }
         }
     }
 

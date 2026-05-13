@@ -59,20 +59,18 @@ enum AutoRedactor {
         let cgImage = cropToCGImage(screenshot: screenshot, selectionRect: selectionRect, captureDrawRect: captureDrawRect)
         guard let cgImage = cgImage else { completion([]); return }
 
-        let request = VisionOCR.makeTextRecognitionRequest { request, _ in
-            guard let observations = request.results as? [VNRecognizedTextObservation] else { completion([]); return }
-            let annotations = buildPIIRedactions(
-                observations: observations, selectionRect: selectionRect,
-                redactTool: redactTool, color: color,
-                sourceImage: sourceImage, sourceImageBounds: sourceImageBounds
-            )
-            let censorMode = CensorMode(rawValue: UserDefaults.standard.integer(forKey: "censorMode")) ?? .pixelate
-            for ann in annotations { ann.censorMode = censorMode; ann.bakePixelate() }
-            DispatchQueue.main.async { completion(annotations) }
-        }
-
         DispatchQueue.global(qos: .userInitiated).async {
-            try? VNImageRequestHandler(cgImage: cgImage, options: [:]).perform([request])
+            VisionOCR.performTextRecognition(cgImage: cgImage) { request, _ in
+                guard let observations = request.results as? [VNRecognizedTextObservation] else { completion([]); return }
+                let annotations = buildPIIRedactions(
+                    observations: observations, selectionRect: selectionRect,
+                    redactTool: redactTool, color: color,
+                    sourceImage: sourceImage, sourceImageBounds: sourceImageBounds
+                )
+                let censorMode = CensorMode(rawValue: UserDefaults.standard.integer(forKey: "censorMode")) ?? .pixelate
+                for ann in annotations { ann.censorMode = censorMode; ann.bakePixelate() }
+                DispatchQueue.main.async { completion(annotations) }
+            }
         }
     }
 
@@ -90,37 +88,35 @@ enum AutoRedactor {
         let cgImage = cropToCGImage(screenshot: screenshot, selectionRect: selectionRect, captureDrawRect: captureDrawRect)
         guard let cgImage = cgImage else { completion([]); return }
 
-        let request = VisionOCR.makeTextRecognitionRequest { request, _ in
-            guard let observations = request.results as? [VNRecognizedTextObservation] else { completion([]); return }
-            let groupID = UUID()
-            let padding: CGFloat = 2
-            var annotations: [Annotation] = []
-
-            for observation in observations {
-                let box = observation.boundingBox
-                let viewX = selectionRect.origin.x + box.origin.x * selectionRect.width - padding
-                let viewY = selectionRect.origin.y + box.origin.y * selectionRect.height - padding
-                let viewW = box.width * selectionRect.width + padding * 2
-                let viewH = box.height * selectionRect.height + padding * 2
-                let ann = Annotation(tool: redactTool,
-                    startPoint: NSPoint(x: viewX, y: viewY),
-                    endPoint: NSPoint(x: viewX + viewW, y: viewY + viewH),
-                    color: color, strokeWidth: 0)
-                ann.groupID = groupID
-                if redactTool == .rectangle { ann.rectFillStyle = .fill }
-                else if redactTool == .blur || redactTool == .pixelate {
-                    ann.sourceImage = sourceImage
-                    ann.sourceImageBounds = sourceImageBounds
-                }
-                annotations.append(ann)
-            }
-            let censorMode = CensorMode(rawValue: UserDefaults.standard.integer(forKey: "censorMode")) ?? .pixelate
-            for ann in annotations { ann.censorMode = censorMode; ann.bakePixelate() }
-            DispatchQueue.main.async { completion(annotations) }
-        }
-
         DispatchQueue.global(qos: .userInitiated).async {
-            try? VNImageRequestHandler(cgImage: cgImage, options: [:]).perform([request])
+            VisionOCR.performTextRecognition(cgImage: cgImage) { request, _ in
+                guard let observations = request.results as? [VNRecognizedTextObservation] else { completion([]); return }
+                let groupID = UUID()
+                let padding: CGFloat = 2
+                var annotations: [Annotation] = []
+
+                for observation in observations {
+                    let box = observation.boundingBox
+                    let viewX = selectionRect.origin.x + box.origin.x * selectionRect.width - padding
+                    let viewY = selectionRect.origin.y + box.origin.y * selectionRect.height - padding
+                    let viewW = box.width * selectionRect.width + padding * 2
+                    let viewH = box.height * selectionRect.height + padding * 2
+                    let ann = Annotation(tool: redactTool,
+                        startPoint: NSPoint(x: viewX, y: viewY),
+                        endPoint: NSPoint(x: viewX + viewW, y: viewY + viewH),
+                        color: color, strokeWidth: 0)
+                    ann.groupID = groupID
+                    if redactTool == .rectangle { ann.rectFillStyle = .fill }
+                    else if redactTool == .blur || redactTool == .pixelate {
+                        ann.sourceImage = sourceImage
+                        ann.sourceImageBounds = sourceImageBounds
+                    }
+                    annotations.append(ann)
+                }
+                let censorMode = CensorMode(rawValue: UserDefaults.standard.integer(forKey: "censorMode")) ?? .pixelate
+                for ann in annotations { ann.censorMode = censorMode; ann.bakePixelate() }
+                DispatchQueue.main.async { completion(annotations) }
+            }
         }
     }
 

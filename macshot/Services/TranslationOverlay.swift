@@ -27,70 +27,69 @@ enum TranslateOverlay {
             return
         }
 
-        let request = VisionOCR.makeTextRecognitionRequest { request, _ in
-            guard let observations = request.results as? [VNRecognizedTextObservation],
-                  !observations.isEmpty else {
-                DispatchQueue.main.async { onError("No text found in selection.") }
-                return
-            }
-
-            let blocks = observations.compactMap { obs -> (text: String, box: CGRect)? in
-                guard let top = obs.topCandidates(1).first else { return nil }
-                let t = top.string.trimmingCharacters(in: .whitespacesAndNewlines)
-                guard !t.isEmpty else { return nil }
-                return (t, obs.boundingBox)
-            }
-
-            TranslationService.translateBatch(texts: blocks.map { $0.text }, targetLang: targetLang) { result in
-                switch result {
-                case .failure(let error):
-                    onError("Translation failed: \(error.localizedDescription)")
-
-                case .success(let translations):
-                    var annotations: [Annotation] = []
-                    let groupID = UUID()
-
-                    for (i, block) in blocks.enumerated() {
-                        guard i < translations.count else { continue }
-                        let translated = translations[i].trimmingCharacters(in: .whitespacesAndNewlines)
-                        guard !translated.isEmpty else { continue }
-
-                        let box = block.box
-                        let padding: CGFloat = 1
-                        let viewX = selectionRect.origin.x + box.origin.x * selectionRect.width - padding
-                        let viewY = selectionRect.origin.y + box.origin.y * selectionRect.height - padding
-                        let viewW = box.width * selectionRect.width + padding * 2
-                        let viewH = box.height * selectionRect.height + padding * 2
-
-                        let bgColor = sampleAverageColor(in: cgImage, region: CGRect(
-                            x: box.origin.x * CGFloat(cgImage.width),
-                            y: box.origin.y * CGFloat(cgImage.height),
-                            width: box.width * CGFloat(cgImage.width),
-                            height: box.height * CGFloat(cgImage.height)
-                        ))
-
-                        let ann = Annotation(
-                            tool: .translateOverlay,
-                            startPoint: NSPoint(x: viewX, y: viewY),
-                            endPoint: NSPoint(x: viewX + viewW, y: viewY + viewH),
-                            color: bgColor, strokeWidth: 0
-                        )
-                        ann.text = translated
-                        ann.fontSize = max(8, viewH * 0.65)
-                        ann.groupID = groupID
-                        annotations.append(ann)
-                    }
-
-                    DispatchQueue.main.async { completion(annotations) }
-                }
-            }
-        }
-
         DispatchQueue.global(qos: .userInitiated).async {
-            do {
-                try VNImageRequestHandler(cgImage: cgImage, options: [:]).perform([request])
-            } catch {
-                DispatchQueue.main.async { onError("OCR failed: \(error.localizedDescription)") }
+            VisionOCR.performTextRecognition(cgImage: cgImage) { request, error in
+                if let error = error {
+                    DispatchQueue.main.async { onError("OCR failed: \(error.localizedDescription)") }
+                    return
+                }
+
+                guard let observations = request.results as? [VNRecognizedTextObservation],
+                      !observations.isEmpty else {
+                    DispatchQueue.main.async { onError("No text found in selection.") }
+                    return
+                }
+
+                let blocks = observations.compactMap { obs -> (text: String, box: CGRect)? in
+                    guard let top = obs.topCandidates(1).first else { return nil }
+                    let t = top.string.trimmingCharacters(in: .whitespacesAndNewlines)
+                    guard !t.isEmpty else { return nil }
+                    return (t, obs.boundingBox)
+                }
+
+                TranslationService.translateBatch(texts: blocks.map { $0.text }, targetLang: targetLang) { result in
+                    switch result {
+                    case .failure(let error):
+                        onError("Translation failed: \(error.localizedDescription)")
+
+                    case .success(let translations):
+                        var annotations: [Annotation] = []
+                        let groupID = UUID()
+
+                        for (i, block) in blocks.enumerated() {
+                            guard i < translations.count else { continue }
+                            let translated = translations[i].trimmingCharacters(in: .whitespacesAndNewlines)
+                            guard !translated.isEmpty else { continue }
+
+                            let box = block.box
+                            let padding: CGFloat = 1
+                            let viewX = selectionRect.origin.x + box.origin.x * selectionRect.width - padding
+                            let viewY = selectionRect.origin.y + box.origin.y * selectionRect.height - padding
+                            let viewW = box.width * selectionRect.width + padding * 2
+                            let viewH = box.height * selectionRect.height + padding * 2
+
+                            let bgColor = sampleAverageColor(in: cgImage, region: CGRect(
+                                x: box.origin.x * CGFloat(cgImage.width),
+                                y: box.origin.y * CGFloat(cgImage.height),
+                                width: box.width * CGFloat(cgImage.width),
+                                height: box.height * CGFloat(cgImage.height)
+                            ))
+
+                            let ann = Annotation(
+                                tool: .translateOverlay,
+                                startPoint: NSPoint(x: viewX, y: viewY),
+                                endPoint: NSPoint(x: viewX + viewW, y: viewY + viewH),
+                                color: bgColor, strokeWidth: 0
+                            )
+                            ann.text = translated
+                            ann.fontSize = max(8, viewH * 0.65)
+                            ann.groupID = groupID
+                            annotations.append(ann)
+                        }
+
+                        DispatchQueue.main.async { completion(annotations) }
+                    }
+                }
             }
         }
     }

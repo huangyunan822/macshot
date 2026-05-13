@@ -409,28 +409,25 @@ extension OverlayWindowController: OverlayViewDelegate {
             return
         }
 
-        let request = VisionOCR.makeTextRecognitionRequest { [weak self] request, error in
-            guard let self = self else { return }
-            var lines: [String] = []
-            if let observations = request.results as? [VNRecognizedTextObservation] {
-                for observation in observations {
-                    if let candidate = observation.topCandidates(1).first {
-                        lines.append(candidate.string)
+        DispatchQueue.global(qos: .userInitiated).async {
+            VisionOCR.performTextRecognition(cgImage: cgImage) { [weak self] request, _ in
+                guard let self = self else { return }
+                var lines: [String] = []
+                if let observations = request.results as? [VNRecognizedTextObservation] {
+                    for observation in observations {
+                        if let candidate = observation.topCandidates(1).first {
+                            lines.append(candidate.string)
+                        }
                     }
                 }
+                let text = lines.joined(separator: "\n")
+                let capturedImage = image  // capture before dismiss
+                DispatchQueue.main.async {
+                    self.playCopySound()
+                    self.dismiss()
+                    self.overlayDelegate?.overlayDidRequestOCR(self, text: text, image: capturedImage)
+                }
             }
-            let text = lines.joined(separator: "\n")
-            let capturedImage = image  // capture before dismiss
-            DispatchQueue.main.async {
-                self.playCopySound()
-                self.dismiss()
-                self.overlayDelegate?.overlayDidRequestOCR(self, text: text, image: capturedImage)
-            }
-        }
-
-        DispatchQueue.global(qos: .userInitiated).async {
-            let handler = VNImageRequestHandler(cgImage: cgImage, options: [:])
-            try? handler.perform([request])
         }
     }
 
