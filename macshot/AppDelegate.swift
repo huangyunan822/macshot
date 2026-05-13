@@ -602,8 +602,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
             // activation-policy purposes — they're coming back as soon as
             // the previous app regains focus, so we mustn't downgrade.
             let hasStashedWindows = !(self?.stashedBackgroundWindows.isEmpty ?? true)
-            guard !hasVisibleWindows, !hasStashedWindows else { return }
-            NSApp.setActivationPolicy(.accessory)
+            guard !hasVisibleWindows else { return }
+            if !hasStashedWindows {
+                NSApp.setActivationPolicy(.accessory)
+            }
             if let prev = appToActivate, !prev.isTerminated,
                prev.bundleIdentifier != Bundle.main.bundleIdentifier {
                 Self.activateApp(prev)
