@@ -461,6 +461,10 @@
 "Set" = "Ustaw";
 "Press..." = "Naciśnij...";
 "Reset to default" = "Przywróć domyślne";
+"Menu Bar Order" = "Kolejność w menu paska";
+"Choose the order of capture actions in the macshot menu bar menu." = "Wybierz kolejność akcji przechwytywania w menu macshot na pasku menu.";
+"Move up" = "Przenieś wyżej";
+"Move down" = "Przenieś niżej";
 "Press a single key to assign it as the shortcut for that tool. These work when the overlay or editor is active." = "Naciśnij pojedynczy klawisz, aby przypisać go jako skrót do tego narzędzia. Działają, gdy nakładka lub edytor jest aktywny.";
 "Keep Separate" = "Zachowaj osobno";
 "Merge Audio" = "Połącz audio";

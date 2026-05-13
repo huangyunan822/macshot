@@ -217,6 +217,10 @@
 "  Multiple previews:" = "  Multiple previews:";
 "Stack (keep all)" = "Stack (keep all)";
 "Replace (show only latest)" = "Replace (show only latest)";
+"Menu Bar Order" = "Menu Bar Order";
+"Choose the order of capture actions in the macshot menu bar menu." = "Choose the order of capture actions in the macshot menu bar menu.";
+"Move up" = "Move up";
+"Move down" = "Move down";
 "Output" = "Output";
 "Image format:" = "Image format:";
 "Quality:" = "Quality:";

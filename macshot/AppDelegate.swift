@@ -5,6 +5,81 @@ import UniformTypeIdentifiers
 import AVFoundation
 import WebP
 
+enum CaptureMenuItemID: String, CaseIterable {
+    case captureArea = "captureArea"
+    case captureScreen = "captureScreen"
+    case captureOCR = "captureOCR"
+    case quickCapture = "quickCapture"
+    case captureLastArea = "captureLastArea"
+    case scrollCapture = "scrollCapture"
+
+    static let userDefaultsKey = "captureMenuItemOrder"
+    static let defaultOrder: [CaptureMenuItemID] = [
+        .captureArea,
+        .captureScreen,
+        .captureOCR,
+        .quickCapture,
+        .captureLastArea,
+        .scrollCapture,
+    ]
+
+    var title: String {
+        switch self {
+        case .captureArea: return L("Capture Area")
+        case .captureScreen: return L("Capture Screen")
+        case .captureOCR: return L("Capture OCR")
+        case .quickCapture: return L("Quick Capture")
+        case .captureLastArea: return L("Capture Last Area")
+        case .scrollCapture: return L("Scroll Capture")
+        }
+    }
+
+    var symbolName: String {
+        switch self {
+        case .captureArea: return "crop"
+        case .captureScreen: return "desktopcomputer"
+        case .captureOCR: return "text.viewfinder"
+        case .quickCapture: return "square.and.arrow.down"
+        case .captureLastArea: return "arrow.counterclockwise.circle"
+        case .scrollCapture: return "scroll"
+        }
+    }
+
+    var hotkeySlot: HotkeyManager.HotkeySlot {
+        switch self {
+        case .captureArea: return .captureArea
+        case .captureScreen: return .captureFullScreen
+        case .captureOCR: return .captureOCR
+        case .quickCapture: return .quickCapture
+        case .captureLastArea: return .captureLastArea
+        case .scrollCapture: return .scrollCapture
+        }
+    }
+
+    static func orderedItems(defaults: UserDefaults = .standard) -> [CaptureMenuItemID] {
+        let saved = defaults.stringArray(forKey: userDefaultsKey) ?? []
+        var result: [CaptureMenuItemID] = []
+        for rawValue in saved {
+            guard let item = CaptureMenuItemID(rawValue: rawValue), !result.contains(item) else { continue }
+            result.append(item)
+        }
+        for item in defaultOrder where !result.contains(item) {
+            result.append(item)
+        }
+        return result
+    }
+
+    static func saveOrder(_ items: [CaptureMenuItemID], defaults: UserDefaults = .standard) {
+        let sanitized = items.filter { defaultOrder.contains($0) }
+        let completed = sanitized + defaultOrder.filter { !sanitized.contains($0) }
+        defaults.set(completed.map(\.rawValue), forKey: userDefaultsKey)
+    }
+
+    static func resetOrder(defaults: UserDefaults = .standard) {
+        defaults.removeObject(forKey: userDefaultsKey)
+    }
+}
+
 @MainActor
 class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
 
@@ -342,41 +417,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
         let menu = NSMenu()
         menu.autoenablesItems = false
 
-        let captureAreaItem = NSMenuItem(title: L("Capture Area"), action: #selector(captureScreen), keyEquivalent: "")
-        captureAreaItem.target = self
-        captureAreaItem.image = NSImage(systemSymbolName: "crop", accessibilityDescription: nil)
-        HotkeyManager.applyMenuShortcut(for: .captureArea, to: captureAreaItem)
-        menu.addItem(captureAreaItem)
-
-        let captureFullItem = NSMenuItem(title: L("Capture Screen"), action: #selector(captureFullScreen), keyEquivalent: "")
-        captureFullItem.target = self
-        captureFullItem.image = NSImage(systemSymbolName: "desktopcomputer", accessibilityDescription: nil)
-        HotkeyManager.applyMenuShortcut(for: .captureFullScreen, to: captureFullItem)
-        menu.addItem(captureFullItem)
-
-        let captureOCRItem = NSMenuItem(title: L("Capture OCR"), action: #selector(captureOCR), keyEquivalent: "")
-        captureOCRItem.target = self
-        captureOCRItem.image = NSImage(systemSymbolName: "text.viewfinder", accessibilityDescription: nil)
-        HotkeyManager.applyMenuShortcut(for: .captureOCR, to: captureOCRItem)
-        menu.addItem(captureOCRItem)
-
-        let quickCaptureItem = NSMenuItem(title: L("Quick Capture"), action: #selector(quickCapture), keyEquivalent: "")
-        quickCaptureItem.target = self
-        quickCaptureItem.image = NSImage(systemSymbolName: "square.and.arrow.down", accessibilityDescription: nil)
-        HotkeyManager.applyMenuShortcut(for: .quickCapture, to: quickCaptureItem)
-        menu.addItem(quickCaptureItem)
-
-        let captureLastAreaItem = NSMenuItem(title: L("Capture Last Area"), action: #selector(captureLastArea), keyEquivalent: "")
-        captureLastAreaItem.target = self
-        captureLastAreaItem.image = NSImage(systemSymbolName: "arrow.counterclockwise.circle", accessibilityDescription: nil)
-        HotkeyManager.applyMenuShortcut(for: .captureLastArea, to: captureLastAreaItem)
-        menu.addItem(captureLastAreaItem)
-
-        let scrollCaptureItem = NSMenuItem(title: L("Scroll Capture"), action: #selector(scrollCapture), keyEquivalent: "")
-        scrollCaptureItem.target = self
-        scrollCaptureItem.image = NSImage(systemSymbolName: "scroll", accessibilityDescription: nil)
-        HotkeyManager.applyMenuShortcut(for: .scrollCapture, to: scrollCaptureItem)
-        menu.addItem(scrollCaptureItem)
+        for itemID in CaptureMenuItemID.orderedItems() {
+            menu.addItem(makeCaptureMenuItem(itemID))
+        }
 
         // Capture Delay submenu
         let delayItem = NSMenuItem(title: L("Capture Delay"), action: nil, keyEquivalent: "")
@@ -463,6 +506,24 @@ class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
         menu.addItem(quitItem)
 
         statusBarMenu = menu
+    }
+
+    private func makeCaptureMenuItem(_ itemID: CaptureMenuItemID) -> NSMenuItem {
+        let action: Selector
+        switch itemID {
+        case .captureArea: action = #selector(captureScreen)
+        case .captureScreen: action = #selector(captureFullScreen)
+        case .captureOCR: action = #selector(captureOCR)
+        case .quickCapture: action = #selector(quickCapture)
+        case .captureLastArea: action = #selector(captureLastArea)
+        case .scrollCapture: action = #selector(scrollCapture)
+        }
+
+        let item = NSMenuItem(title: itemID.title, action: action, keyEquivalent: "")
+        item.target = self
+        item.image = NSImage(systemSymbolName: itemID.symbolName, accessibilityDescription: nil)
+        HotkeyManager.applyMenuShortcut(for: itemID.hotkeySlot, to: item)
+        return item
     }
 
     // MARK: - Hotkey
