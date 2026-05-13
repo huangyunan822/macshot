@@ -1094,7 +1094,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
             guard let self = self else { return }
             ScreenshotHistory.shared.add(image: image)
             self.showPin(image: image)
-            self.playCopySound()
         }
         controller.onEdit = {
             if let data = annotationData {
