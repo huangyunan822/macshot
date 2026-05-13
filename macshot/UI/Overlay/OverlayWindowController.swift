@@ -17,7 +17,7 @@ private final class ScreenshotOverlayRootView: NSView {
         self.overlayView = overlayView
         super.init(frame: frame)
         wantsLayer = true
-        layer?.backgroundColor = NSColor.clear.cgColor
+        layer?.backgroundColor = NSColor.black.cgColor
         layer?.masksToBounds = true
         previewLayer.contentsGravity = .resize
         previewLayer.masksToBounds = true
@@ -38,12 +38,9 @@ private final class ScreenshotOverlayRootView: NSView {
     }
 
     func setScreenshotPreviewImage(_ cgImage: CGImage) {
-        CATransaction.begin()
-        CATransaction.setDisableActions(true)
         previewLayer.frame = bounds
         previewLayer.contentsScale = window?.backingScaleFactor ?? NSScreen.main?.backingScaleFactor ?? 2
         previewLayer.contents = cgImage
-        CATransaction.commit()
         overlayView.usesExternalScreenshotPreview = true
     }
 
@@ -186,11 +183,11 @@ class OverlayWindowController {
         let screen = capture.screen
         self.screen = screen
         setupWindow(screen: screen)
+        setOpaqueForScreenshotBackedOverlay()
         let nsImage = NSImage(cgImage: capture.image, size: screen.frame.size)
         overlayView?.captureSourceImage = nsImage
         overlayView?.screenshotImage = nsImage
         rootView?.setScreenshotPreviewImage(capture.image)
-        setOpaqueForScreenshotBackedOverlay()
     }
 
     /// Create an overlay without a screenshot — shows instantly as transparent.
@@ -240,9 +237,9 @@ class OverlayWindowController {
     /// Set the screenshot after the overlay is visible.
     func setScreenshot(_ image: CGImage) {
         setCaptureSource(image)
+        setOpaqueForScreenshotBackedOverlay()
         overlayView?.screenshotImage = NSImage(cgImage: image, size: screen.frame.size)
         rootView?.setScreenshotPreviewImage(image)
-        setOpaqueForScreenshotBackedOverlay()
         // Enable interaction now that the screenshot is ready.
         overlayWindow?.ignoresMouseEvents = false
         overlayWindow?.makeKeyAndOrderFront(nil)
@@ -261,9 +258,9 @@ class OverlayWindowController {
     /// Set a display-only preview image. The full-resolution source remains
     /// in `captureSourceImage` so copy/save/editor output stays native quality.
     func setScreenshotPreview(_ image: CGImage) {
+        setOpaqueForScreenshotBackedOverlay()
         overlayView?.screenshotImage = NSImage(cgImage: image, size: screen.frame.size)
         rootView?.setScreenshotPreviewImage(image)
-        setOpaqueForScreenshotBackedOverlay()
         overlayWindow?.ignoresMouseEvents = false
         overlayWindow?.makeKeyAndOrderFront(nil)
         if let view = overlayView {
