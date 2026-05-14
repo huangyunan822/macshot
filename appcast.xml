@@ -24,10 +24,10 @@
     <enclosure url="https://github.com/sw33tLie/macshot/releases/download/v4.1.0/MacShot.dmg" length="5982790" type="application/octet-stream" sparkle:edSignature="3QqBso/j3tkFA41++NGFHfajPzpiy9SAkNvxQZiyrwVgQHWJUGdydhOigjCSNtv5OD/76iw1opdyHPMvFwCnAw==" />
 </item>
 <item>
-    <title>v4.1.1-beta.1</title>
-    <pubDate>Wed, 13 May 2026 16:33:02 +0000</pubDate>
-    <sparkle:version>74</sparkle:version>
-    <sparkle:shortVersionString>4.1.1-beta.1</sparkle:shortVersionString>
+    <title>v4.1.1-beta.2</title>
+    <pubDate>Thu, 14 May 2026 11:06:26 +0000</pubDate>
+    <sparkle:version>75</sparkle:version>
+    <sparkle:shortVersionString>4.1.1-beta.2</sparkle:shortVersionString>
     <sparkle:minimumSystemVersion>12.3</sparkle:minimumSystemVersion>
     <sparkle:channel>beta</sparkle:channel>
     <description><![CDATA[
@@ -38,13 +38,13 @@
         ul { padding-left: 18px; margin: 4px 0; }
         li { margin: 4px 0; line-height: 1.5; }
       </style>
-      <h3>Added</h3><ul>  <li><b>Capture menu ordering</b> — reorder the capture actions shown in the menu bar menu from Settings.</li> <li><b>Missing webcam size localization keys</b> — added the camera overlay size string to all bundled languages.</li>  </ul><h3>Changed</h3><ul>  <li><b>Faster cold screenshot overlay</b> — pre-capture the screen before activation, keep the WindowServer capture path warm while idle, and avoid blocking the overlay on full redraw work.</li> <li><b>Preview actions scale with preview size</b> — Copy and Save controls now resize with the screenshot preview size setting.</li>  </ul><h3>Fixed</h3><ul>  <li><b>Transient UI capture</b> — hotkey captures now preserve disappearing UI such as Raycast, Alfred, app menus, and the Apple menu.</li> <li><b>Previous app focus restore</b> — completing or cancelling a capture returns focus to the app that was active before macshot opened the overlay.</li> <li><b>Floating thumbnails no longer leak into the next capture</b> while preserving fast capture startup.</li> <li><b>Preview Save panel activation</b> — Save now brings its dialog to the front on the first click.</li> <li><b>Preview Copy and Pin sounds</b> — these actions no longer replay the capture sound.</li> <li><b>Video text editing style</b> — double-click editing keeps alignment and background styling stable instead of switching to an ugly editing style.</li> <li><b>OCR fallback</b> — if accurate recognition fails, macshot retries quickly with fast recognition.</li></ul>
+      <h3>Changed</h3><ul>  <li><b>Hotkey capture overlay startup</b> — global-hotkey captures now show an interactive overlay immediately, even after a cold launch or several idle minutes.</li> <li><b>Immediate capture rendering</b> — the overlay can accept selection input before the full preview surface finishes installing, while still using the full-resolution screenshot for copy, save, editor, and upload output.</li>  </ul><h3>Fixed</h3><ul>  <li><b>First drag delay after hotkey capture</b> — added an early mouse-input path for the capture overlay so macOS/AppKit input lag after Carbon hotkeys no longer blocks starting the selection.</li> <li><b>Spinner/old cursor during capture startup</b> — the capture cursor is now asserted while the overlay is coming up.</li></ul>
     ]]></description>
     <enclosure
-        url="https://github.com/sw33tLie/macshot/releases/download/v4.1.1-beta.1/MacShot.dmg"
-        length="6066467"
+        url="https://github.com/sw33tLie/macshot/releases/download/v4.1.1-beta.2/MacShot.dmg"
+        length="6096116"
         type="application/octet-stream"
-        sparkle:edSignature="XvMTi7OdE8mmTQQN50VY+StTTF31uwJras0ifFb/9nehHcB9/4ZOVIHTEBhzSbdspg8+8qB2w5Wvrg/4kXIbCw=="
+        sparkle:edSignature="k9aGCa8vcPu3wnE/zq8wipRMpoKeFtj+ppbsfSHPNvIMknYQ0t4+q4wKTENEZWW9rBoyOkPtLVwmIqQ+9ER4Ag=="
     />
 </item>
     </channel>
