@@ -1,5 +1,15 @@
 # Changelog
 
+## [4.1.1-beta.3] - 2026-05-17
+
+### Fixed
+
+- **Phantom "Macshot: Screen Recording" notifications** — the periodic capture-path prewarm introduced in 4.1.1-beta.1 was triggering the macOS Sequoia Screen Recording usage indicator every 20 seconds even when no capture was active. The prewarm has been removed; macshot now only reads the screen when you actually trigger a capture.
+
+### Changed
+
+- **Capture pipeline simplification** — window creation and screenshot capture now run in parallel from the hotkey, replacing the layered cold-start workarounds added in earlier 4.1.1 betas. Cold-start latency is improved without any background work between captures.
+
 ## [4.1.1-beta.2] - 2026-05-14
 
 ### Changed
