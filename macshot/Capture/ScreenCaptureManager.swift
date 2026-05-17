@@ -29,9 +29,6 @@ class ScreenCaptureManager {
     /// Cache is valid for 2 seconds — long enough to survive the hotkey→capture gap,
     /// short enough that display changes are picked up.
     private static let cacheTTL: TimeInterval = 2.0
-    private static let immediatePrewarmQueue = DispatchQueue(label: "macshot.immediate-capture-prewarm", qos: .utility)
-    private static var lastImmediatePrewarmDate: Date = .distantPast
-    private static let immediatePrewarmMinimumInterval: TimeInterval = 12
 
     /// Fetch shareable content, using a short-lived cache to avoid redundant enumeration.
     private static func shareableContent() async throws -> SCShareableContent {
@@ -50,32 +47,6 @@ class ScreenCaptureManager {
     static func prewarm() {
         Task {
             _ = try? await shareableContent()
-        }
-    }
-
-    /// Warm the CGWindowList screenshot path used by zero-delay global hotkeys.
-    /// The real capture still happens at hotkey time so transient UI is current,
-    /// but this pays WindowServer/privacy/capture setup costs while idle. This
-    /// must be periodic: macOS appears to cool this path after a few idle minutes.
-    static func prewarmImmediateCapture() {
-        let screens = NSScreen.screens
-        guard !screens.isEmpty else { return }
-        let mainHeight = screens.first?.frame.height ?? 0
-        let rects = screens.map { screen in
-            CGRect(
-                x: screen.frame.midX,
-                y: mainHeight - screen.frame.midY,
-                width: 1,
-                height: 1)
-        }
-
-        immediatePrewarmQueue.async {
-            let now = Date()
-            guard now.timeIntervalSince(lastImmediatePrewarmDate) >= immediatePrewarmMinimumInterval else { return }
-            lastImmediatePrewarmDate = now
-            for rect in rects {
-                _ = CGWindowListCreateImage(rect, .optionAll, kCGNullWindowID, .bestResolution)
-            }
         }
     }
 

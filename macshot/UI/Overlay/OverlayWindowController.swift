@@ -95,10 +95,6 @@ class OverlayWindowController {
     private var overlayWindow: OverlayWindow?
     private var shareDelegate: SharePickerDelegate?
     private var shareDismissTime: Date = .distantPast
-    private var cursorPrimeGeneration = 0
-    private var earlyMouseTap: CFMachPort?
-    private var earlyMouseTapRunLoopSource: CFRunLoopSource?
-    private var earlyMouseDragActive = false
     var windowNumber: CGWindowID {
         overlayWindow.map { CGWindowID($0.windowNumber) } ?? CGWindowID.max
     }
@@ -112,21 +108,24 @@ class OverlayWindowController {
     var sessionRecordingOnStop: String? { overlayView?.sessionRecordingOnStop }
     var sessionRecordingDelay: Int? { overlayView?.sessionRecordingDelay }
     var sessionHideRecordingHUD: Bool? { overlayView?.sessionHideRecordingHUD }
+    /// Create an overlay pre-populated with a screenshot. Visible immediately on showOverlay().
     init(capture: ScreenCapture) {
         let screen = capture.screen
         self.screen = screen
         setupWindow(screen: screen)
-        prepareScreenshot(capture.image)
+        installScreenshot(capture.image)
     }
 
-    /// Create an overlay without a screenshot — shows instantly as transparent.
-    /// Screenshot is captured and set later via setScreenshot().
+    /// Create an empty overlay. Stays transparent (showing the live desktop) until
+    /// setScreenshot() is called with the captured image.
     init(screen: NSScreen) {
         self.screen = screen
         setupWindow(screen: screen)
     }
 
     private func setupWindow(screen: NSScreen) {
+        // .nonactivatingPanel lets the overlay become key without activating the
+        // macshot app — no NSApp.activate, no focus dance with the previous app.
         let window = OverlayWindow(
             contentRect: screen.frame,
             styleMask: [.borderless, .nonactivatingPanel],
@@ -159,216 +158,40 @@ class OverlayWindowController {
         self.overlayView = view
     }
 
-    private func setOpaqueForScreenshotBackedOverlay() {
+    /// Install the screenshot into the overlay's backing layer. Once set, the
+    /// window becomes opaque (dark dim) and the overlay can render annotations.
+    private func installScreenshot(_ image: CGImage) {
+        let nsImage = NSImage(cgImage: image, size: screen.frame.size)
+        overlayView?.captureSourceImage = nsImage
+        overlayView?.screenshotImage = nsImage
+        rootView?.setScreenshotPreviewImage(image)
         overlayWindow?.isOpaque = true
         overlayWindow?.backgroundColor = .black
     }
 
-    /// Install a full-resolution screenshot before the overlay is shown.
-    /// This keeps the fast hotkey path deterministic: the first visible frame is
-    /// already screenshot-backed, not a temporary black/transparent backing view.
-    func prepareScreenshot(_ image: CGImage) {
-        installScreenshot(image, updateCaptureSource: true)
-    }
-
-    private func installScreenshot(_ image: CGImage, updateCaptureSource: Bool) {
-        let nsImage = NSImage(cgImage: image, size: screen.frame.size)
-        if updateCaptureSource || overlayView?.captureSourceImage == nil {
-            overlayView?.captureSourceImage = nsImage
-        }
-        overlayView?.screenshotImage = nsImage
-        rootView?.setScreenshotPreviewImage(image)
-        setOpaqueForScreenshotBackedOverlay()
-        overlayWindow?.ignoresMouseEvents = false
-    }
-
-    /// Set the screenshot after the overlay is visible.
-    func setScreenshot(_ image: CGImage) {
-        prepareScreenshot(image)
-        // Enable interaction now that the screenshot is ready.
-        focusOverlayWindow()
-    }
-
-    /// Set the full-resolution image used for final output without forcing it
-    /// into the visible overlay surface.
-    func setCaptureSource(_ image: CGImage) {
-        overlayView?.captureSourceImage = NSImage(cgImage: image, size: screen.frame.size)
-    }
-
-    /// Set a display-only preview image. The full-resolution source remains
-    /// in `captureSourceImage` so copy/save/editor output stays native quality.
-    func setScreenshotPreview(_ image: CGImage) {
-        installScreenshot(image, updateCaptureSource: false)
-        focusOverlayWindow()
-    }
-
-    private func focusOverlayWindow() {
+    /// Show the overlay. Becomes key + first responder immediately. If a
+    /// screenshot was pre-installed, it's visible on the first frame; otherwise
+    /// the overlay is transparent (live desktop visible through it) and waits
+    /// for setScreenshot() to install one.
+    func showOverlay() {
         guard let window = overlayWindow else { return }
-        timingMark?("focusOverlayWindow begin visible=\(window.isVisible) key=\(window.isKeyWindow) appActive=\(NSApp.isActive)")
-        window.orderFrontRegardless()
-        timingMark?("focusOverlayWindow after orderFrontRegardless visible=\(window.isVisible) key=\(window.isKeyWindow)")
+        rootView?.layoutSubtreeIfNeeded()
+        overlayView?.displayIfNeeded()
         window.makeKeyAndOrderFront(nil)
-        timingMark?("focusOverlayWindow after makeKeyAndOrderFront visible=\(window.isVisible) key=\(window.isKeyWindow)")
         if let view = overlayView {
             window.makeFirstResponder(view)
-            timingMark?("focusOverlayWindow after makeFirstResponder firstResponder=\(String(describing: window.firstResponder))")
         }
-        primeCaptureCursor()
-        startEarlyMouseTap()
+        // Window is now key — resetCursorRects (called by AppKit on key change)
+        // installs the crosshair rect. No need to NSCursor.set() imperatively.
     }
 
-    private func primeCaptureCursor() {
-        cursorPrimeGeneration &+= 1
-        let generation = cursorPrimeGeneration
-        overlayView?.primeCaptureCursor()
-        timingMark?("prime capture cursor")
-
-        // Carbon hotkey activation can leave the system cursor in the previous
-        // app's state until AppKit receives a fresh mouse-move. Keep the capture
-        // cursor asserted briefly so the overlay feels interactive immediately.
-        for step in 1...12 {
-            DispatchQueue.main.asyncAfter(deadline: .now() + Double(step) * 0.05) { [weak self] in
-                guard let self, self.cursorPrimeGeneration == generation else { return }
-                guard self.overlayWindow?.isVisible == true else { return }
-                self.overlayView?.primeCaptureCursor()
-            }
-        }
-    }
-
-    private func startEarlyMouseTap() {
-        guard earlyMouseTap == nil else { return }
-        let mask =
-            (1 << CGEventType.leftMouseDown.rawValue) |
-            (1 << CGEventType.leftMouseDragged.rawValue) |
-            (1 << CGEventType.leftMouseUp.rawValue)
-        let selfPtr = Unmanaged.passUnretained(self).toOpaque()
-        guard let tap = CGEvent.tapCreate(
-            tap: .cgSessionEventTap,
-            place: .headInsertEventTap,
-            options: .listenOnly,
-            eventsOfInterest: CGEventMask(mask),
-            callback: Self.earlyMouseTapCallback,
-            userInfo: selfPtr
-        ) else {
-            timingMark?("early mouse tap install failed")
-            return
-        }
-        guard let source = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, tap, 0) else {
-            CFMachPortInvalidate(tap)
-            timingMark?("early mouse tap source failed")
-            return
-        }
-        earlyMouseTap = tap
-        earlyMouseTapRunLoopSource = source
-        CFRunLoopAddSource(CFRunLoopGetMain(), source, CFRunLoopMode.commonModes)
-        CGEvent.tapEnable(tap: tap, enable: true)
-        timingMark?("early mouse tap installed")
-    }
-
-    private func stopEarlyMouseTap() {
-        earlyMouseDragActive = false
-        if let source = earlyMouseTapRunLoopSource {
-            CFRunLoopRemoveSource(CFRunLoopGetMain(), source, CFRunLoopMode.commonModes)
-            earlyMouseTapRunLoopSource = nil
-        }
-        if let tap = earlyMouseTap {
-            CFMachPortInvalidate(tap)
-            earlyMouseTap = nil
-            timingMark?("early mouse tap stopped")
-        }
-    }
-
-    private nonisolated static let earlyMouseTapCallback: CGEventTapCallBack = { _, type, event, userInfo in
-        guard let userInfo else { return Unmanaged.passUnretained(event) }
-        let controller = Unmanaged<OverlayWindowController>.fromOpaque(userInfo).takeUnretainedValue()
-        let location = event.location
-        let flags = event.flags
-        DispatchQueue.main.async {
-            controller.handleEarlyMouseEvent(type: type, quartzLocation: location, flags: flags)
-        }
-        return Unmanaged.passUnretained(event)
-    }
-
-    private func handleEarlyMouseEvent(
-        type: CGEventType,
-        quartzLocation: CGPoint,
-        flags: CGEventFlags
-    ) {
-        guard overlayWindow?.isVisible == true, let view = overlayView else {
-            stopEarlyMouseTap()
-            return
-        }
-        if view.state == .selected {
-            stopEarlyMouseTap()
-            return
-        }
-
-        let point = viewPoint(fromQuartzLocation: quartzLocation)
-        guard view.bounds.insetBy(dx: -2, dy: -2).contains(point) else { return }
-
-        let modifiers = Self.eventModifiers(from: flags)
-        switch type {
-        case .leftMouseDown:
-            if view.state == .idle {
-                timingMark?("early mouse tap leftMouseDown")
-                earlyMouseDragActive = view.beginExternalSelection(at: point, modifiers: modifiers)
-            }
-        case .leftMouseDragged:
-            if earlyMouseDragActive || view.state == .selecting {
-                if view.updateExternalSelection(to: point, modifiers: modifiers) {
-                    earlyMouseDragActive = true
-                }
-            }
-        case .leftMouseUp:
-            if earlyMouseDragActive || view.state == .selecting {
-                timingMark?("early mouse tap leftMouseUp")
-                _ = view.finishExternalSelection(at: point, modifiers: modifiers)
-                stopEarlyMouseTap()
-            }
-        default:
-            break
-        }
-    }
-
-    private func viewPoint(fromQuartzLocation location: CGPoint) -> NSPoint {
-        let mainHeight = NSScreen.screens.first?.frame.height ?? screen.frame.height
-        let appKitGlobal = NSPoint(x: location.x, y: mainHeight - location.y)
-        return NSPoint(
-            x: appKitGlobal.x - screen.frame.origin.x,
-            y: appKitGlobal.y - screen.frame.origin.y)
-    }
-
-    private nonisolated static func eventModifiers(from flags: CGEventFlags) -> NSEvent.ModifierFlags {
-        var modifiers: NSEvent.ModifierFlags = []
-        if flags.contains(.maskShift) { modifiers.insert(.shift) }
-        if flags.contains(.maskControl) { modifiers.insert(.control) }
-        if flags.contains(.maskAlternate) { modifiers.insert(.option) }
-        if flags.contains(.maskCommand) { modifiers.insert(.command) }
-        return modifiers
-    }
-
-    func showOverlay(allowInteractionBeforeScreenshot: Bool = false) {
-        guard let window = overlayWindow else { return }
-        if overlayView?.screenshotImage != nil {
-            // Screenshot already set (sync init path) — interactive immediately.
-            rootView?.layoutSubtreeIfNeeded()
-            if let view = overlayView {
-                view.displayIfNeeded()
-            }
-            focusOverlayWindow()
-        } else {
-            // Fallback/delay path: show no black backing while the async
-            // screenshot capture finishes, then setScreenshot(_:) makes it live.
-            window.ignoresMouseEvents = !allowInteractionBeforeScreenshot
-            if allowInteractionBeforeScreenshot {
-                rootView?.layoutSubtreeIfNeeded()
-                if let view = overlayView {
-                    view.displayIfNeeded()
-                }
-                focusOverlayWindow()
-            } else {
-                window.orderFront(nil)
-            }
+    /// Install the captured screenshot after showOverlay() has already made the
+    /// window key. The overlay was previously transparent; this is the moment
+    /// it becomes screenshot-backed with the dim mask.
+    func setScreenshot(_ image: CGImage) {
+        installScreenshot(image)
+        if let view = overlayView {
+            overlayWindow?.invalidateCursorRects(for: view)
         }
     }
 
@@ -466,7 +289,6 @@ class OverlayWindowController {
     }
 
     func dismiss() {
-        stopEarlyMouseTap()
         saveSelectionIfNeeded()
         overlayView?.reset()
         overlayView?.screenshotImage = nil
@@ -560,11 +382,7 @@ class OverlayWindowController {
 
 extension OverlayWindowController: OverlayViewDelegate {
     func overlayViewDidFinishSelection(_ rect: NSRect) {
-        stopEarlyMouseTap()
-        if !NSApp.isActive {
-            NSApp.activate(ignoringOtherApps: true)
-            focusOverlayWindow()
-        }
+        // No-op: window is already key (.nonactivatingPanel + makeKeyAndOrderFront).
     }
 
     func overlayViewSelectionDidChange(_ rect: NSRect) {

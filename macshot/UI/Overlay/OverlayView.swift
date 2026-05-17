@@ -846,14 +846,6 @@ class OverlayView: NSView {
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
     override var isFlipped: Bool { false }
 
-    func primeCaptureCursor() {
-        guard !isEditorMode && !isScrollCapturing && !isRecording else { return }
-        window?.invalidateCursorRects(for: self)
-        if state == .idle || state == .selecting {
-            NSCursor.crosshair.set()
-        }
-    }
-
     override func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()
         window?.makeFirstResponder(self)
@@ -4529,31 +4521,6 @@ class OverlayView: NSView {
     }
 
     // MARK: - Mouse Events
-
-    func beginExternalSelection(at point: NSPoint, modifiers: NSEvent.ModifierFlags = []) -> Bool {
-        guard state == .idle, remoteSelectionRect.width < 1, remoteSelectionRect.height < 1 else {
-            return false
-        }
-        selectionStart = point
-        selectionRect = NSRect(origin: point, size: .zero)
-        state = .selecting
-        overlayDelegate?.overlayViewDidBeginSelection()
-        needsDisplay = true
-        return true
-    }
-
-    func updateExternalSelection(to point: NSPoint, modifiers: NSEvent.ModifierFlags = []) -> Bool {
-        guard state == .selecting else { return false }
-        updateSelectionRect(to: point, shiftHeld: modifiers.contains(.shift))
-        return true
-    }
-
-    func finishExternalSelection(at point: NSPoint, modifiers: NSEvent.ModifierFlags = []) -> Bool {
-        guard state == .selecting else { return false }
-        updateSelectionRect(to: point, shiftHeld: modifiers.contains(.shift))
-        finishSelection()
-        return true
-    }
 
     override func mouseDown(with event: NSEvent) {
         let point = convert(event.locationInWindow, from: nil)

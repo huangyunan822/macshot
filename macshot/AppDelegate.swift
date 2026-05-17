@@ -181,7 +181,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
     private var statusBarMenu: NSMenu?
     private var captureSessionID: UInt = 0
     private var captureTimingTrace: CaptureTimingTrace?
-    private var capturePrewarmTimer: Timer?
 
     /// Shared capture sound — loaded once, reused everywhere.
     static let captureSound: NSSound? = {
@@ -294,20 +293,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
     }
 
     private func prewarmCapturePath() {
-        ScreenCaptureManager.prewarmImmediateCapture()
-        startCapturePrewarmTimer()
-    }
-
-    private func startCapturePrewarmTimer() {
-        guard capturePrewarmTimer == nil else { return }
-        let timer = Timer(timeInterval: 20, repeats: true) { [weak self] _ in
-            guard let self = self else { return }
-            guard !self.isCapturing, self.recordingEngine == nil else { return }
-            ScreenCaptureManager.prewarmImmediateCapture()
-        }
-        timer.tolerance = 3
-        RunLoop.main.add(timer, forMode: .common)
-        capturePrewarmTimer = timer
+        // Warm the SCShareableContent cache (cheap, async). The overlay/window
+        // creation path is no longer prewarmed — the new pipeline runs window
+        // setup and screenshot capture in parallel from the hotkey, so the
+        // periodic 1×1 capture / invisible window churn isn't needed.
+        ScreenCaptureManager.prewarm()
     }
 
     @objc private func systemDidWake() {
@@ -453,7 +443,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
     }
 
     func applicationWillTerminate(_ aNotification: Notification) {
-        capturePrewarmTimer?.invalidate()
         HotkeyManager.shared.unregister()
     }
 
@@ -890,9 +879,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
         let trace = makeCaptureTimingTrace()
         captureTimingTrace = trace
         trace?.mark("startCapture entered fromMenu=\(fromMenu)")
-        if let trigger = HotkeyManager.shared.recentTriggeredHotkey() {
-            trace?.mark("hotkey trigger source=\(trigger.source.rawValue) slot=\(trigger.slot.rawValue)")
-        }
         isCapturing = true
         captureSessionID &+= 1
         let sessionID = captureSessionID
@@ -901,69 +887,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
         trace?.mark("frontmost application captured")
         capturedWindowTitle = nil
         let focusedWindowPID = previousApp?.processIdentifier
-
-        let delay = UserDefaults.standard.integer(forKey: "captureDelaySeconds")
-        trace?.mark("capture delay read delay=\(delay)")
-        if !fromMenu && delay == 0 {
-            // The zero-delay hotkey path snapshots before overlay activation so
-            // transient UI stays visible. Hide our thumbnails before that
-            // snapshot; ScreenCaptureKit exclusions only apply to the later
-            // async fallback path.
-            if let trace {
-                trace.measure("hide thumbnails before immediate capture") {
-                    for tc in thumbnailControllers { tc.hideWindow() }
-                }
-            } else {
-                for tc in thumbnailControllers { tc.hideWindow() }
-            }
-            let context: ScreenCaptureManager.ImmediateCaptureContext
-            if let trace {
-                context = trace.measure("makeImmediateCaptureContext") {
-                    ScreenCaptureManager.makeImmediateCaptureContext { label in
-                        trace.mark(label)
-                    }
-                }
-            } else {
-                context = ScreenCaptureManager.makeImmediateCaptureContext()
-            }
-            DispatchQueue.global(qos: .userInitiated).async { [weak self] in
-                trace?.mark("immediate capture background block entered")
-                let captures: [ScreenCapture]
-                if let trace {
-                    captures = trace.measure("captureAllScreensImmediately") {
-                        ScreenCaptureManager.captureAllScreensImmediately(context: context) { label in
-                            trace.mark(label)
-                        }
-                    }
-                } else {
-                    captures = ScreenCaptureManager.captureAllScreensImmediately(context: context)
-                }
-                DispatchQueue.main.async {
-                    trace?.mark("immediate capture returned to main captures=\(captures.count)")
-                    self?.resolveFocusedWindowTitleAsync(for: focusedWindowPID, sessionID: sessionID)
-                    self?.continueStartCapture(
-                        fromMenu: fromMenu,
-                        delay: delay,
-                        immediateCaptures: captures)
-                }
-            }
-            return
-        }
-
-        trace?.mark("using non-immediate capture path")
         resolveFocusedWindowTitleAsync(for: focusedWindowPID, sessionID: sessionID)
-        continueStartCapture(fromMenu: fromMenu, delay: delay, immediateCaptures: nil)
-    }
 
-    private func continueStartCapture(
-        fromMenu: Bool,
-        delay: Int,
-        immediateCaptures: [ScreenCapture]?
-    ) {
-        guard isCapturing else { return }
-        captureTimingTrace?.mark("continueStartCapture entered immediateCaptures=\(immediateCaptures?.count ?? -1)")
         // When "remember last tool" is off, clear persisted effects/beautify
-        // so new OverlayView instances start clean
+        // so new OverlayView instances start clean.
         let rememberTool = UserDefaults.standard.object(forKey: "rememberLastTool") as? Bool ?? true
         if !rememberTool {
             UserDefaults.standard.removeObject(forKey: "effectsPreset")
@@ -980,37 +907,27 @@ class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
         }
         isCapturing = true
 
-        // Hide any non-overlay titled windows (editors, preferences, Sparkle
-        // dialogs). Without this, `NSApp.activate` inside performCapture drags
-        // every visible app-owned window in front of the user's frontmost app
-        // and those windows end up in the screenshot. Restored in
-        // dismissOverlays once capture is over.
+        // Hide non-overlay titled windows so they don't end up in the screenshot.
+        // Restored in dismissOverlays once capture is over.
         measureCaptureTiming("stash background windows") {
             stashBackgroundWindows()
         }
 
-        // Hide floating thumbnails so they don't visually flash on the overlay.
-        // They're also excluded via ScreenCaptureKit's excludingWindows filter
-        // in performCapture() so they never appear in the captured image.
-        measureCaptureTiming("hide thumbnails before overlay") {
+        // Hide floating thumbnails so they don't appear in the captured image.
+        measureCaptureTiming("hide thumbnails before capture") {
             for tc in thumbnailControllers { tc.hideWindow() }
         }
 
-        // Kick off SCShareableContent enumeration early for paths that still
-        // need the async capture after the overlay appears.
-        if immediateCaptures == nil || immediateCaptures?.isEmpty == true {
-            measureCaptureTiming("ScreenCaptureManager.prewarm") {
-                ScreenCaptureManager.prewarm()
-            }
-        }
+        let delay = UserDefaults.standard.integer(forKey: "captureDelaySeconds")
+        trace?.mark("capture delay read delay=\(delay)")
 
         if delay > 0 {
             captureTimingTrace?.mark("showPreCaptureCountdown requested")
             showPreCaptureCountdown(seconds: delay)
-        } else {
-            captureTimingTrace?.mark("performCapture starting on main")
-            performCapture(preCaptured: immediateCaptures)
+            return
         }
+
+        performCapture(fromMenu: fromMenu)
     }
 
     private func showPreCaptureCountdown(seconds: Int) {
@@ -1060,7 +977,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
                 self?.delayCountdownWindow?.orderOut(nil)
                 self?.delayCountdownWindow = nil
                 self?.removeDelayEscMonitors()
-                self?.performCapture()
+                self?.performCapture(fromMenu: false)
             } else {
                 countdownView.remaining = remaining
                 countdownView.needsDisplay = true
@@ -1089,79 +1006,51 @@ class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
         pendingRestoreLastArea = false
     }
 
-    private func performCapture(preCaptured: [ScreenCapture]? = nil) {
-        captureTimingTrace?.mark("performCapture entered preCaptured=\(preCaptured?.count ?? -1)")
+    private func performCapture(fromMenu: Bool) {
+        captureTimingTrace?.mark("performCapture entered fromMenu=\(fromMenu)")
         let screens = measureCaptureTiming("NSScreen.screens") {
             NSScreen.screens
         }
         let mouseLocation = NSEvent.mouseLocation
         let mouseScreen = screens.first { $0.frame.contains(mouseLocation) }
-        let preCapturedByScreen = measureCaptureTiming("map preCaptured images") {
-            Dictionary(uniqueKeysWithValues: (preCaptured ?? []).map { ($0.screen, $0.image) })
-        }
-        let hasImmediateCaptures = !preCapturedByScreen.isEmpty
-        var deferredPreviewInstalls: [(controller: OverlayWindowController, image: CGImage)] = []
 
+        // Kick off the screenshot capture on a background queue. Window
+        // creation runs on main concurrently — both costs are paid in parallel.
+        // CGWindowListCreateImage is used because it preserves transient UI
+        // (menu extras, app menus, Raycast-style panels) that disappears once
+        // anything steals focus. Overlay windows haven't been ordered-front yet
+        // so they won't appear in the capture.
+        let captureContext = measureCaptureTiming("makeImmediateCaptureContext") {
+            ScreenCaptureManager.makeImmediateCaptureContext()
+        }
+        let trace = captureTimingTrace
+        let sessionID = captureSessionID
+
+        // Build (but don't yet order-front) overlay windows on main. This pays
+        // the AppKit window-creation + CALayer backing-store cost concurrently
+        // with the screenshot capture above.
+        var controllers: [OverlayWindowController] = []
         for screen in screens {
-            let controller: OverlayWindowController
-            if preCapturedByScreen[screen] != nil {
-                controller = measureCaptureTiming("create transparent overlay for preCaptured image") {
-                    OverlayWindowController(screen: screen)
-                }
-            } else {
-                controller = measureCaptureTiming("create overlay without image") {
-                    OverlayWindowController(screen: screen)
-                }
+            let controller = measureCaptureTiming("create overlay") {
+                OverlayWindowController(screen: screen)
             }
             controller.overlayDelegate = self
             if let trace = captureTimingTrace {
-                controller.timingMark = { label in
-                    trace.mark(label)
-                }
+                controller.timingMark = { label in trace.mark(label) }
             }
             controller.capturedWindowTitle = capturedWindowTitle
             if pendingRecordMode { controller.setAutoRecordMode() }
             if pendingOCRMode { controller.setAutoOCRMode() }
             if pendingQuickCaptureMode { controller.setAutoQuickSaveMode() }
             if pendingScrollCaptureMode { controller.setAutoScrollCaptureMode() }
-            if let image = preCapturedByScreen[screen] {
-                measureCaptureTiming("install preCaptured capture source") {
-                    controller.setCaptureSource(image)
-                }
-                deferredPreviewInstalls.append((controller, image))
-            }
-            measureCaptureTiming("show overlay") {
-                controller.showOverlay(allowInteractionBeforeScreenshot: preCapturedByScreen[screen] != nil)
-            }
-            let isMouseScreen = (screen == mouseScreen) || (mouseScreen == nil && screen == NSScreen.main)
-            if (pendingFullScreen || pendingFullScreenRecord) && isMouseScreen {
-                measureCaptureTiming("apply full screen selection") {
-                    controller.applyFullScreenSelection()
-                }
-            }
-            if pendingFullScreenRecord && isMouseScreen {
-                controller.enterRecordingMode()
-                if pendingFullScreenRecordAutoStart {
-                    controller.autoStartRecording()
-                }
-            }
-            overlayControllers.append(controller)
+            controllers.append(controller)
         }
-
-        if preCaptured?.isEmpty == false {
-            captureTimingTrace?.mark("CATransaction.flush skipped for immediate capture")
-        } else {
-            measureCaptureTiming("CATransaction.flush") {
-                CATransaction.flush()
-            }
-        }
-        if !hasImmediateCaptures {
-            measureCaptureTiming("NSApp.activate") {
-                NSApp.activate(ignoringOtherApps: true)
-            }
-        }
+        overlayControllers.append(contentsOf: controllers)
 
         pendingRecordMode = false
+        let didApplyFullScreenRecord = pendingFullScreenRecord
+        let didApplyFullScreenRecordAutoStart = pendingFullScreenRecordAutoStart
+        let didApplyFullScreen = pendingFullScreen
         pendingFullScreenRecordAutoStart = false
         pendingOCRMode = false
         pendingQuickCaptureMode = false
@@ -1169,69 +1058,75 @@ class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
         pendingFullScreen = false
         pendingFullScreenRecord = false
 
-        if let preCaptured = preCaptured, !preCaptured.isEmpty {
-            captureTimingTrace?.mark("overlay ready using immediate captures")
-            let trace = captureTimingTrace
+        // Run the screenshot capture now and dispatch back to main when done.
+        // Window creation above already ran in parallel with the prep that the
+        // background queue still has to do (cursor capture, context setup is
+        // already done — the heavy work is CGWindowListCreateImage).
+        DispatchQueue.global(qos: .userInteractive).async { [weak self] in
+            trace?.mark("background screenshot begin")
+            let captures = ScreenCaptureManager.captureAllScreensImmediately(
+                context: captureContext,
+                timing: { label in trace?.mark(label) })
+            trace?.mark("background screenshot end count=\(captures.count)")
             DispatchQueue.main.async {
-                trace?.mark("main queue tick after overlay ready")
+                guard let self = self, self.isCapturing,
+                      self.captureSessionID == sessionID else { return }
+                self.installAndShowOverlays(
+                    captures: captures,
+                    controllers: controllers,
+                    mouseScreen: mouseScreen,
+                    applyFullScreen: didApplyFullScreen,
+                    applyFullScreenRecord: didApplyFullScreenRecord,
+                    autoStartRecord: didApplyFullScreenRecordAutoStart)
             }
-            if !deferredPreviewInstalls.isEmpty {
-                captureTimingTrace?.mark("schedule preCaptured preview install")
-                let installs = deferredPreviewInstalls
-                DispatchQueue.main.async { [weak self] in
-                    guard let self, self.isCapturing else { return }
-                    for install in installs {
-                        self.measureCaptureTiming("install preCaptured screenshot preview") {
-                            install.controller.setScreenshotPreview(install.image)
-                        }
-                    }
-                    self.captureTimingTrace?.mark("preCaptured screenshot preview installed")
-                }
-            }
-            applyPendingRestoredSelectionIfNeeded()
-            return
-        }
-
-        // Capture screenshots in background — exclude overlay windows + thumbnails.
-        let excludeIDs = thumbnailControllers.compactMap { $0.windowNumber }
-            + overlayControllers.compactMap { $0.windowNumber }
-        captureTimingTrace?.mark("async captureAllScreens requested exclusions=\(excludeIDs.count)")
-        let trace = captureTimingTrace
-        ScreenCaptureManager.captureAllScreens(
-            excludingWindowNumbers: excludeIDs,
-            timing: { label in trace?.mark(label) }
-        ) { [weak self] captures in
-            guard let self = self else { return }
-            self.captureTimingTrace?.mark("async captureAllScreens completed captures=\(captures.count)")
-
-            if captures.isEmpty {
-                self.dismissOverlays(refocusPreviousApp: true)
-                self.showOnboarding()
-                return
-            }
-
-            for capture in captures {
-                if let controller = self.overlayControllers.first(where: { $0.screen == capture.screen }) {
-                    self.measureCaptureTiming("set overlay screenshot source") {
-                        controller.setCaptureSource(capture.image)
-                    }
-                    self.attachDisplayPreview(capture.image, to: controller)
-                }
-            }
-
-            self.captureTimingTrace?.mark("overlay ready after async screenshots")
-            self.applyPendingRestoredSelectionIfNeeded()
         }
     }
 
-    private func attachDisplayPreview(
-        _ image: CGImage,
-        to controller: OverlayWindowController
+    /// Install screenshots into the pre-built overlay controllers and order
+    /// them front. This is the single moment the overlay becomes visible.
+    private func installAndShowOverlays(
+        captures: [ScreenCapture],
+        controllers: [OverlayWindowController],
+        mouseScreen: NSScreen?,
+        applyFullScreen: Bool,
+        applyFullScreenRecord: Bool,
+        autoStartRecord: Bool
     ) {
-        captureTimingTrace?.mark("set full-resolution overlay display preview pixels=\(image.width)x\(image.height)")
-        measureCaptureTiming("set overlay display preview") {
-            controller.setScreenshotPreview(image)
+        if captures.isEmpty {
+            captureTimingTrace?.mark("no captures returned — bailing out")
+            dismissOverlays(refocusPreviousApp: true)
+            showOnboarding()
+            return
         }
+
+        let capturesByScreen = Dictionary(uniqueKeysWithValues: captures.map { ($0.screen, $0.image) })
+
+        for controller in controllers {
+            if let image = capturesByScreen[controller.screen] {
+                measureCaptureTiming("set screenshot") {
+                    controller.setScreenshot(image)
+                }
+            }
+            measureCaptureTiming("show overlay") {
+                controller.showOverlay()
+            }
+            let isMouseScreen = (controller.screen == mouseScreen)
+                || (mouseScreen == nil && controller.screen == NSScreen.main)
+            if (applyFullScreen || applyFullScreenRecord) && isMouseScreen {
+                measureCaptureTiming("apply full screen selection") {
+                    controller.applyFullScreenSelection()
+                }
+            }
+            if applyFullScreenRecord && isMouseScreen {
+                controller.enterRecordingMode()
+                if autoStartRecord {
+                    controller.autoStartRecording()
+                }
+            }
+        }
+
+        captureTimingTrace?.mark("overlays installed and shown")
+        applyPendingRestoredSelectionIfNeeded()
     }
 
     private func applyPendingRestoredSelectionIfNeeded() {
