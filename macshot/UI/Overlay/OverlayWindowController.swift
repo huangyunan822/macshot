@@ -151,6 +151,13 @@ class OverlayWindowController {
         let rootView = ScreenshotOverlayRootView(
             frame: NSRect(origin: .zero, size: screen.frame.size),
             overlayView: view)
+        view.externalScreenshotPreviewUpdater = { [weak rootView] cgImage in
+            if let cgImage {
+                rootView?.setScreenshotPreviewImage(cgImage)
+            } else {
+                rootView?.clearScreenshotPreview()
+            }
+        }
 
         window.contentView = rootView
         self.overlayWindow = window

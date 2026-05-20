@@ -96,6 +96,16 @@ class OverlayView: NSView {
 
     var screenshotImage: NSImage? {
         didSet {
+            cachedCompositedImage = nil
+            cachedEffectsScreenshot = nil
+            cachedOpaqueRect = nil
+            if captureSourceImage != nil {
+                captureSourceImage = screenshotImage
+            }
+            if usesExternalScreenshotPreview {
+                let cgImage = screenshotImage?.cgImage(forProposedRect: nil, context: nil, hints: nil)
+                externalScreenshotPreviewUpdater?(cgImage)
+            }
             needsDisplay = true
             // Screenshot just arrived (async capture) — enable snap queries now.
             if screenshotImage != nil && windowSnapCooldown {
@@ -108,6 +118,7 @@ class OverlayView: NSView {
         }
     }
     var captureSourceImage: NSImage?
+    var externalScreenshotPreviewUpdater: ((CGImage?) -> Void)?
     var usesExternalScreenshotPreview = false {
         didSet { needsDisplay = true }
     }
