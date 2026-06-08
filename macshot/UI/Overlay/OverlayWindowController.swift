@@ -146,6 +146,13 @@ class OverlayWindowController {
         window.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
         window.hidesOnDeactivate = false
         window.isReleasedWhenClosed = false
+        // No automatic appearance animation when the overlay is ordered front.
+        // With the default behavior, AppKit auto-animates window appearance —
+        // and under the system "Reduce Motion" setting that becomes a brief
+        // scale/zoom-in, visible at the screenshot edges (issue #205). The
+        // overlay must appear instantly so its screenshot lines up 1:1 with
+        // the real screen.
+        window.animationBehavior = .none
 
         let view = OverlayView()
         view.frame = NSRect(origin: .zero, size: screen.frame.size)
