@@ -147,14 +147,38 @@ class ToolbarButtonView: NSView {
     override func updateTrackingAreas() {
         super.updateTrackingAreas()
         if let ta = trackingArea { removeTrackingArea(ta) }
-        trackingArea = NSTrackingArea(rect: bounds, options: [.mouseEnteredAndExited, .activeInActiveApp], owner: self, userInfo: nil)
+        // `.activeAlways` (not `.activeInActiveApp`): macshot is a menu-bar
+        // LSUIElement app and the toolbars can live in non-activating panels
+        // (Liquid Glass chrome). With `.activeInActiveApp`, mouseExited wouldn't
+        // fire when the app isn't frontmost, leaving a previous button stuck in
+        // its hover state when moving to another.
+        trackingArea = NSTrackingArea(rect: bounds, options: [.mouseEnteredAndExited, .cursorUpdate, .activeAlways], owner: self, userInfo: nil)
         addTrackingArea(trackingArea!)
     }
 
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
 
-    override func mouseEntered(with event: NSEvent) { isHovered = true; needsDisplay = true; onHover?(action, true) }
-    override func mouseExited(with event: NSEvent) { isHovered = false; needsDisplay = true; onHover?(action, false) }
+    // Toolbar buttons always show the arrow cursor, overriding the overlay's
+    // crosshair / hidden drawing-cursor that would otherwise bleed through.
+    override func cursorUpdate(with event: NSEvent) { NSCursor.arrow.set() }
+
+    override func mouseEntered(with event: NSEvent) {
+        NSCursor.arrow.set()
+        // Robustly clear any sibling that AppKit failed to send mouseExited to
+        // (common in non-activating glass chrome panels) so only one button is
+        // ever hovered.
+        (superview as? ToolbarStripView ?? superview?.superview as? ToolbarStripView)?.clearHover(except: self)
+        isHovered = true; needsDisplay = true; onHover?(action, true)
+    }
+    override func mouseExited(with event: NSEvent) { setHovered(false) }
+
+    /// Externally force the hover state (used by the strip to clear stale hovers).
+    func setHovered(_ hovered: Bool) {
+        guard isHovered != hovered else { return }
+        isHovered = hovered
+        needsDisplay = true
+        onHover?(action, hovered)
+    }
 
     private var forwardingDrag = false
     /// The view that should receive forwarded drag events (set by onMouseDown handler).

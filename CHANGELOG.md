@@ -1,5 +1,15 @@
 # Changelog
 
+## [4.1.3-beta.1] - 2026-06-11
+
+### Added
+
+- **Liquid Glass theme** (macOS 26 Tahoe) — a new Settings → Appearance toggle that renders the capture toolbars, the tool options row, popovers, and recording/scroll HUDs as Apple's translucent Liquid Glass material. Independent of the toolbar color customization; only appears on macOS 26+. Off by default.
+
+### Fixed
+
+- **Thin edge line on Beautify screenshots** — with a drop shadow enabled, a faint hairline appeared around the rounded screenshot edges (white on dark captures, dark on light). The shadow is now cast from the screenshot's own rounded shape, so there's no rim.
+
 ## [4.1.2] - 2026-06-08
 
 ### Added

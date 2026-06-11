@@ -2,7 +2,7 @@ import Cocoa
 
 /// Real NSView container for a row (horizontal) or column (vertical) of ToolbarButtonViews.
 /// Dark rounded background matching the existing toolbar look.
-class ToolbarStripView: NSView {
+class ToolbarStripView: NSView, ChromeContent {
 
     enum Orientation { case horizontal, vertical }
 
@@ -18,12 +18,36 @@ class ToolbarStripView: NSView {
     private let padding: CGFloat = 4
     private let spacing: CGFloat = 2
 
+    /// When hosted in a Liquid Glass chrome panel, the panel's glass provides the
+    /// background, so the strip skips its own solid fill (ChromeContent).
+    var hostedInGlassPanel = false { didSet { needsDisplay = true } }
+
     init(orientation: Orientation) {
         self.orientation = orientation
         super.init(frame: .zero)
     }
 
     required init?(coder: NSCoder) { fatalError() }
+
+    /// Strip-level tracking area: clears all button hovers when the cursor leaves
+    /// the whole strip (covers the case where AppKit drops the last button's
+    /// mouseExited in a non-activating panel).
+    private var stripTracking: NSTrackingArea?
+    override func updateTrackingAreas() {
+        super.updateTrackingAreas()
+        if let ta = stripTracking { removeTrackingArea(ta) }
+        let ta = NSTrackingArea(rect: bounds,
+                                options: [.mouseEnteredAndExited, .mouseMoved, .cursorUpdate, .activeAlways],
+                                owner: self, userInfo: nil)
+        addTrackingArea(ta)
+        stripTracking = ta
+    }
+    override func mouseEntered(with event: NSEvent) { NSCursor.arrow.set() }
+    override func mouseMoved(with event: NSEvent) { NSCursor.arrow.set() }
+    override func cursorUpdate(with event: NSEvent) { NSCursor.arrow.set() }
+    override func mouseExited(with event: NSEvent) {
+        for bv in buttonViews { bv.setHovered(false) }
+    }
 
     /// Rebuild buttons from ToolbarButton data.
     func setButtons(_ buttons: [ToolbarButton]) {
@@ -45,6 +69,13 @@ class ToolbarStripView: NSView {
         layoutButtons()
     }
 
+    /// Clear hover on every button except `keep`. Called when a button is
+    /// entered, to defensively reset any sibling AppKit failed to send
+    /// mouseExited to (happens in non-activating glass chrome panels).
+    func clearHover(except keep: ToolbarButtonView) {
+        for bv in buttonViews where bv !== keep { bv.setHovered(false) }
+    }
+
     /// Update visual state without rebuilding.
     func updateState(from buttons: [ToolbarButton]) {
         for (i, data) in buttons.enumerated() where i < buttonViews.count {
@@ -59,7 +90,10 @@ class ToolbarStripView: NSView {
     private func layoutButtons() {
         let btnSize = ToolbarButtonView.size
         let count = CGFloat(buttonViews.count)
-        guard count > 0 else { frame.size = .zero; return }
+        guard count > 0 else {
+            frame.size = .zero
+            return
+        }
 
         switch orientation {
         case .horizontal:
@@ -82,6 +116,8 @@ class ToolbarStripView: NSView {
     }
 
     override func draw(_ dirtyRect: NSRect) {
+        // When hosted in a glass chrome panel, the panel renders the background.
+        if hostedInGlassPanel { return }
         ToolbarLayout.bgColor.setFill()
         NSBezierPath(roundedRect: bounds, xRadius: 6, yRadius: 6).fill()
     }

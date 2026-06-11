@@ -367,12 +367,28 @@ class OverlayView: NSView {
                 bottomStripView?.isHidden = true
                 rightStripView?.isHidden = true
                 toolOptionsRowView?.isHidden = true
+                // Dismiss any glass chrome panels so they don't linger as empty
+                // clickable child windows (e.g. after clearSelection).
+                teardownGlassChromePanels()
+                optionsRowRect = .zero
             }
         }
     }
     private var bottomStripView: ToolbarStripView?
     private var rightStripView: ToolbarStripView?
     private var toolOptionsRowView: ToolOptionsRowView?
+
+    /// Liquid Glass: when the glass theme is on (overlay mode only), each toolbar
+    /// surface is lifted into a floating child panel above the overlay window via
+    /// its presenter, so its NSGlassEffectView can sample the overlay beneath.
+    private let bottomChrome = OverlayChromePresenter(cornerRadius: 6)
+    private let rightChrome = OverlayChromePresenter(cornerRadius: 6)
+    private let optionsChrome = OverlayChromePresenter(cornerRadius: 6)
+    /// Intended overlay-space rect of the options row (its live frame becomes
+    /// panel-local when glass-hosted). .zero when the row is hidden.
+    private var optionsRowRect: NSRect = .zero
+    /// Whether toolbars are routed through glass chrome panels.
+    private var usesGlassChrome: Bool { LiquidGlass.isEnabled && !isEditorMode }
 
     // Size label
     private var sizeLabelRect: NSRect = .zero
@@ -901,8 +917,12 @@ class OverlayView: NSView {
     }
 
     @objc private func handleToolbarColorsChanged() {
-        // Rebuild toolbars and options row with new colors
-        toolOptionsRowView?.layer?.backgroundColor = ToolbarLayout.bgColor.cgColor
+        // Rebuild toolbars and options row with new colors. The row owns its own
+        // background via hostedInGlassPanel (clear when glass-hosted, solid
+        // otherwise), so re-assert it from that flag rather than guessing here.
+        if let row = toolOptionsRowView {
+            row.layer?.backgroundColor = row.hostedInGlassPanel ? NSColor.clear.cgColor : ToolbarLayout.bgColor.cgColor
+        }
         toolOptionsRowView?.appearance = ToolbarLayout.appearance
         rebuildToolbarLayout()
         if let tool = toolOptionsRowView?.currentTool {
@@ -1250,7 +1270,11 @@ class OverlayView: NSView {
         // In editor mode the strips live in chromeParentView (a sibling container), not in
         // this view — AppKit's normal hit testing on the container handles them. Routing them
         // here would compare coordinates in different spaces and cause false matches.
-        if !isEditorMode {
+        // In glass-chrome mode the strips/options row live in separate child
+        // panels (different windows) — AppKit hit-tests those panels directly, so
+        // don't route to them here (their frames are panel-local and would
+        // false-match near the overlay origin).
+        if !isEditorMode && !usesGlassChrome {
             let localPoint = convert(point, from: superview)
             if let strip = bottomStripView, !strip.isHidden, strip.frame.contains(localPoint) {
                 return strip.hitTest(convert(point, to: strip.superview))
@@ -1302,15 +1326,13 @@ class OverlayView: NSView {
         // In editor mode, strips are in chromeParentView — different coordinate space.
         // Don't check them here; they handle their own hit testing as container subviews.
         if showToolbars && !isEditorMode {
-            if let strip = bottomStripView, !strip.isHidden, strip.frame.contains(point) {
-                return true
-            }
-            if let strip = rightStripView, !strip.isHidden, strip.frame.contains(point) {
-                return true
-            }
-            if let row = toolOptionsRowView, !row.isHidden, row.frame.contains(point) {
-                return true
-            }
+            // Use the shared OVERLAY-space rects, valid in both themes: in normal
+            // mode they equal the strip frames; in glass mode the strips live in
+            // panels (frame is panel-local), so the rects are the only truth.
+            if bottomStripView?.isHidden == false, bottomBarRect.contains(point) { return true }
+            if rightStripView?.isHidden == false, rightBarRect.contains(point) { return true }
+            if toolOptionsRowView?.isHidden == false, optionsRowRect.width > 1,
+               optionsRowRect.contains(point) { return true }
         }
         if updateCursorForChrome(at: point) { return true }
         if sizeLabelRect.contains(point) && sizeInputField == nil { return true }
@@ -4290,7 +4312,14 @@ class OverlayView: NSView {
         let rightHasButtons = rightStrip.buttonViews.count > 0
         rightStrip.isHidden = !visible || !rightHasButtons
         toolOptionsRowView?.isHidden = !visible || !toolHasOptionsRow || !bottomHasButtons
-        guard visible else { return }
+        guard visible else {
+            // Toolbars hidden (deselected / scroll capture): also dismiss the
+            // glass chrome panels so they don't linger as clickable windows, and
+            // clear the chrome rects so isPointOnChrome doesn't see stale areas.
+            teardownGlassChromePanels()
+            optionsRowRect = .zero
+            return
+        }
 
         // Anchor rect: beautify-expanded when active, selection otherwise
         let config = beautifyConfig
@@ -4440,7 +4469,10 @@ class OverlayView: NSView {
             rightStrip.frame.origin = NSPoint(x: rx, y: ry)
         }
 
-        bottomBarRect = bottomStrip.frame
+        // bottomBarRect is the intended OVERLAY-space rect. Build it from the
+        // strip's size + the origin we just set (rather than reading back the
+        // live frame, which is panel-local when the strip is glass-panel-hosted).
+        bottomBarRect = NSRect(origin: bottomStrip.frame.origin, size: bottomStrip.frame.size)
         rightBarRect = rightStrip.frame
 
         // Position options row — above bottom bar in editor, below in overlay
@@ -4462,8 +4494,42 @@ class OverlayView: NSView {
                 rowY = bottomBarRect.minY - row.frame.height - 2
                 row.frame.origin = NSPoint(x: rowX, y: rowY)
             }
+            // Capture the intended overlay-space rect before the row is lifted
+            // into a glass panel (where its live frame becomes panel-local).
+            optionsRowRect = NSRect(origin: row.frame.origin, size: row.frame.size)
+        } else {
+            optionsRowRect = .zero
         }
 
+        syncGlassChromePanels()
+    }
+
+    /// Liquid Glass: lift each toolbar surface (bottom strip, right strip, tool
+    /// options row) into a floating child panel above the overlay window,
+    /// positioned at its screen rect, so its glass refracts the overlay
+    /// (screenshot + dim) beneath. `repositionToolbars` has just set the intended
+    /// OVERLAY-space frames; we use those (not the live panel-local frames).
+    private func syncGlassChromePanels() {
+        let glass = usesGlassChrome
+        if let s = bottomStripView {
+            bottomChrome.present(s, overlayRect: bottomBarRect,
+                                 visible: !s.isHidden, glass: glass, in: self)
+        }
+        if let s = rightStripView {
+            rightChrome.present(s, overlayRect: rightBarRect,
+                                visible: !s.isHidden, glass: glass, in: self)
+        }
+        if let row = toolOptionsRowView {
+            optionsChrome.present(row, overlayRect: optionsRowRect,
+                                  visible: !row.isHidden, glass: glass, in: self)
+        }
+    }
+
+    /// Tear down all glass chrome panels, returning their views to the overlay.
+    private func teardownGlassChromePanels() {
+        bottomChrome.reclaim(bottomStripView, to: self)
+        rightChrome.reclaim(rightStripView, to: self)
+        optionsChrome.reclaim(toolOptionsRowView, to: self)
     }
 
     // MARK: - Handle hit testing
@@ -5878,6 +5944,18 @@ class OverlayView: NSView {
         needsDisplay = true
     }
 
+    /// True if `btn` belongs to `strip` (direct subview or via the strip's view
+    /// tree — covers both in-overlay and glass-chrome-panel hosting).
+    private func isButton(_ btn: NSView, inStrip strip: ToolbarStripView?) -> Bool {
+        guard let strip else { return false }
+        var v: NSView? = btn
+        while let cur = v {
+            if cur === strip { return true }
+            v = cur.superview
+        }
+        return strip.buttonViews.contains { $0 === btn }
+    }
+
     private func drawHoveredTooltip() {
         // In editor mode, tooltips are drawn via a floating NSView in the chrome parent
         if isEditorMode {
@@ -5899,9 +5977,21 @@ class OverlayView: NSView {
         let tipW = textSize.width + pad * 2
         let tipH = textSize.height + pad
 
-        // Convert button position to OverlayView coordinates
-        let btnFrame = btn.convert(btn.bounds, to: self)
-        let isBottomBar = btn.superview === bottomStripView
+        // Convert the button's rect to OverlayView coordinates. The button may
+        // live in a separate glass chrome panel (different window), so go through
+        // screen coordinates rather than a same-window convert (which would
+        // misplace the tooltip far off, e.g. screen-left).
+        let btnFrame: NSRect
+        if let btnWindow = btn.window, let selfWindow = window, btnWindow !== selfWindow {
+            let inBtnWindow = btn.convert(btn.bounds, to: nil)
+            let screenRect = btnWindow.convertToScreen(inBtnWindow)
+            let inSelfWindow = selfWindow.convertFromScreen(screenRect)
+            btnFrame = convert(inSelfWindow, from: nil)
+        } else {
+            btnFrame = btn.convert(btn.bounds, to: self)
+        }
+        // The button is hosted in a strip; find which strip via the panel chain.
+        let isBottomBar = isButton(btn, inStrip: bottomStripView)
         let tipRect: NSRect
 
         if isBottomBar {
@@ -6343,13 +6433,20 @@ class OverlayView: NSView {
             hoveredTooltip = L("Drag to reposition")
             needsDisplay = true
             displayIfNeeded()
-            // Synchronous drag loop: tracks mouse from button press until release
-            let startPoint = convert(win.mouseLocationOutsideOfEventStream, from: nil)
+            // Synchronous drag loop: tracks mouse from button press until release.
+            // Convert the current mouse via screen coords (the move button may
+            // live in a glass chrome panel, so events target that window, not the
+            // overlay — we read app-wide events and map by screen location).
+            func overlayPoint(fromScreen screen: NSPoint) -> NSPoint {
+                convert(win.convertPoint(fromScreen: screen), from: nil)
+            }
+            let startPoint = overlayPoint(fromScreen: NSEvent.mouseLocation)
             let offset = NSPoint(x: startPoint.x - selectionRect.origin.x, y: startPoint.y - selectionRect.origin.y)
             let hasWebcam = webcamSetupPreview != nil
             while true {
-                guard let event = win.nextEvent(matching: [.leftMouseDragged, .leftMouseUp]) else { break }
-                let point = convert(event.locationInWindow, from: nil)
+                guard let event = NSApp.nextEvent(matching: [.leftMouseDragged, .leftMouseUp],
+                                                  until: .distantFuture, inMode: .eventTracking, dequeue: true) else { break }
+                let point = overlayPoint(fromScreen: NSEvent.mouseLocation)
                 selectionRect.origin = NSPoint(x: point.x - offset.x, y: point.y - offset.y)
                 if hasWebcam { repositionWebcamSetupPreview() }
                 needsDisplay = true
@@ -8015,6 +8112,7 @@ class OverlayView: NSView {
         currentAnnotation = nil
         numberCounter = 0
         showToolbars = false
+        teardownGlassChromePanels()
         bottomStripView?.isHidden = true
         rightStripView?.isHidden = true
         toolOptionsRowView?.isHidden = true
