@@ -85,8 +85,15 @@ enum PopoverHelper {
     private static func cursorWrapped(_ contentView: NSView) -> NSView {
         let wrapper = ArrowCursorView(frame: contentView.frame)
         wrapper.appearance = ToolbarLayout.appearance
-        wrapper.addSubview(contentView)
         contentView.frame.origin = .zero
+        // Liquid Glass theme: host the popover content on glass so its interior
+        // is translucent (the NSPopover bubble itself stays system-styled).
+        if let glass = LiquidGlass.host(contentView, frame: wrapper.bounds, cornerRadius: 10) {
+            glass.autoresizingMask = [.width, .height]
+            wrapper.addSubview(glass)
+        } else {
+            wrapper.addSubview(contentView)
+        }
         return wrapper
     }
 }

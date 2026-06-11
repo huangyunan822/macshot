@@ -64,6 +64,7 @@ class SettingsWindowController: NSWindowController, NSToolbarDelegate, NSWindowD
     private var captureCursorCheckbox: NSButton!
     private var doubleClickToCopyCheckbox: NSButton!
     private var hideCaptureInstructionsCheckbox: NSButton!
+    private var liquidGlassCheckbox: NSButton!
     private var filenameTemplateField: NSTextField!
     private var filenameTemplatePreview: NSTextField!
     private var recordingFilenameTemplateField: NSTextField!
@@ -442,6 +443,20 @@ class SettingsWindowController: NSWindowController, NSToolbarDelegate, NSWindowD
         // ── Appearance ───────────────────────────────────────
         stack.addArrangedSubview(sectionHeader(L("Appearance")))
         stack.setCustomSpacing(10, after: stack.arrangedSubviews.last!)
+
+        // Liquid Glass theme (macOS 26+ only). When on, toolbars/popovers/HUDs
+        // render as Apple's Liquid Glass material instead of a solid color.
+        if LiquidGlass.isAvailable {
+            liquidGlassCheckbox = NSButton(checkboxWithTitle: L("Liquid Glass theme"),
+                                           target: self, action: #selector(liquidGlassChanged(_:)))
+            liquidGlassCheckbox.state = LiquidGlass.isEnabled ? .on : .off
+            stack.addArrangedSubview(indented(liquidGlassCheckbox))
+            let note = NSTextField(labelWithString: L("Translucent toolbars that show the screen behind them."))
+            note.font = NSFont.systemFont(ofSize: 11)
+            note.textColor = .secondaryLabelColor
+            stack.addArrangedSubview(indented(note))
+            stack.setCustomSpacing(14, after: stack.arrangedSubviews.last!)
+        }
 
         // Theme preset dropdown
         themePresetPopup = NSPopUpButton()
@@ -2407,6 +2422,12 @@ class SettingsWindowController: NSWindowController, NSToolbarDelegate, NSWindowD
         if sender.state == .on { if !enabled.contains(sender.tag) { enabled.append(sender.tag) } }
         else { enabled.removeAll { $0 == sender.tag } }
         UserDefaults.standard.set(enabled, forKey: key)
+    }
+    @objc private func liquidGlassChanged(_ sender: NSButton) {
+        LiquidGlass.setEnabled(sender.state == .on)
+        // Reuse the toolbar-colors-changed signal so any open overlay rebuilds
+        // its toolbars with (or without) glass without an app restart.
+        notifyToolbarColorChange()
     }
     @objc private func accentColorChanged(_ sender: NSColorWell) {
         ToolbarLayout.saveAccentColor(sender.color)

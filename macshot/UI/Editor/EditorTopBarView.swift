@@ -13,8 +13,10 @@ class EditorTopBarView: NSView {
     override init(frame: NSRect) {
         super.init(frame: frame)
         wantsLayer = true
-        layer?.backgroundColor = ToolbarLayout.bgColor.cgColor
         autoresizingMask = [.width, .minYMargin]  // pin to top, stretch width
+        // (Editor top bar uses Auto Layout constraints for its content, so it
+        // keeps a solid background even under the glass theme for now.)
+        layer?.backgroundColor = ToolbarLayout.bgColor.cgColor
 
         sizeLabel = makeLabel("")
         sizeLabel.font = NSFont.monospacedDigitSystemFont(ofSize: 11, weight: .medium)

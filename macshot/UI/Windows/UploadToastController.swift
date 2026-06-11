@@ -266,11 +266,29 @@ private class ToastBackgroundView: NSView {
 
     var cornerRadius: CGFloat = 14
     var onClicked: (() -> Void)?
+    private var glassHost: NSView?
+    private let glassContent = NSView()
+
+    private var glassChecked = false
+
+    /// Lazily create the glass host on first content add, then route content into it.
+    override func addSubview(_ view: NSView) {
+        if !glassChecked {
+            glassChecked = true
+            if let host = LiquidGlass.host(glassContent, frame: bounds, cornerRadius: cornerRadius) {
+                host.autoresizingMask = [.width, .height]
+                super.addSubview(host)
+                glassHost = host
+            }
+        }
+        if glassHost != nil { glassContent.addSubview(view) } else { super.addSubview(view) }
+    }
 
     override func mouseDown(with event: NSEvent) {
         // Don't dismiss if clicking the "Open" button — let it handle itself
         let point = convert(event.locationInWindow, from: nil)
-        for subview in subviews where subview is NSButton {
+        let buttons = (glassHost != nil ? glassContent.subviews : subviews).filter { $0 is NSButton }
+        for subview in buttons {
             if subview.frame.contains(point) {
                 super.mouseDown(with: event)
                 return
@@ -280,6 +298,8 @@ private class ToastBackgroundView: NSView {
     }
 
     override func draw(_ dirtyRect: NSRect) {
+        // Glass theme: the NSGlassEffectView host renders the background.
+        if glassHost != nil { return }
         let path = NSBezierPath(roundedRect: bounds, xRadius: cornerRadius, yRadius: cornerRadius)
 
         // Use the system visual effect material colors for a native feel

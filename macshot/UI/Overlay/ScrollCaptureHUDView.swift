@@ -12,11 +12,26 @@ class ScrollCaptureHUDView: NSView {
     var onStop: (() -> Void)?
     var onToggleAutoScroll: (() -> Void)?
 
+    /// Glass content host (macOS 26+): controls are routed here so they render on
+    /// the glass. nil when the glass theme is off.
+    private var glassHost: NSView?
+    private let glassContent = NSView()
+
+    override func addSubview(_ view: NSView) {
+        if glassHost != nil { glassContent.addSubview(view) } else { super.addSubview(view) }
+    }
+
     override init(frame: NSRect) {
         super.init(frame: frame)
         wantsLayer = true
-        layer?.backgroundColor = ToolbarLayout.bgColor.cgColor
         layer?.cornerRadius = ToolbarLayout.cornerRadius
+        if let host = LiquidGlass.host(glassContent, frame: bounds, cornerRadius: ToolbarLayout.cornerRadius) {
+            host.autoresizingMask = [.width, .height]
+            super.addSubview(host)
+            glassHost = host
+        } else {
+            layer?.backgroundColor = ToolbarLayout.bgColor.cgColor
+        }
 
         infoLabel.font = .systemFont(ofSize: 12, weight: .medium)
         infoLabel.textColor = ToolbarLayout.iconColor
