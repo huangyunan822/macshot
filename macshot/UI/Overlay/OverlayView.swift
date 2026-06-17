@@ -567,6 +567,10 @@ class OverlayView: NSView {
         let saved = UserDefaults.standard.object(forKey: "loupeSize") as? Double
         return saved != nil ? CGFloat(saved!) : 120.0
     }()
+    var currentLoupeMagnification: CGFloat = {
+        let saved = UserDefaults.standard.object(forKey: "loupeMagnification") as? Double
+        return saved != nil ? CGFloat(saved!) : 2.0
+    }()
     private var loupeCursorPoint: NSPoint = .zero
     var drawingCursorPoint: NSPoint = .zero
     private var smartMarkerLineHeight: CGFloat?  // detected text line height at cursor (smart marker)
@@ -970,6 +974,7 @@ class OverlayView: NSView {
             let oldView = canvasToView(oldCanvas)
             setNeedsDisplay(NSRect(x: oldView.x - r, y: oldView.y - r, width: r * 2, height: r * 2))
         }
+        guard newCanvas != .zero else { return }
         let newView = canvasToView(newCanvas)
         setNeedsDisplay(NSRect(x: newView.x - r, y: newView.y - r, width: r * 2, height: r * 2))
     }
@@ -999,14 +1004,22 @@ class OverlayView: NSView {
             && !showBeautifyInOptionsRow
         {
             let canvasStampPt = viewToCanvas(point)
-            if stampPreviewPoint == nil
-                || hypot(
-                    canvasStampPt.x - (stampPreviewPoint?.x ?? 0),
-                    canvasStampPt.y - (stampPreviewPoint?.y ?? 0)) > 0.5
-            {
+            let hoveringStamp = annotations.reversed().contains {
+                $0.tool == .stamp && $0.hitTest(point: canvasStampPt)
+            }
+            let previewPoint: NSPoint? = hoveringStamp ? nil : canvasStampPt
+            let shouldMovePreview: Bool
+            if let previewPoint, let stampPreviewPoint {
+                shouldMovePreview = hypot(
+                    previewPoint.x - stampPreviewPoint.x,
+                    previewPoint.y - stampPreviewPoint.y) > 0.5
+            } else {
+                shouldMovePreview = previewPoint != stampPreviewPoint
+            }
+            if shouldMovePreview {
                 let oldPt = stampPreviewPoint ?? .zero
-                stampPreviewPoint = canvasStampPt
-                invalidateCursorPreview(oldCanvas: oldPt, newCanvas: canvasStampPt, radius: 40)
+                stampPreviewPoint = previewPoint
+                invalidateCursorPreview(oldCanvas: oldPt, newCanvas: previewPoint ?? .zero, radius: 40)
             }
         } else if stampPreviewPoint != nil {
             let oldPt = stampPreviewPoint!
@@ -1041,7 +1054,11 @@ class OverlayView: NSView {
 
         // Track cursor for loupe live preview (use canvas space for zoom correctness)
         if state == .selected && currentTool == .loupe && !isRecording && !showBeautifyInOptionsRow {
-            let newPoint = viewToCanvas(convert(event.locationInWindow, from: nil))
+            let canvasPoint = viewToCanvas(point)
+            let hoveringLoupe = annotations.reversed().contains {
+                $0.tool == .loupe && $0.hitTest(point: canvasPoint)
+            }
+            let newPoint = hoveringLoupe ? NSPoint.zero : canvasPoint
             if newPoint != loupeCursorPoint {
                 let oldPt = loupeCursorPoint
                 loupeCursorPoint = newPoint
@@ -1211,7 +1228,7 @@ class OverlayView: NSView {
 
                 // Resize handles — directional cursors for shapes, open hand for line/arrow points
                 let isShapeTool = [AnnotationTool.rectangle, .filledRectangle, .ellipse, .text,
-                                   .pixelate, .stamp].contains(selectedAnnotation?.tool)
+                                   .pixelate, .stamp, .loupe].contains(selectedAnnotation?.tool)
                 for (_, handleEntry) in annotationResizeHandleRects.enumerated() {
                     let (handle, rect) = handleEntry
                     if rect.insetBy(dx: -4, dy: -4).contains(handlePoint) {
@@ -3641,7 +3658,7 @@ class OverlayView: NSView {
         let size = currentLoupeSize
         let squareRect = NSRect(
             x: center.x - size / 2, y: center.y - size / 2, width: size, height: size)
-        let magnification: CGFloat = 2.0
+        let magnification = max(1.1, currentLoupeMagnification)
 
         context.saveGraphicsState()
         context.cgContext.setAlpha(0.75)
@@ -4033,6 +4050,8 @@ class OverlayView: NSView {
                 let size = text?.size() ?? NSSize(width: 50, height: 20)
                 baseRect = NSRect(origin: annotation.startPoint, size: size)
             }
+        case .loupe:
+            baseRect = annotation.boundingRect
         default:
             let strokePad = annotation.strokeWidth / 2
             baseRect = annotation.boundingRect.insetBy(dx: -strokePad, dy: -strokePad)
@@ -4057,8 +4076,8 @@ class OverlayView: NSView {
             xform.concat()
         }
 
-        // Draw resize handles (8 positions) — loupe/pencil/marker don't support resize
-        if annotation.tool != .loupe && annotation.tool != .pencil && annotation.tool != .marker {
+        // Draw resize handles (8 positions) — pencil/marker don't support rectangular resize.
+        if annotation.tool != .pencil && annotation.tool != .marker {
             let handles = annotationAllHandleRects(for: padded)
             annotationResizeHandleRects = handles
             for (_, rect) in handles {
@@ -4238,7 +4257,9 @@ class OverlayView: NSView {
             if annotation.tool == .number { return }
             let rect = annotation.boundingRect.insetBy(dx: -2, dy: -2)
             ToolbarLayout.accentColor.withAlphaComponent(0.5).setStroke()
-            let path = NSBezierPath(roundedRect: rect, xRadius: 2, yRadius: 2)
+            let path = annotation.tool == .loupe
+                ? NSBezierPath(ovalIn: rect)
+                : NSBezierPath(roundedRect: rect, xRadius: 2, yRadius: 2)
             path.lineWidth = 2
             path.stroke()
             return
@@ -4246,7 +4267,15 @@ class OverlayView: NSView {
         let outlineWidth: CGFloat = 3
         // Generous padding — accounts for stroke width, line caps, Chaikin smoothing overshoot,
         // arrowheads, and the dilation radius. Bitmap is cached so size doesn't matter per-frame.
-        let effectiveStroke = annotation.tool == .marker ? annotation.strokeWidth * 6 : annotation.strokeWidth
+        let effectiveStroke: CGFloat
+        switch annotation.tool {
+        case .marker:
+            effectiveStroke = annotation.strokeWidth * 6
+        case .loupe:
+            effectiveStroke = 4
+        default:
+            effectiveStroke = annotation.strokeWidth
+        }
         let padding = effectiveStroke + outlineWidth + 20
 
         // Compute actual bounding box — for pencil/marker, use the points array
@@ -5509,8 +5538,67 @@ class OverlayView: NSView {
                         break
                     }
 
-                    // Shift constraint: force square/circle for corner handles
-                    if shiftHeld {
+                    // Loupe is always circular; shift forces square/circle for other shape corner handles.
+                    if annotation.tool == .loupe {
+                        let w = newMaxX - newMinX
+                        let h = newMaxY - newMinY
+                        let side: CGFloat
+                        switch annotationResizeHandle {
+                        case .left, .right:
+                            side = max(40, w)
+                        case .top, .bottom:
+                            side = max(40, h)
+                        default:
+                            side = max(40, max(w, h))
+                        }
+                        let centerX = (origMinX + origMaxX) / 2
+                        let centerY = (origMinY + origMaxY) / 2
+                        switch annotationResizeHandle {
+                        case .topLeft:
+                            newMinX = origMaxX - side
+                            newMaxX = origMaxX
+                            newMinY = origMinY
+                            newMaxY = origMinY + side
+                        case .topRight:
+                            newMinX = origMinX
+                            newMaxX = origMinX + side
+                            newMinY = origMinY
+                            newMaxY = origMinY + side
+                        case .bottomLeft:
+                            newMinX = origMaxX - side
+                            newMaxX = origMaxX
+                            newMinY = origMaxY - side
+                            newMaxY = origMaxY
+                        case .bottomRight:
+                            newMinX = origMinX
+                            newMaxX = origMinX + side
+                            newMinY = origMaxY - side
+                            newMaxY = origMaxY
+                        case .top:
+                            newMinX = centerX - side / 2
+                            newMaxX = centerX + side / 2
+                            newMinY = origMinY
+                            newMaxY = origMinY + side
+                        case .bottom:
+                            newMinX = centerX - side / 2
+                            newMaxX = centerX + side / 2
+                            newMinY = origMaxY - side
+                            newMaxY = origMaxY
+                        case .left:
+                            newMinX = origMaxX - side
+                            newMaxX = origMaxX
+                            newMinY = centerY - side / 2
+                            newMaxY = centerY + side / 2
+                        case .right:
+                            newMinX = origMinX
+                            newMaxX = origMinX + side
+                            newMinY = centerY - side / 2
+                            newMaxY = centerY + side / 2
+                        default:
+                            break
+                        }
+                        annotation.strokeWidth = side
+                    } else if shiftHeld {
                         let w = newMaxX - newMinX
                         let h = newMaxY - newMinY
                         let side = max(w, h)
@@ -5533,6 +5621,10 @@ class OverlayView: NSView {
 
                     annotation.startPoint = NSPoint(x: newMinX, y: newMinY)
                     annotation.endPoint = NSPoint(x: newMaxX, y: newMaxY)
+                    if annotation.tool == .loupe {
+                        annotation.bakedBlurNSImage = nil
+                        annotation.bakeLoupe()
+                    }
                 }
                 if annotation.tool == .pixelate { annotation.bakedBlurNSImage = nil }
                 cachedCompositedImage = nil
@@ -5565,6 +5657,10 @@ class OverlayView: NSView {
                 }
                 for annotation in selectedAnnotations {
                     annotation.move(dx: finalDx, dy: finalDy)
+                    if annotation.tool == .loupe {
+                        annotation.bakedBlurNSImage = nil
+                        annotation.bakeLoupe()
+                    }
                 }
                 didMoveAnnotation = true
                 cachedCompositedImage = nil
@@ -5661,6 +5757,7 @@ class OverlayView: NSView {
             if let ann = selectedAnnotation {
                 if ann.tool == .loupe { ann.bakeLoupe() }
                 if ann.tool == .pixelate { ann.bakedBlurNSImage = nil; ann.bakePixelate() }
+                toolOptionsRowView?.rebuild(forAnnotation: ann)
             }
             NSCursor.openHand.set()
             needsDisplay = true
@@ -8383,6 +8480,12 @@ class OverlayView: NSView {
             currentStrokeWidth = value
             UserDefaults.standard.set(Double(value), forKey: "currentStrokeWidth")
         }
+        needsDisplay = true
+    }
+
+    func setActiveLoupeMagnification(_ value: CGFloat) {
+        currentLoupeMagnification = min(6.0, max(1.1, value))
+        UserDefaults.standard.set(Double(currentLoupeMagnification), forKey: "loupeMagnification")
         needsDisplay = true
     }
 

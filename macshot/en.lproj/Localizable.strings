@@ -146,6 +146,7 @@
 /* Tool Options */
 "Size" = "Size";
 "Stroke" = "Stroke";
+"Zoom" = "Zoom";
 "Radius" = "Radius";
 "Start:" = "Start:";
 "Draw:" = "Draw:";

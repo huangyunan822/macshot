@@ -130,6 +130,10 @@ class ToolOptionsRowView: NSView, ChromeContent {
         if hasStroke {
             curX = addStrokeSlider(at: curX, tool: tool, ov: ov)
         }
+        if tool == .loupe {
+            curX = addSeparator(at: curX)
+            curX = addLoupeMagnificationSlider(at: curX, ov: ov)
+        }
 
         // ── Line style (line, pencil, rectangle) ──
         let hasLineStyle = [.line, .pencil, .rectangle, .arrow, .ellipse].contains(tool)
@@ -295,7 +299,12 @@ class ToolOptionsRowView: NSView, ChromeContent {
         addSubview(nameLabel)
         curX += nameLabel.frame.width + 4
 
-        let currentVal = editingAnnotation?.strokeWidth ?? ov.activeStrokeWidthForTool(tool)
+        let currentVal: CGFloat
+        if tool == .loupe, let ann = editingAnnotation {
+            currentVal = min(ann.boundingRect.width, ann.boundingRect.height)
+        } else {
+            currentVal = editingAnnotation?.strokeWidth ?? ov.activeStrokeWidthForTool(tool)
+        }
         let sliderW: CGFloat = 100
         let slider = NSSlider(value: Double(currentVal),
                               minValue: tool == .loupe ? 40 : 1, maxValue: tool == .loupe ? 320 : 30,
@@ -317,6 +326,39 @@ class ToolOptionsRowView: NSView, ChromeContent {
         label.tag = 997  // stroke value label
         addSubview(label)
         curX += labelW
+
+        return curX
+    }
+
+    private func addLoupeMagnificationSlider(at x: CGFloat, ov: OverlayView) -> CGFloat {
+        var curX = x
+
+        let nameLabel = NSTextField(labelWithString: L("Zoom"))
+        nameLabel.font = NSFont.systemFont(ofSize: 9.5, weight: .medium)
+        nameLabel.textColor = ToolbarLayout.iconColor.withAlphaComponent(0.4)
+        nameLabel.sizeToFit()
+        nameLabel.frame.origin = NSPoint(x: curX, y: (rowHeight - nameLabel.frame.height) / 2)
+        addSubview(nameLabel)
+        curX += nameLabel.frame.width + 4
+
+        let currentVal = editingAnnotation?.loupeMagnification ?? ov.currentLoupeMagnification
+        let sliderW: CGFloat = 84
+        let slider = NSSlider(value: Double(currentVal),
+                              minValue: 1.1, maxValue: 6.0,
+                              target: self, action: #selector(loupeMagnificationChanged(_:)))
+        slider.frame = NSRect(x: curX, y: (rowHeight - 20) / 2, width: sliderW, height: 20)
+        slider.isContinuous = true
+        addSubview(slider)
+        curX += sliderW + 4
+
+        let label = NSTextField(labelWithString: String(format: "%.1fx", currentVal))
+        label.font = NSFont.monospacedDigitSystemFont(ofSize: 10, weight: .medium)
+        label.textColor = ToolbarLayout.iconColor.withAlphaComponent(0.6)
+        label.alignment = .right
+        label.frame = NSRect(x: curX, y: (rowHeight - 14) / 2, width: 38, height: 14)
+        label.tag = 994
+        addSubview(label)
+        curX += 38
 
         return curX
     }
@@ -1299,10 +1341,21 @@ class ToolOptionsRowView: NSView, ChromeContent {
 
     @objc private func strokeSliderChanged(_ sender: NSSlider) {
         guard let ov = overlayView else { return }
-        let val = CGFloat(sender.floatValue)
+        var val = CGFloat(sender.floatValue)
         if let ann = editingAnnotation {
             ensureSnapshot()
-            ann.strokeWidth = val
+            if ann.tool == .loupe {
+                val = max(40, val)
+                let rect = ann.boundingRect
+                let center = NSPoint(x: rect.midX, y: rect.midY)
+                ann.startPoint = NSPoint(x: center.x - val / 2, y: center.y - val / 2)
+                ann.endPoint = NSPoint(x: center.x + val / 2, y: center.y + val / 2)
+                ann.strokeWidth = val
+                ann.bakedBlurNSImage = nil
+                ann.bakeLoupe()
+            } else {
+                ann.strokeWidth = val
+            }
             ov.cachedCompositedImage = nil
         }
         // Always update the global default so the last-picked stroke sticks
@@ -1310,6 +1363,23 @@ class ToolOptionsRowView: NSView, ChromeContent {
         if let tool = currentTool { ov.setActiveStrokeWidth(val, for: tool) }
         if let label = viewWithTag(997) as? NSTextField {
             label.stringValue = currentTool == .loupe ? "\(Int(val))" : "\(Int(val))px"
+        }
+        ov.needsDisplay = true
+    }
+
+    @objc private func loupeMagnificationChanged(_ sender: NSSlider) {
+        guard let ov = overlayView else { return }
+        let val = min(6.0, max(1.1, CGFloat(sender.doubleValue)))
+        if let ann = editingAnnotation, ann.tool == .loupe {
+            ensureSnapshot()
+            ann.loupeMagnification = val
+            ann.bakedBlurNSImage = nil
+            ann.bakeLoupe()
+            ov.cachedCompositedImage = nil
+        }
+        ov.setActiveLoupeMagnification(val)
+        if let label = viewWithTag(994) as? NSTextField {
+            label.stringValue = String(format: "%.1fx", val)
         }
         ov.needsDisplay = true
     }

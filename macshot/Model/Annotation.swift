@@ -208,6 +208,8 @@ class Annotation {
     /// preserved across clone/codable so the same arrow renders identically
     /// across redraws and reloads.
     var randomSeed: UInt32 = UInt32.random(in: 1...UInt32.max)
+    /// Magnification factor for loupe annotations.
+    var loupeMagnification: CGFloat = 2.0
 
     init(tool: AnnotationTool, startPoint: NSPoint, endPoint: NSPoint, color: NSColor, strokeWidth: CGFloat) {
         self.tool = tool
@@ -255,6 +257,7 @@ class Annotation {
         c.fontFamilyName = fontFamilyName
         c.outlineColor = outlineColor
         c.randomSeed = randomSeed
+        c.loupeMagnification = loupeMagnification
         return c
     }
 
@@ -278,6 +281,13 @@ class Annotation {
         textAlignment = src.textAlignment
         fontFamilyName = src.fontFamilyName
         numberFormat = src.numberFormat
+        loupeMagnification = src.loupeMagnification
+        if tool == .loupe {
+            startPoint = src.startPoint
+            endPoint = src.endPoint
+            bakedBlurNSImage = nil
+            bakeLoupe()
+        }
         measureInPoints = src.measureInPoints
         censorMode = src.censorMode
     }
@@ -401,7 +411,7 @@ class Annotation {
             let nx = (point.x - cx) / rx, ny = (point.y - cy) / ry
             let d = nx * nx + ny * ny
             let rNorm = threshold / min(rx, ry)
-            return abs(d - 1.0) < rNorm * 2
+            return d <= (1.0 + rNorm) * (1.0 + rNorm)
         case .text:
             return textDrawRect.insetBy(dx: -threshold, dy: -threshold).contains(point)
         case .number:
@@ -2167,7 +2177,7 @@ class Annotation {
         let scaleY = imageSize.height / bounds.height
         
         let rect = boundingRect
-        let scale: CGFloat = 2.0 // 2x Magnification
+        let scale = max(1.1, loupeMagnification)
         
         // Always force a perfect circle
         let size = min(rect.width, rect.height)
@@ -2260,7 +2270,7 @@ class Annotation {
             let imgSize = image.size
             let scaleX = imgSize.width / sourceImageBounds.width
             let scaleY = imgSize.height / sourceImageBounds.height
-            let magnification: CGFloat = 2.0
+            let magnification = max(1.1, loupeMagnification)
             let srcSize = size / magnification
             let cx = rect.midX, cy = rect.midY
             let fromRect = NSRect(

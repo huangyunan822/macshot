@@ -1,7 +1,7 @@
 import Cocoa
 
 /// Handles loupe (magnifying glass) tool interaction.
-/// Click-to-place: creates a baked 2x magnification annotation immediately on mouseDown.
+/// Click-to-place: creates a baked magnification annotation immediately on mouseDown.
 final class LoupeToolHandler: AnnotationToolHandler {
 
     let tool: AnnotationTool = .loupe
@@ -13,8 +13,9 @@ final class LoupeToolHandler: AnnotationToolHandler {
             startPoint: NSPoint(x: point.x - size / 2, y: point.y - size / 2),
             endPoint: NSPoint(x: point.x + size / 2, y: point.y + size / 2),
             color: canvas.currentColor,
-            strokeWidth: canvas.currentStrokeWidth
+            strokeWidth: size
         )
+        annotation.loupeMagnification = canvas.currentLoupeMagnification
         annotation.sourceImage = canvas.screenshotImage
         annotation.sourceImageBounds = canvas.captureDrawRect
         annotation.bakeLoupe()
