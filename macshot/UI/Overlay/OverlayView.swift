@@ -2143,19 +2143,53 @@ class OverlayView: NSView {
     /// button just overhangs to the right (not counted in the centering).
     private func resolutionBoxFrame(size: NSSize, dimsCenterX: CGFloat) -> NSRect {
         let x = selectionRect.midX - dimsCenterX
+        let clampedX = max(bounds.minX + 2, min(x, bounds.maxX - size.width - 2))
         let edgeGap = handleSize / 2 + 3
         let above = selectionRect.maxY + edgeGap
         let below = selectionRect.minY - size.height - edgeGap
-        let y: CGFloat
-        if above + size.height < bounds.maxY - 2 {
-            y = above
-        } else if below >= bounds.minY + 2 {
-            y = below
-        } else {
-            y = above
+        let minY = bounds.minY + 2
+        let maxY = bounds.maxY - 2
+
+        func rect(at y: CGFloat) -> NSRect {
+            NSRect(x: clampedX, y: y, width: size.width, height: size.height)
         }
-        let clampedX = max(bounds.minX + 2, min(x, bounds.maxX - size.width - 2))
-        return NSRect(x: clampedX, y: y, width: size.width, height: size.height)
+        func fits(_ rect: NSRect) -> Bool {
+            rect.minY >= minY && rect.maxY <= maxY
+        }
+        let avoidanceRects = resolutionBoxAvoidanceRects().map { $0.insetBy(dx: -4, dy: -4) }
+        func overlapArea(_ rect: NSRect) -> CGFloat {
+            avoidanceRects.reduce(CGFloat(0)) { total, occupied in
+                let hit = rect.intersection(occupied)
+                guard !hit.isNull else { return total }
+                return total + max(0, hit.width) * max(0, hit.height)
+            }
+        }
+
+        let candidates = [rect(at: above), rect(at: below)]
+        if let clear = candidates.first(where: { fits($0) && overlapArea($0) == 0 }) {
+            return clear
+        }
+        if let leastBlocked = candidates.filter(fits).min(by: { overlapArea($0) < overlapArea($1) }) {
+            return leastBlocked
+        }
+        let clampedY = max(minY, min(above, maxY - size.height))
+        return rect(at: clampedY)
+    }
+
+    private func resolutionBoxAvoidanceRects() -> [NSRect] {
+        guard showToolbars && !isEditorMode && state == .selected && !isScrollCapturing else { return [] }
+
+        var rects: [NSRect] = []
+        if bottomStripView?.isHidden == false {
+            rects.append(bottomBarRect)
+        }
+        if toolOptionsRowView?.isHidden == false, optionsRowRect.width > 1, optionsRowRect.height > 1 {
+            rects.append(optionsRowRect)
+        }
+        if rightStripView?.isHidden == false {
+            rects.append(rightBarRect)
+        }
+        return rects.filter { $0.width > 1 && $0.height > 1 }
     }
 
     /// Create/position/update or remove the resolution box for the current state.
@@ -2190,7 +2224,7 @@ class OverlayView: NSView {
         resolutionBoxRect = frame  // overlay-space rect (for chrome/cursor/zoom anchor)
         let px = selectionDisplaySize
         box.setDimensions(w: px.w, h: px.h)
-        box.setActiveRatioLabel(activeRatioLabel, enforced: keepRatioForNextCaptures && lockedAspect != nil)
+        box.setActiveRatioLabel(activeRatioLabel, locked: lockedAspect != nil)
 
         if usesGlassChrome {
             // Lift into a glass chrome panel positioned at the screen rect.

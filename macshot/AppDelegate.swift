@@ -3,6 +3,7 @@ import Carbon
 import Sparkle
 import UniformTypeIdentifiers
 import AVFoundation
+import Vision
 import WebP
 
 enum CaptureMenuItemID: String, CaseIterable {
@@ -1629,19 +1630,21 @@ class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
             self?.thumbnailControllers.removeAll { $0 === controller }
             self?.reflowThumbnails()
         }
-        controller.onCopy = {
+        controller.onCopy = { [weak controller] in
+            guard let image = controller?.image else { return }
             ImageEncoder.copyToClipboard(image)
         }
-        controller.onSave = { [weak self] in
-            guard let self = self else { return }
+        controller.onSave = { [weak self, weak controller] in
+            guard let self = self, let image = controller?.image else { return }
             self.saveImageToFile(image)
         }
-        controller.onPin = { [weak self] in
-            guard let self = self else { return }
+        controller.onPin = { [weak self, weak controller] in
+            guard let self = self, let image = controller?.image else { return }
             ScreenshotHistory.shared.add(image: image)
             self.showPin(image: image)
         }
-        controller.onEdit = {
+        controller.onEdit = { [weak controller] in
+            guard let image = controller?.image else { return }
             if let data = annotationData {
                 DetachedEditorWindowController.open(image: data.rawImage, annotations: data.annotations, historyEntryID: historyEntryID)
             } else {
@@ -1649,10 +1652,19 @@ class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
                 DetachedEditorWindowController.open(image: image, historyEntryID: historyEntryID, disableBeautify: true)
             }
         }
-        controller.onUpload = { [weak self] in
-            guard let self = self else { return }
+        controller.onUpload = { [weak self, weak controller] in
+            guard let self = self, let image = controller?.image else { return }
             ScreenshotHistory.shared.add(image: image)
             self.showUploadProgress(image: image)
+        }
+        controller.onTransform = { transformed in
+            if let id = historyEntryID {
+                ScreenshotHistory.shared.updateEntry(id: id, compositedImage: transformed, rawImage: nil, annotations: nil)
+            }
+        }
+        controller.onOCR = { [weak self, weak controller] in
+            guard let image = controller?.image else { return }
+            self?.runOCR(on: image)
         }
         controller.onDelete = {
             if let id = historyEntryID {
@@ -1761,6 +1773,37 @@ class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
         guard soundEnabled else { return }
         Self.captureSound?.stop()
         Self.captureSound?.play()
+    }
+
+    func runOCR(on image: NSImage) {
+        guard let cgImage = image.cgImage(forProposedRect: nil, context: nil, hints: nil) else { return }
+
+        DispatchQueue.global(qos: .userInitiated).async {
+            VisionOCR.performTextRecognition(cgImage: cgImage) { [weak self] request, _ in
+                let lines = (request.results as? [VNRecognizedTextObservation])?
+                    .compactMap { $0.topCandidates(1).first?.string } ?? []
+                let text = lines.joined(separator: "\n")
+
+                DispatchQueue.main.async {
+                    guard let self else { return }
+                    let ocrAction = UserDefaults.standard.integer(forKey: "ocrAction")
+                    let shouldCopy = ocrAction == 0 || ocrAction == 2
+                    let shouldShowWindow = ocrAction == 0 || ocrAction == 1
+
+                    if shouldCopy && !text.isEmpty {
+                        NSPasteboard.general.clearContents()
+                        NSPasteboard.general.setString(text, forType: .string)
+                    }
+
+                    if shouldShowWindow {
+                        self.ocrController?.close()
+                        let ocr = OCRResultController(text: text, image: image)
+                        self.ocrController = ocr
+                        ocr.show()
+                    }
+                }
+            }
+        }
     }
 
     private func saveImageToFile(_ image: NSImage) {

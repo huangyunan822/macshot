@@ -1,4 +1,179 @@
 import Cocoa
+import QuickLookUI
+
+enum ImageContextTransform: Int {
+    case rotateLeft
+    case rotateRight
+    case flipHorizontal
+    case flipVertical
+
+    var title: String {
+        switch self {
+        case .rotateLeft: return L("Rotate Left")
+        case .rotateRight: return L("Rotate Right")
+        case .flipHorizontal: return L("Flip Horizontal")
+        case .flipVertical: return L("Flip Vertical")
+        }
+    }
+
+    var symbolName: String {
+        switch self {
+        case .rotateLeft: return "rotate.left"
+        case .rotateRight: return "rotate.right"
+        case .flipHorizontal: return "flip.horizontal"
+        case .flipVertical: return "flip.vertical"
+        }
+    }
+}
+
+extension NSImage {
+    func macshotTransformed(_ transform: ImageContextTransform) -> NSImage? {
+        guard size.width > 0, size.height > 0 else { return nil }
+
+        let sourceSize = size
+        let outputSize: NSSize
+        switch transform {
+        case .rotateLeft, .rotateRight:
+            outputSize = NSSize(width: sourceSize.height, height: sourceSize.width)
+        case .flipHorizontal, .flipVertical:
+            outputSize = sourceSize
+        }
+
+        return NSImage(size: outputSize, flipped: false) { _ in
+            guard let context = NSGraphicsContext.current?.cgContext else { return false }
+            context.interpolationQuality = .high
+
+            switch transform {
+            case .rotateLeft:
+                context.translateBy(x: sourceSize.height, y: 0)
+                context.rotate(by: .pi / 2)
+            case .rotateRight:
+                context.translateBy(x: 0, y: sourceSize.width)
+                context.rotate(by: -.pi / 2)
+            case .flipHorizontal:
+                context.translateBy(x: sourceSize.width, y: 0)
+                context.scaleBy(x: -1, y: 1)
+            case .flipVertical:
+                context.translateBy(x: 0, y: sourceSize.height)
+                context.scaleBy(x: 1, y: -1)
+            }
+
+            self.draw(
+                in: NSRect(origin: .zero, size: sourceSize),
+                from: .zero,
+                operation: .copy,
+                fraction: 1.0
+            )
+            return true
+        }
+    }
+}
+
+enum ImageContextMenu {
+    static func item(
+        title: String,
+        symbolName: String?,
+        action: Selector?,
+        target: AnyObject?,
+        keyEquivalent: String = ""
+    ) -> NSMenuItem {
+        let item = NSMenuItem(title: title, action: action, keyEquivalent: keyEquivalent)
+        item.target = target
+        if let symbolName,
+           let image = NSImage(systemSymbolName: symbolName, accessibilityDescription: title) {
+            item.image = image
+        }
+        return item
+    }
+
+    static func addTransformItems(
+        to menu: NSMenu,
+        target: AnyObject,
+        action: Selector,
+        representedObject: Any? = nil
+    ) {
+        for transform in [ImageContextTransform.rotateLeft, .rotateRight, .flipHorizontal, .flipVertical] {
+            let item = item(
+                title: transform.title,
+                symbolName: transform.symbolName,
+                action: action,
+                target: target
+            )
+            item.tag = transform.rawValue
+            item.representedObject = representedObject
+            menu.addItem(item)
+        }
+    }
+
+    static func openWithItem(fileURL: URL, target: AnyObject, action: Selector) -> NSMenuItem {
+        let root = item(title: L("Open With"), symbolName: "arrow.up.right.square", action: nil, target: nil)
+        let submenu = NSMenu()
+        let appURLs = orderedApplicationURLs(for: fileURL)
+        if appURLs.isEmpty {
+            let empty = NSMenuItem(title: L("No Apps Available"), action: nil, keyEquivalent: "")
+            empty.isEnabled = false
+            submenu.addItem(empty)
+        } else {
+            for appURL in appURLs {
+                let appItem = NSMenuItem(title: applicationDisplayName(for: appURL), action: action, keyEquivalent: "")
+                appItem.target = target
+                appItem.representedObject = appURL
+                appItem.image = NSWorkspace.shared.icon(forFile: appURL.path)
+                appItem.image?.size = NSSize(width: 16, height: 16)
+                submenu.addItem(appItem)
+            }
+        }
+        root.submenu = submenu
+        return root
+    }
+
+    static func shareItem(fileURL: URL, target: AnyObject, action: Selector) -> NSMenuItem {
+        let root = item(title: L("Share"), symbolName: "square.and.arrow.up", action: nil, target: nil)
+        let submenu = NSMenu()
+        let services = NSSharingService.sharingServices(forItems: [fileURL])
+        if services.isEmpty {
+            let empty = NSMenuItem(title: L("No Share Services"), action: nil, keyEquivalent: "")
+            empty.isEnabled = false
+            submenu.addItem(empty)
+        } else {
+            for service in services {
+                let serviceItem = NSMenuItem(title: service.title, action: action, keyEquivalent: "")
+                serviceItem.target = target
+                serviceItem.representedObject = service
+                serviceItem.image = service.image
+                serviceItem.image?.size = NSSize(width: 16, height: 16)
+                submenu.addItem(serviceItem)
+            }
+        }
+        root.submenu = submenu
+        return root
+    }
+
+    private static func orderedApplicationURLs(for fileURL: URL) -> [URL] {
+        var result: [URL] = []
+        if let defaultApp = NSWorkspace.shared.urlForApplication(toOpen: fileURL) {
+            result.append(defaultApp)
+        }
+        for appURL in NSWorkspace.shared.urlsForApplications(toOpen: fileURL) {
+            if !result.contains(appURL) {
+                result.append(appURL)
+            }
+        }
+        return result
+    }
+
+    private static func applicationDisplayName(for appURL: URL) -> String {
+        if let bundle = Bundle(url: appURL) {
+            if let name = bundle.object(forInfoDictionaryKey: "CFBundleDisplayName") as? String, !name.isEmpty {
+                return name
+            }
+            if let name = bundle.object(forInfoDictionaryKey: "CFBundleName") as? String, !name.isEmpty {
+                return name
+            }
+        }
+        return appURL.deletingPathExtension().lastPathComponent
+    }
+}
 
 enum FloatingThumbnailCorner: String {
     case bottomRight
@@ -21,7 +196,7 @@ private enum ThumbnailDismissGesture {
 }
 
 @MainActor
-class FloatingThumbnailController: NSObject, NSDraggingSource {
+class FloatingThumbnailController: NSObject, NSDraggingSource, QLPreviewPanelDataSource, QLPreviewPanelDelegate {
 
     private var window: NSPanel?
     private var dismissTask: DispatchWorkItem?
@@ -36,6 +211,7 @@ class FloatingThumbnailController: NSObject, NSDraggingSource {
     private var dismissDragStartFrame: NSRect?
     private var isInteractiveDismissActive = false
     private var isScrollDismissHostActive = false
+    private var quickLookURL: URL?
     var onDismiss: (() -> Void)?
 
     // Action callbacks
@@ -47,6 +223,8 @@ class FloatingThumbnailController: NSObject, NSDraggingSource {
     var onDelete:   (() -> Void)?
     var onCloseAll: (() -> Void)?
     var onSaveAll:  (() -> Void)?
+    var onTransform: ((NSImage) -> Void)?
+    var onOCR: (() -> Void)?
 
     init(image: NSImage) {
         self.image = image
@@ -106,6 +284,7 @@ class FloatingThumbnailController: NSObject, NSDraggingSource {
         view.onDismissDragChanged = { [weak self] offset in self?.updateDismissDrag(offset: offset) }
         view.onDismissDragEnded = { [weak self] offset in self?.endDismissDrag(offset: offset) }
         view.onDismissDragCancelled = { [weak self] in self?.cancelDismissDrag() }
+        view.onContextMenu = { [weak self] event, view in self?.showContextMenu(event: event, in: view) }
         view.onClose    = { [weak self] in self?.dismiss() }
         view.onCopy     = { [weak self] in self?.onCopy?();     self?.dismiss() }
         view.onSave     = { [weak self] in self?.onSave?();     self?.dismiss() }
@@ -180,6 +359,101 @@ class FloatingThumbnailController: NSObject, NSDraggingSource {
     func updateImage(_ newImage: NSImage) {
         image = newImage
         thumbnailView?.updateImage(newImage)
+    }
+
+    private func makeCurrentImageFileURL() -> URL? {
+        guard let encodedData = ImageEncoder.encode(image) else { return nil }
+        let url = TmpScratchDirectory.makeURL(filename: FilenameFormatter.defaultImageFilename())
+        do {
+            try encodedData.write(to: url)
+            return url
+        } catch {
+            return nil
+        }
+    }
+
+    private func showContextMenu(event: NSEvent, in view: NSView) {
+        let menu = NSMenu()
+
+        let copyItem = ImageContextMenu.item(title: L("Copy"), symbolName: "doc.on.doc", action: #selector(contextCopy), target: self, keyEquivalent: "c")
+        copyItem.keyEquivalentModifierMask = [.command]
+        menu.addItem(copyItem)
+
+        menu.addItem(ImageContextMenu.item(title: L("Save As..."), symbolName: "square.and.arrow.down", action: #selector(contextSave), target: self))
+
+        menu.addItem(NSMenuItem.separator())
+
+        menu.addItem(ImageContextMenu.item(title: L("Open in Editor"), symbolName: "pencil", action: #selector(contextOpenEditor), target: self, keyEquivalent: "e"))
+        menu.addItem(ImageContextMenu.item(title: L("Pin to Screen"), symbolName: "pin.fill", action: #selector(contextPin), target: self))
+        menu.addItem(ImageContextMenu.item(title: L("Upload"), symbolName: "icloud.and.arrow.up", action: #selector(contextUpload), target: self))
+        menu.addItem(ImageContextMenu.item(title: L("Quick Look"), symbolName: "eye", action: #selector(contextQuickLook), target: self, keyEquivalent: " "))
+        menu.addItem(ImageContextMenu.item(title: L("Run OCR"), symbolName: "text.viewfinder", action: #selector(contextOCR), target: self))
+
+        menu.addItem(NSMenuItem.separator())
+        ImageContextMenu.addTransformItems(to: menu, target: self, action: #selector(contextTransform(_:)))
+
+        if let fileURL = makeCurrentImageFileURL() {
+            menu.addItem(NSMenuItem.separator())
+            menu.addItem(ImageContextMenu.openWithItem(fileURL: fileURL, target: self, action: #selector(contextOpenWith(_:))))
+            menu.addItem(ImageContextMenu.shareItem(fileURL: fileURL, target: self, action: #selector(contextShare(_:))))
+        }
+
+        menu.addItem(NSMenuItem.separator())
+        menu.addItem(ImageContextMenu.item(title: L("Delete"), symbolName: "trash", action: #selector(contextDelete), target: self, keyEquivalent: "\u{8}"))
+
+        menu.addItem(NSMenuItem.separator())
+        menu.addItem(ImageContextMenu.item(title: L("Close All"), symbolName: "xmark.circle", action: #selector(contextCloseAll), target: self))
+        menu.addItem(ImageContextMenu.item(title: L("Save All to Folder…"), symbolName: "folder", action: #selector(contextSaveAll), target: self))
+
+        NSMenu.popUpContextMenu(menu, with: event, for: view)
+    }
+
+    @objc private func contextCopy() { onCopy?(); dismiss() }
+    @objc private func contextSave() { onSave?(); dismiss() }
+    @objc private func contextPin() { onPin?(); dismiss() }
+    @objc private func contextUpload() { onUpload?(); dismiss() }
+    @objc private func contextOpenEditor() { onEdit?(); dismiss() }
+    @objc private func contextDelete() { onDelete?(); dismiss() }
+    @objc private func contextCloseAll() { onCloseAll?() }
+    @objc private func contextSaveAll() { onSaveAll?() }
+    @objc private func contextOCR() { onOCR?() }
+
+    @objc private func contextTransform(_ sender: NSMenuItem) {
+        guard let transform = ImageContextTransform(rawValue: sender.tag),
+              let transformed = image.macshotTransformed(transform) else { return }
+        updateImage(transformed)
+        onTransform?(transformed)
+    }
+
+    @objc private func contextQuickLook() {
+        quickLookURL = makeCurrentImageFileURL()
+        guard quickLookURL != nil, let panel = QLPreviewPanel.shared() else { return }
+        panel.dataSource = self
+        panel.delegate = self
+        panel.reloadData()
+        panel.makeKeyAndOrderFront(nil)
+    }
+
+    @objc private func contextOpenWith(_ sender: NSMenuItem) {
+        guard let appURL = sender.representedObject as? URL,
+              let fileURL = makeCurrentImageFileURL() else { return }
+        NSWorkspace.shared.open(
+            [fileURL],
+            withApplicationAt: appURL,
+            configuration: NSWorkspace.OpenConfiguration()
+        )
+    }
+
+    @objc private func contextShare(_ sender: NSMenuItem) {
+        guard let service = sender.representedObject as? NSSharingService,
+              let fileURL = makeCurrentImageFileURL() else { return }
+        service.perform(withItems: [fileURL])
+    }
+
+    func numberOfPreviewItems(in panel: QLPreviewPanel!) -> Int { quickLookURL == nil ? 0 : 1 }
+
+    func previewPanel(_ panel: QLPreviewPanel!, previewItemAt index: Int) -> (any QLPreviewItem)! {
+        quickLookURL as NSURL?
     }
 
     /// Animate this thumbnail to a new Y position (used when a lower thumbnail is dismissed).
@@ -403,6 +677,7 @@ private class ThumbnailView: NSView {
     var onDismissDragChanged: ((CGFloat) -> Void)?
     var onDismissDragEnded: ((CGFloat) -> Void)?
     var onDismissDragCancelled: (() -> Void)?
+    var onContextMenu: ((NSEvent, NSView) -> Void)?
     var dismissesTowardLeft: Bool = false
     @objc dynamic var dismissContentBaseX: CGFloat = 0 {
         didSet { needsDisplay = true }
@@ -900,21 +1175,6 @@ private class ThumbnailView: NSView {
     }
 
     override func rightMouseDown(with event: NSEvent) {
-        let menu = NSMenu()
-        let deleteItem = NSMenuItem(title: L("Delete"), action: #selector(deleteAction), keyEquivalent: "\u{8}")
-        deleteItem.target = self
-        menu.addItem(deleteItem)
-        menu.addItem(NSMenuItem.separator())
-        let closeAll = NSMenuItem(title: L("Close All"), action: #selector(closeAllAction), keyEquivalent: "")
-        closeAll.target = self
-        let saveAll = NSMenuItem(title: L("Save All to Folder…"), action: #selector(saveAllAction), keyEquivalent: "")
-        saveAll.target = self
-        menu.addItem(closeAll)
-        menu.addItem(saveAll)
-        NSMenu.popUpContextMenu(menu, with: event, for: self)
+        onContextMenu?(event, self)
     }
-
-    @objc private func deleteAction()   { onDelete?() }
-    @objc private func closeAllAction() { onCloseAll?() }
-    @objc private func saveAllAction()  { onSaveAll?() }
 }

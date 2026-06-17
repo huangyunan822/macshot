@@ -4,8 +4,8 @@ struct HistoryEntry {
     let id: String           // UUID filename (without extension)
     let fileExtension: String // "png" or "jpg"
     let timestamp: Date
-    let pixelWidth: Int
-    let pixelHeight: Int
+    var pixelWidth: Int
+    var pixelHeight: Int
     var hasAnnotations: Bool = false  // true if editable annotations are saved alongside
     var thumbnail: NSImage?  // lazily cached, tiny
 
@@ -191,6 +191,9 @@ class ScreenshotHistory {
 
         let hasAnns = annotations != nil && !(annotations!.isEmpty) && rawImage != nil
         entries[idx].hasAnnotations = hasAnns
+        let scale: CGFloat = ImageEncoder.downscaleRetina ? 1.0 : (NSScreen.main?.backingScaleFactor ?? 2.0)
+        entries[idx].pixelWidth = Int(compositedImage.size.width * scale)
+        entries[idx].pixelHeight = Int(compositedImage.size.height * scale)
 
         let annotationData: Data? = hasAnns ? AnnotationSerializer.encode(annotations!) : nil
 

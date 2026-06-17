@@ -227,44 +227,106 @@ final class HistoryOverlayController: NSObject, QLPreviewPanelDataSource, QLPrev
         }
     }
 
+    func uploadEntry(index: Int) {
+        let entries = ScreenshotHistory.shared.entries
+        guard index >= 0, index < entries.count else { return }
+        guard let image = ScreenshotHistory.shared.loadImage(for: entries[index]) else { return }
+        dismiss()
+        (NSApp.delegate as? AppDelegate)?.uploadImage(image)
+    }
+
+    func runOCR(index: Int) {
+        let entries = ScreenshotHistory.shared.entries
+        guard index >= 0, index < entries.count else { return }
+        guard let image = ScreenshotHistory.shared.loadImage(for: entries[index]) else { return }
+        dismiss()
+        (NSApp.delegate as? AppDelegate)?.runOCR(on: image)
+    }
+
+    func transformEntry(index: Int, transform: ImageContextTransform) {
+        let entries = ScreenshotHistory.shared.entries
+        guard index >= 0, index < entries.count else { return }
+        let entry = entries[index]
+        guard let image = ScreenshotHistory.shared.loadImage(for: entry),
+              let transformed = image.macshotTransformed(transform) else { return }
+        ScreenshotHistory.shared.updateEntry(id: entry.id, compositedImage: transformed, rawImage: nil, annotations: nil)
+        contentView?.loadEntries()
+    }
+
+    func openEntry(index: Int, with appURL: URL) {
+        let entries = ScreenshotHistory.shared.entries
+        guard index >= 0, index < entries.count else { return }
+        let fileURL = ScreenshotHistory.shared.fileURL(for: entries[index])
+        NSWorkspace.shared.open(
+            [fileURL],
+            withApplicationAt: appURL,
+            configuration: NSWorkspace.OpenConfiguration()
+        )
+    }
+
+    func shareEntry(index: Int, service: NSSharingService) {
+        let entries = ScreenshotHistory.shared.entries
+        guard index >= 0, index < entries.count else { return }
+        let fileURL = ScreenshotHistory.shared.fileURL(for: entries[index])
+        service.perform(withItems: [fileURL])
+    }
+
     // MARK: - Context Menu
 
     func showContextMenu(for globalIndex: Int, at point: NSPoint, in view: NSView) {
+        let entries = ScreenshotHistory.shared.entries
+        guard globalIndex >= 0, globalIndex < entries.count else { return }
+        let fileURL = ScreenshotHistory.shared.fileURL(for: entries[globalIndex])
+
         let menu = NSMenu()
 
-        let copyItem = NSMenuItem(title: L("Copy"), action: #selector(contextCopy(_:)), keyEquivalent: "c")
+        let copyItem = ImageContextMenu.item(title: L("Copy"), symbolName: "doc.on.doc", action: #selector(contextCopy(_:)), target: self, keyEquivalent: "c")
         copyItem.keyEquivalentModifierMask = [.command]
-        copyItem.target = self
         copyItem.tag = globalIndex
         menu.addItem(copyItem)
 
-        let saveItem = NSMenuItem(title: L("Save As..."), action: #selector(contextSave(_:)), keyEquivalent: "")
-        saveItem.target = self
+        let saveItem = ImageContextMenu.item(title: L("Save As..."), symbolName: "square.and.arrow.down", action: #selector(contextSave(_:)), target: self)
         saveItem.tag = globalIndex
         menu.addItem(saveItem)
 
         menu.addItem(NSMenuItem.separator())
 
-        let editorItem = NSMenuItem(title: L("Open in Editor"), action: #selector(contextOpenEditor(_:)), keyEquivalent: "e")
+        let editorItem = ImageContextMenu.item(title: L("Open in Editor"), symbolName: "pencil", action: #selector(contextOpenEditor(_:)), target: self, keyEquivalent: "e")
         editorItem.keyEquivalentModifierMask = [.command]
-        editorItem.target = self
         editorItem.tag = globalIndex
         menu.addItem(editorItem)
 
-        let pinItem = NSMenuItem(title: L("Pin to Screen"), action: #selector(contextPin(_:)), keyEquivalent: "")
-        pinItem.target = self
+        let pinItem = ImageContextMenu.item(title: L("Pin to Screen"), symbolName: "pin.fill", action: #selector(contextPin(_:)), target: self)
         pinItem.tag = globalIndex
         menu.addItem(pinItem)
 
-        let qlItem = NSMenuItem(title: L("Quick Look"), action: #selector(contextQuickLook(_:)), keyEquivalent: " ")
-        qlItem.target = self
+        let uploadItem = ImageContextMenu.item(title: L("Upload"), symbolName: "icloud.and.arrow.up", action: #selector(contextUpload(_:)), target: self)
+        uploadItem.tag = globalIndex
+        menu.addItem(uploadItem)
+
+        let qlItem = ImageContextMenu.item(title: L("Quick Look"), symbolName: "eye", action: #selector(contextQuickLook(_:)), target: self, keyEquivalent: " ")
         qlItem.tag = globalIndex
         menu.addItem(qlItem)
 
+        let ocrItem = ImageContextMenu.item(title: L("Run OCR"), symbolName: "text.viewfinder", action: #selector(contextOCR(_:)), target: self)
+        ocrItem.tag = globalIndex
+        menu.addItem(ocrItem)
+
+        menu.addItem(NSMenuItem.separator())
+        ImageContextMenu.addTransformItems(to: menu, target: self, action: #selector(contextTransform(_:)), representedObject: globalIndex)
+
+        menu.addItem(NSMenuItem.separator())
+        let openWith = ImageContextMenu.openWithItem(fileURL: fileURL, target: self, action: #selector(contextOpenWith(_:)))
+        openWith.submenu?.items.forEach { $0.tag = globalIndex }
+        menu.addItem(openWith)
+
+        let share = ImageContextMenu.shareItem(fileURL: fileURL, target: self, action: #selector(contextShare(_:)))
+        share.submenu?.items.forEach { $0.tag = globalIndex }
+        menu.addItem(share)
+
         menu.addItem(NSMenuItem.separator())
 
-        let deleteItem = NSMenuItem(title: L("Delete"), action: #selector(contextDelete(_:)), keyEquivalent: "\u{8}")
-        deleteItem.target = self
+        let deleteItem = ImageContextMenu.item(title: L("Delete"), symbolName: "trash", action: #selector(contextDelete(_:)), target: self, keyEquivalent: "\u{8}")
         deleteItem.tag = globalIndex
         menu.addItem(deleteItem)
 
@@ -275,8 +337,23 @@ final class HistoryOverlayController: NSObject, QLPreviewPanelDataSource, QLPrev
     @objc private func contextSave(_ sender: NSMenuItem) { saveToFile(index: sender.tag) }
     @objc private func contextOpenEditor(_ sender: NSMenuItem) { openInEditor(index: sender.tag) }
     @objc private func contextPin(_ sender: NSMenuItem) { pinToScreen(index: sender.tag) }
+    @objc private func contextUpload(_ sender: NSMenuItem) { uploadEntry(index: sender.tag) }
     @objc private func contextQuickLook(_ sender: NSMenuItem) { quickLook(index: sender.tag) }
+    @objc private func contextOCR(_ sender: NSMenuItem) { runOCR(index: sender.tag) }
     @objc private func contextDelete(_ sender: NSMenuItem) { deleteEntry(index: sender.tag) }
+    @objc private func contextTransform(_ sender: NSMenuItem) {
+        guard let index = sender.representedObject as? Int,
+              let transform = ImageContextTransform(rawValue: sender.tag) else { return }
+        transformEntry(index: index, transform: transform)
+    }
+    @objc private func contextOpenWith(_ sender: NSMenuItem) {
+        guard let appURL = sender.representedObject as? URL else { return }
+        openEntry(index: sender.tag, with: appURL)
+    }
+    @objc private func contextShare(_ sender: NSMenuItem) {
+        guard let service = sender.representedObject as? NSSharingService else { return }
+        shareEntry(index: sender.tag, service: service)
+    }
 
     // MARK: - QLPreviewPanelDataSource
 
