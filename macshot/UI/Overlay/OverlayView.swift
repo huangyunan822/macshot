@@ -384,7 +384,7 @@ class OverlayView: NSView {
     private let bottomChrome = OverlayChromePresenter(cornerRadius: 6)
     private let rightChrome = OverlayChromePresenter(cornerRadius: 6)
     private let optionsChrome = OverlayChromePresenter(cornerRadius: 6)
-    private let resolutionChrome = OverlayChromePresenter(cornerRadius: 6, keyCapable: true)
+    private let resolutionChrome = OverlayChromePresenter(cornerRadius: 6)
     /// Intended overlay-space rect of the options row (its live frame becomes
     /// panel-local when glass-hosted). .zero when the row is hidden.
     private var optionsRowRect: NSRect = .zero
