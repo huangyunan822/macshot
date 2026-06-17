@@ -173,6 +173,8 @@ class OverlayView: NSView {
     /// Used by the "double-click to copy" feature to rewind annotations that the first click
     /// (and any in-progress second click) added before triggering the confirm path.
     private var doubleClickUndoBaseline: Int?
+    /// Short-lived marker for the Text tool case where the first click opens an empty editor.
+    private var textToolDoubleClickCopyDeadline: TimeInterval = 0
 
     // Annotations
     var annotations: [Annotation] = [] {
@@ -1318,6 +1320,9 @@ class OverlayView: NSView {
             if let row = toolOptionsRowView, !row.isHidden, row.frame.contains(localPoint) {
                 return row.hitTest(convert(point, to: row.superview))
             }
+        }
+        if let event = NSApp.currentEvent, shouldRouteTextEditorDoubleClickToCopy(event: event, at: point) {
+            return self
         }
         let result = super.hitTest(point)
         if shouldIgnoreInactiveChromeHit(result) {
@@ -4934,6 +4939,14 @@ class OverlayView: NSView {
             return
         }
 
+        if state == .selected
+            && isDoubleClickToCopyEnabled
+            && textEditor.isEditing
+            && handleDoubleClickToCopy(event: event, at: point)
+        {
+            return
+        }
+
         let isTextEditing = textEditView != nil
 
         // Check text box resize handles when editing
@@ -4997,7 +5010,7 @@ class OverlayView: NSView {
         // in-progress second-click annotation) are rewound first via the undo stack
         // so the copied image looks like nothing was drawn during the double-click.
         if state == .selected
-            && (UserDefaults.standard.object(forKey: "doubleClickToCopy") as? Bool ?? true)
+            && isDoubleClickToCopyEnabled
             && handleDoubleClickToCopy(event: event, at: point)
         {
             return
@@ -5629,21 +5642,30 @@ class OverlayView: NSView {
     /// inside the selection we rewind the stack to that snapshot — removing any annotation the
     /// first click finished — cancel any in-progress drawing, then trigger confirm.
     private func handleDoubleClickToCopy(event: NSEvent, at point: NSPoint) -> Bool {
-        // Defer to existing text/select double-click behavior when clicking directly on a
-        // text annotation — those paths already handle clickCount >= 2 (enter edit mode).
-        if currentTool == .text || currentTool == .select {
+        // Select remains the deliberate way to double-click-edit text annotations.
+        if currentTool == .select {
             let hitText = annotations.reversed().first(where: {
                 $0.tool == .text && $0.hitTest(point: point)
             })
-            if hitText != nil { return false }
+            if hitText != nil {
+                textToolDoubleClickCopyDeadline = 0
+                return false
+            }
         }
-        // Don't intercept while a text editor is open — the user is typing, not double-clicking.
-        if textEditView != nil { return false }
+
+        if textEditor.isEditing {
+            guard hasPendingTextToolDoubleClickCopy(for: event) else { return false }
+        }
 
         if event.clickCount >= 2 {
+            if textEditor.isEditing {
+                commitTextFieldIfNeeded()
+                doubleClickUndoBaseline = undoStack.count
+            }
             guard pointIsInSelection(point) else {
                 // Outside selection: no drawing occurred — just confirm.
                 doubleClickUndoBaseline = nil
+                textToolDoubleClickCopyDeadline = 0
                 overlayDelegate?.overlayViewDidConfirm()
                 return true
             }
@@ -5655,6 +5677,7 @@ class OverlayView: NSView {
                 while undoStack.count > baseline { undo() }
             }
             doubleClickUndoBaseline = nil
+            textToolDoubleClickCopyDeadline = 0
             // Clear caches so the confirm renders without the popped annotations.
             cachedCompositedImage = nil
             cachedAnnotationLayer = nil
@@ -5668,10 +5691,38 @@ class OverlayView: NSView {
         // a double-click outside still works without an unrelated baseline.
         if pointIsInSelection(point) {
             doubleClickUndoBaseline = undoStack.count
+            let hitText = annotations.reversed().contains(where: {
+                $0.tool == .text && $0.hitTest(point: point)
+            })
+            textToolDoubleClickCopyDeadline =
+                currentTool == .text && !hitText
+                ? event.timestamp + NSEvent.doubleClickInterval + 0.05
+                : 0
         } else {
             doubleClickUndoBaseline = nil
+            textToolDoubleClickCopyDeadline = 0
         }
         return false
+    }
+
+    private var isDoubleClickToCopyEnabled: Bool {
+        UserDefaults.standard.object(forKey: "doubleClickToCopy") as? Bool ?? true
+    }
+
+    private func hasPendingTextToolDoubleClickCopy(for event: NSEvent) -> Bool {
+        event.type == .leftMouseDown
+            && event.clickCount >= 2
+            && event.timestamp <= textToolDoubleClickCopyDeadline
+    }
+
+    private func shouldRouteTextEditorDoubleClickToCopy(event: NSEvent, at point: NSPoint) -> Bool {
+        guard state == .selected,
+              isDoubleClickToCopyEnabled,
+              hasPendingTextToolDoubleClickCopy(for: event),
+              let sv = textEditor.scrollView,
+              sv.frame.contains(point)
+        else { return false }
+        return true
     }
 
     private func finishSelection() {
@@ -7262,6 +7313,7 @@ class OverlayView: NSView {
     }
 
     func cancelTextEditing() {
+        textToolDoubleClickCopyDeadline = 0
         textEditor.cancel(canvas: self)
         window?.makeFirstResponder(self)
         rebuildToolbarLayout()
@@ -7286,6 +7338,7 @@ class OverlayView: NSView {
 
     func commitTextFieldIfNeeded() {
         guard textEditor.isEditing else { return }
+        textToolDoubleClickCopyDeadline = 0
         textEditor.commit(canvas: self)
         window?.makeFirstResponder(self)
         rebuildToolbarLayout()
