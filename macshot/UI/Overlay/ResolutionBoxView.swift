@@ -5,7 +5,7 @@ import Cocoa
 /// Two real, separately-editable number fields with a non-editable "×" between
 /// them (so the separator can't be deleted), plus a presets dropdown button for
 /// aspect ratios and common resolutions. Replaces the old drawn "W × H" badge.
-final class ResolutionBoxView: NSView, NSTextFieldDelegate {
+final class ResolutionBoxView: NSView, NSTextFieldDelegate, ChromeContent {
 
     /// Called when the user commits new W/H values (Enter or focus loss).
     var onCommit: ((_ w: Int, _ h: Int) -> Void)?
@@ -22,6 +22,12 @@ final class ResolutionBoxView: NSView, NSTextFieldDelegate {
     private let gap: CGFloat = 4
     private let pad: CGFloat = 6
     private let btnW: CGFloat = 30
+
+    /// When hosted in a Liquid Glass chrome panel, the panel's glass provides the
+    /// background, so the box clears its own solid layer fill (ChromeContent).
+    var hostedInGlassPanel = false {
+        didSet { layer?.backgroundColor = hostedInGlassPanel ? NSColor.clear.cgColor : ToolbarLayout.bgColor.cgColor }
+    }
 
     init() {
         super.init(frame: .zero)
@@ -108,19 +114,32 @@ final class ResolutionBoxView: NSView, NSTextFieldDelegate {
         frame.size = NSSize(width: x, height: h)
     }
 
-    /// Update displayed dimensions from the selection (skips fields being edited).
+    /// Update displayed dimensions from the selection. Skips a field only while it
+    /// is ACTIVELY being edited (has a field editor) so we don't clobber typing —
+    /// previously the guard also skipped when nothing was focused, leaving fields
+    /// blank.
     func setDimensions(w: Int, h: Int) {
-        if window?.firstResponder !== widthField.currentEditor() {
+        if !isEditing(widthField) {
             widthField.stringValue = "\(w)"
         }
-        if window?.firstResponder !== heightField.currentEditor() {
+        if !isEditing(heightField) {
             heightField.stringValue = "\(h)"
         }
     }
 
-    /// Update the presets button label/icon to reflect the active ratio (or none).
-    func setActiveRatioLabel(_ label: String?) {
+    private func isEditing(_ field: NSTextField) -> Bool {
+        // A field is being edited only if it has an active field editor that is
+        // also the window's first responder.
+        guard let editor = field.currentEditor() else { return false }
+        return field.window?.firstResponder === editor
+    }
+
+    /// Reflect the active ratio in the presets button. When `enforced` (the ratio
+    /// is persisted for future captures), tint the icon with the accent color so
+    /// it's visibly "locked", explaining why new selections snap to a ratio.
+    func setActiveRatioLabel(_ label: String?, enforced: Bool) {
         presetsButton.toolTip = label.map { "\(L("Presets")) — \($0)" } ?? L("Aspect ratio & resolution presets")
+        presetsButton.contentTintColor = enforced ? ToolbarLayout.accentColor : ToolbarLayout.iconColor
     }
 
     @objc private func presetsClicked() {

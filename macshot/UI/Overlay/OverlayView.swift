@@ -384,6 +384,7 @@ class OverlayView: NSView {
     private let bottomChrome = OverlayChromePresenter(cornerRadius: 6)
     private let rightChrome = OverlayChromePresenter(cornerRadius: 6)
     private let optionsChrome = OverlayChromePresenter(cornerRadius: 6)
+    private let resolutionChrome = OverlayChromePresenter(cornerRadius: 6, keyCapable: true)
     /// Intended overlay-space rect of the options row (its live frame becomes
     /// panel-local when glass-hosted). .zero when the row is hidden.
     private var optionsRowRect: NSRect = .zero
@@ -825,6 +826,17 @@ class OverlayView: NSView {
     /// Locked aspect ratio (width / height) for the selection, or nil for freeform.
     /// When set, drag-resize and the resolution box maintain this ratio.
     var lockedAspect: CGFloat? = nil
+    /// When true, the locked aspect ratio persists across captures (and launches).
+    /// Stored in UserDefaults so a new selection starts already constrained.
+    var keepRatioForNextCaptures: Bool {
+        get { UserDefaults.standard.bool(forKey: "keepAspectRatio") }
+        set { UserDefaults.standard.set(newValue, forKey: "keepAspectRatio") }
+    }
+    /// The persisted ratio value (only meaningful when keepRatioForNextCaptures).
+    private var persistedAspect: CGFloat {
+        get { CGFloat(UserDefaults.standard.double(forKey: "keepAspectRatioValue")) }
+        set { UserDefaults.standard.set(Double(newValue), forKey: "keepAspectRatioValue") }
+    }
     var snappedWindowID: CGWindowID? = nil
     /// Independently captured window image (with transparent corners) for beautify snap mode.
     var snappedWindowImage: NSImage? = nil
@@ -2132,8 +2144,14 @@ class OverlayView: NSView {
     }
 
     /// Create/position/update or remove the resolution box for the current state.
+    /// In the Liquid Glass theme the box is hosted in a glass chrome panel (like
+    /// the toolbars); otherwise it's a solid-bg overlay subview.
     func updateResolutionBox() {
         guard shouldShowResolutionBox() else {
+            // Dispose the glass panel (if any) WITHOUT re-adding the box to the
+            // overlay, then drop the box entirely. (reclaim re-parents the box,
+            // which previously left a stray box stuck in the corner.)
+            resolutionChrome.teardown()
             resolutionBox?.removeFromSuperview()
             resolutionBox = nil
             resolutionBoxRect = .zero
@@ -2144,16 +2162,28 @@ class OverlayView: NSView {
             box = existing
         } else {
             box = ResolutionBoxView()
-            box.onCommit = { [weak self] w, h in self?.applyPixelSize(w: w, h: h) }
+            box.onCommit = { [weak self] w, h in self?.applyDisplaySize(w: w, h: h) }
             box.onPresets = { [weak self] anchor in self?.showResolutionPresets(from: anchor) }
-            addSubview(box)
             resolutionBox = box
         }
-        box.frame = resolutionBoxFrame(size: box.preferredSize, dimsCenterX: box.dimensionsCenterX)
-        resolutionBoxRect = box.frame
-        let px = selectionPixelSize
+        let frame = resolutionBoxFrame(size: box.preferredSize, dimsCenterX: box.dimensionsCenterX)
+        resolutionBoxRect = frame  // overlay-space rect (for chrome/cursor/zoom anchor)
+        let px = selectionDisplaySize
         box.setDimensions(w: px.w, h: px.h)
-        box.setActiveRatioLabel(activeRatioLabel)
+        box.setActiveRatioLabel(activeRatioLabel, enforced: keepRatioForNextCaptures && lockedAspect != nil)
+
+        if usesGlassChrome {
+            // Lift into a glass chrome panel positioned at the screen rect.
+            box.hostedInGlassPanel = true
+            resolutionChrome.present(box, overlayRect: frame, visible: true, glass: true, in: self)
+        } else {
+            // Inline: a solid-bg overlay subview at the overlay-space frame. Make
+            // sure any prior glass panel is gone (without re-parenting the box).
+            if resolutionChrome.hasPanel { resolutionChrome.teardown() }
+            box.hostedInGlassPanel = false
+            if box.superview !== self { box.removeFromSuperview(); addSubview(box) }
+            box.frame = frame
+        }
     }
 
     /// Human label of the currently locked aspect ratio, if any.
@@ -2165,34 +2195,77 @@ class OverlayView: NSView {
         }?.label
     }
 
-    /// Show the presets popover (aspect ratios + common resolutions) from `anchor`.
+    /// Toggle the presets popover (aspect ratios + common resolutions) from `anchor`.
     private func showResolutionPresets(from anchor: NSView) {
-        let picker = ListPickerView()
-        var items: [ListPickerView.Item] = []
-        var actions: [() -> Void] = []
-        let all = ResolutionPresetCatalog.ratios + ResolutionPresetCatalog.resolutions
-        for preset in all {
-            let px = selectionPixelSize
+        // Clicking the button while the popover is open should close it. A
+        // semitransient popover auto-dismisses on the outside click before this
+        // runs, so also treat a just-dismissed popover as the toggle-close.
+        if PopoverHelper.isVisible || PopoverHelper.wasRecentlyDismissed() {
+            PopoverHelper.dismiss()
+            return
+        }
+        let px = selectionPixelSize
+        let view = ResolutionPresetsView()
+
+        view.ratioRows = ResolutionPresetCatalog.ratios.map { preset in
             let selected: Bool
             switch preset {
             case .freeform: selected = (lockedAspect == nil)
             case .ratio(_, let v): selected = (lockedAspect.map { abs($0 - v) < 0.001 } ?? false)
-            case .resolution(_, let w, let h): selected = (px.w == w && px.h == h)
+            default: selected = false
             }
-            items.append(ListPickerView.Item(title: preset.label, isSelected: selected))
-            switch preset {
-            case .freeform: actions.append { [weak self] in self?.applyLockedAspect(nil); self?.updateResolutionBox() }
-            case .ratio(_, let v): actions.append { [weak self] in self?.applyLockedAspect(v); self?.updateResolutionBox() }
-            case .resolution(_, let w, let h): actions.append { [weak self] in self?.lockedAspect = nil; self?.applyPixelSize(w: w, h: h); self?.updateResolutionBox() }
+            return ResolutionPresetsView.Row(title: preset.label, isSelected: selected) { [weak self] in
+                PopoverHelper.dismiss()
+                guard let self else { return }
+                self.applyLockedAspect(preset.aspectValue)
+                self.persistRatioIfNeeded()
+                self.updateResolutionBox()
             }
         }
-        picker.items = items
-        picker.onSelect = { idx in
-            PopoverHelper.dismiss()
-            if idx < actions.count { actions[idx]() }
+        view.resolutionRows = ResolutionPresetCatalog.resolutions.map { preset in
+            guard case .resolution(_, let w, let h) = preset else {
+                return ResolutionPresetsView.Row(title: preset.label, isSelected: false, action: {})
+            }
+            return ResolutionPresetsView.Row(title: preset.label, isSelected: (px.w == w && px.h == h)) { [weak self] in
+                PopoverHelper.dismiss()
+                guard let self else { return }
+                self.applyLockedAspect(nil)
+                self.applyPixelSize(w: w, h: h)
+                self.persistRatioIfNeeded()
+                self.updateResolutionBox()
+            }
         }
-        PopoverHelper.show(picker, size: picker.preferredSize,
+        view.keepRatioOn = keepRatioForNextCaptures
+        view.onToggleKeepRatio = { [weak self] on in
+            guard let self else { return }
+            self.keepRatioForNextCaptures = on
+            self.persistRatioIfNeeded()
+            self.updateResolutionBox()  // refresh the enforced-icon tint
+        }
+        view.unitIndex = resolutionUnitIsPoints ? 1 : 0
+        view.onPickUnit = { [weak self] idx in
+            self?.resolutionUnitIsPoints = (idx == 1)
+            self?.updateResolutionBox()  // re-display W/H in the new unit
+        }
+        view.build()
+        PopoverHelper.show(view, size: view.preferredSize,
                            relativeTo: anchor.bounds, of: anchor, preferredEdge: .maxY)
+    }
+
+    /// Persist (or clear) the current locked ratio for future captures, per the
+    /// "keep ratio" toggle.
+    private func persistRatioIfNeeded() {
+        if keepRatioForNextCaptures, let a = lockedAspect {
+            persistedAspect = a
+        }
+    }
+
+    /// Apply the persisted aspect ratio to a freshly started selection, if the
+    /// "keep ratio for next captures" toggle is on. Call when a new capture
+    /// overlay/selection begins.
+    func applyPersistedRatioIfNeeded() {
+        guard keepRatioForNextCaptures, persistedAspect > 0 else { return }
+        lockedAspect = persistedAspect
     }
 
     private func drawZoomLabel() {
@@ -2237,6 +2310,31 @@ class OverlayView: NSView {
                 Int((selectionRect.height * scale).rounded()))
     }
 
+    /// Whether the resolution box shows/accepts points (true) or device pixels.
+    var resolutionUnitIsPoints: Bool {
+        get { UserDefaults.standard.bool(forKey: "resolutionUnitIsPoints") }
+        set { UserDefaults.standard.set(newValue, forKey: "resolutionUnitIsPoints") }
+    }
+
+    /// Selection size in the user's chosen display unit (px or pt).
+    var selectionDisplaySize: (w: Int, h: Int) {
+        if resolutionUnitIsPoints {
+            return (Int(selectionRect.width.rounded()), Int(selectionRect.height.rounded()))
+        }
+        return selectionPixelSize
+    }
+
+    /// Resize from values typed in the current display unit.
+    @discardableResult
+    func applyDisplaySize(w: Int, h: Int) -> Bool {
+        if resolutionUnitIsPoints {
+            let scale = window?.backingScaleFactor ?? 2.0
+            return applyPixelSize(w: Int((CGFloat(w) * scale).rounded()),
+                                  h: Int((CGFloat(h) * scale).rounded()))
+        }
+        return applyPixelSize(w: w, h: h)
+    }
+
     /// Resize the selection to an exact pixel size (W×H in device pixels),
     /// center-anchored and clamped to the screen. Used by the resolution box
     /// fields and resolution presets. Returns true if it fit exactly (no clamp).
@@ -2269,8 +2367,19 @@ class OverlayView: NSView {
         selectionIsWindowSnap = false
         selectionRect = rect
         updateResolutionBox()
+        refreshCursorAfterSelectionChange()
         needsDisplay = true
         return fits
+    }
+
+    /// After a programmatic selection-rect change (typed size, ratio lock,
+    /// preset) the cursor is managed imperatively, so re-evaluate it for the
+    /// current mouse position — otherwise the resize cursor over a handle isn't
+    /// updated until the user moves the mouse.
+    private func refreshCursorAfterSelectionChange() {
+        guard let win = window else { return }
+        let p = convert(win.mouseLocationOutsideOfEventStream, from: nil)
+        updateCursorForPoint(p)
     }
 
     /// Lock (or clear, when nil) the selection's aspect ratio and immediately
@@ -2291,6 +2400,7 @@ class OverlayView: NSView {
         rect.origin.x = max(bounds.minX, min(rect.origin.x, bounds.maxX - w))
         rect.origin.y = max(bounds.minY, min(rect.origin.y, bounds.maxY - h))
         selectionRect = rect
+        refreshCursorAfterSelectionChange()
         needsDisplay = true
     }
 
@@ -4591,6 +4701,7 @@ class OverlayView: NSView {
         bottomChrome.reclaim(bottomStripView, to: self)
         rightChrome.reclaim(rightStripView, to: self)
         optionsChrome.reclaim(toolOptionsRowView, to: self)
+        resolutionChrome.reclaim(resolutionBox, to: self)
     }
 
     // MARK: - Handle hit testing
@@ -5554,6 +5665,10 @@ class OverlayView: NSView {
         if selectionRect.width > 5 || selectionRect.height > 5 {
             // Real drag — use drawn rect as-is
             state = .selected
+            // If the user chose to keep a ratio for future captures, snap this
+            // fresh selection to it (drag freely, lock on release).
+            applyPersistedRatioIfNeeded()
+            if let a = lockedAspect, a > 0 { applyLockedAspect(a) }
             if !autoOCRMode && !autoQuickSaveMode && !autoScrollCaptureMode && !autoConfirmMode { showToolbars = true }
             overlayDelegate?.overlayViewDidFinishSelection(selectionRect)
         } else if windowSnapEnabled, let snapRect = hoveredWindowRect, !snapRect.isEmpty {
@@ -6559,6 +6674,7 @@ class OverlayView: NSView {
                 let point = overlayPoint(fromScreen: NSEvent.mouseLocation)
                 selectionRect.origin = NSPoint(x: point.x - offset.x, y: point.y - offset.y)
                 if hasWebcam { repositionWebcamSetupPreview() }
+                updateResolutionBox()  // track the box live during the move drag
                 needsDisplay = true
                 displayIfNeeded()
                 if event.type == .leftMouseUp { break }
@@ -8265,10 +8381,12 @@ class OverlayView: NSView {
         currentRectCornerRadius = CGFloat(
             UserDefaults.standard.object(forKey: "currentRectCornerRadius") as? Double ?? 0)
         textEditor.dismiss()
+        resolutionChrome.teardown()
         resolutionBox?.removeFromSuperview()
         resolutionBox = nil
         resolutionBoxRect = .zero
-        lockedAspect = nil
+        // Keep the locked ratio across captures only if the user opted in.
+        lockedAspect = keepRatioForNextCaptures ? lockedAspect : nil
         isResizingAnnotation = false
         loupeCursorPoint = .zero
         colorSamplerPoint = .zero

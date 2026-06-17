@@ -14,13 +14,17 @@ import Cocoa
 /// intercepts clicks on the toolbar itself, leaving the rest of the overlay
 /// interactive.
 final class OverlayChromePanel: NSPanel {
-    // Never become key/main: clicking a toolbar button shouldn't make this panel
-    // the key window, which would put NSGlassEffectView into its brightened
-    // "active" state. Buttons still receive clicks via acceptsFirstMouse.
-    override var canBecomeKey: Bool { false }
+    // By default never become key/main: clicking a toolbar button shouldn't make
+    // this panel the key window, which would put NSGlassEffectView into its
+    // brightened "active" state (buttons still click via acceptsFirstMouse).
+    // Panels that host editable text fields (the resolution box) opt back in so
+    // the fields can take keyboard focus.
+    private let keyCapable: Bool
+    override var canBecomeKey: Bool { keyCapable }
     override var canBecomeMain: Bool { false }
 
-    init(hosting content: NSView, cornerRadius: CGFloat) {
+    init(hosting content: NSView, cornerRadius: CGFloat, canBecomeKey: Bool = false) {
+        self.keyCapable = canBecomeKey
         super.init(contentRect: NSRect(origin: .zero, size: content.frame.size),
                    styleMask: [.borderless, .nonactivatingPanel],
                    backing: .buffered, defer: false)

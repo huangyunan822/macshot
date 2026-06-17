@@ -51,11 +51,23 @@ enum PopoverHelper {
         activePopover = popover
     }
 
+    /// Time the most recent popover was dismissed — used to implement
+    /// click-the-anchor-to-toggle-closed (the outside click auto-dismisses a
+    /// semitransient popover before the button handler runs, so the handler
+    /// checks "was one just dismissed?" instead of "is one visible?").
+    private(set) static var lastDismissedAt: Date = .distantPast
+
     static func dismiss() {
+        if activePopover?.isShown == true { lastDismissedAt = Date() }
         activePopover?.close()
         activePopover = nil
         anchorView?.removeFromSuperview()
         anchorView = nil
+    }
+
+    /// True if a popover was dismissed within the last `seconds` (default 0.25s).
+    static func wasRecentlyDismissed(within seconds: TimeInterval = 0.25) -> Bool {
+        Date().timeIntervalSince(lastDismissedAt) < seconds
     }
 
     static var isVisible: Bool { activePopover?.isShown == true }

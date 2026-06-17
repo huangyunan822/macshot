@@ -18,10 +18,14 @@ import Cocoa
 final class OverlayChromePresenter {
 
     let cornerRadius: CGFloat
+    /// True for surfaces with editable text fields (the resolution box) so their
+    /// glass panel can take keyboard focus.
+    let keyCapable: Bool
     private var panel: OverlayChromePanel?
 
-    init(cornerRadius: CGFloat) {
+    init(cornerRadius: CGFloat, keyCapable: Bool = false) {
         self.cornerRadius = cornerRadius
+        self.keyCapable = keyCapable
     }
 
     var hasPanel: Bool { panel != nil }
@@ -40,7 +44,7 @@ final class OverlayChromePresenter {
         content.frame = NSRect(origin: .zero, size: overlayRect.size)
         if panel == nil {
             content.removeFromSuperview()
-            panel = OverlayChromePanel(hosting: content, cornerRadius: cornerRadius)
+            panel = OverlayChromePanel(hosting: content, cornerRadius: cornerRadius, canBecomeKey: keyCapable)
             win.addChildWindow(panel!, ordered: .above)
         }
         let screenRect = win.convertToScreen(overlayView.convert(overlayRect, to: nil))
