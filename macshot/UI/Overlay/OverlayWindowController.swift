@@ -7,6 +7,13 @@ import Vision
 struct CaptureAnnotationData {
     let rawImage: NSImage       // screenshot without annotations
     let annotations: [Annotation]
+    let editState: CaptureEditState?
+
+    init(rawImage: NSImage, annotations: [Annotation], editState: CaptureEditState? = nil) {
+        self.rawImage = rawImage
+        self.annotations = annotations
+        self.editState = editState
+    }
 }
 
 private final class ScreenshotOverlayRootView: NSView {
@@ -57,9 +64,9 @@ private final class ScreenshotOverlayRootView: NSView {
 protocol OverlayWindowControllerDelegate: AnyObject {
     func overlayDidCancel(_ controller: OverlayWindowController)
     func overlayDidConfirm(_ controller: OverlayWindowController, capturedImage: NSImage?, annotationData: CaptureAnnotationData?)
-    func overlayDidRequestPin(_ controller: OverlayWindowController, image: NSImage)
+    func overlayDidRequestPin(_ controller: OverlayWindowController, image: NSImage, annotationData: CaptureAnnotationData?)
     func overlayDidRequestOCR(_ controller: OverlayWindowController, result: OCRScanResult, image: NSImage?)
-    func overlayDidRequestUpload(_ controller: OverlayWindowController, image: NSImage)
+    func overlayDidRequestUpload(_ controller: OverlayWindowController, image: NSImage, annotationData: CaptureAnnotationData?)
     func overlayDidRequestStartRecording(
         _ controller: OverlayWindowController, rect: NSRect, screen: NSScreen)
     func overlayDidRequestStopRecording(_ controller: OverlayWindowController)
@@ -423,12 +430,13 @@ class OverlayWindowController {
             ?? overlayView?.captureSelectedRegion()
     }
 
-    /// Snapshot annotations for editable history, using a pre-captured raw image.
-    /// Returns nil if there are no movable annotations.
+    /// Snapshot editable history data, using a pre-captured raw image.
+    /// Returns nil if there are no movable annotations or post-processing edits.
     private func snapshotAnnotationData(rawImage: NSImage) -> CaptureAnnotationData? {
         guard let view = overlayView else { return nil }
         let annotations = view.annotations.filter { $0.isMovable }
-        guard !annotations.isEmpty else { return nil }
+        let editState = view.captureEditState()
+        guard !annotations.isEmpty || editState.hasPostProcessing else { return nil }
 
         let sel = view.selectionRect
         let shifted = annotations.map { ann -> Annotation in
@@ -436,16 +444,21 @@ class OverlayWindowController {
             c.move(dx: -sel.origin.x, dy: -sel.origin.y)
             return c
         }
-        return CaptureAnnotationData(rawImage: rawImage, annotations: shifted)
+        return CaptureAnnotationData(
+            rawImage: rawImage,
+            annotations: shifted,
+            editState: editState.hasPostProcessing ? editState : nil
+        )
     }
 
     private func currentAnnotationDataForHistory() -> CaptureAnnotationData? {
-        let beautifyCfg = overlayView?.beautifyConfig ?? BeautifyConfig()
-        let snapWindowImg = overlayView?.snappedWindowImage
-        let hasAnnotations = overlayView?.annotations.contains(where: { $0.isMovable }) ?? false
-        guard hasAnnotations else { return nil }
-        let rawImage: NSImage? = (beautifyCfg.isWindowSnap && snapWindowImg != nil)
-            ? snapWindowImg : overlayView?.captureSelectedRegionRaw()
+        guard let view = overlayView else { return nil }
+        let editState = view.captureEditState()
+        let snapWindowImg = view.snappedWindowImage
+        let hasAnnotations = view.annotations.contains(where: { $0.isMovable })
+        guard hasAnnotations || editState.hasPostProcessing else { return nil }
+        let rawImage: NSImage? = (editState.beautifyIsWindowSnap && snapWindowImg != nil)
+            ? snapWindowImg : view.captureSelectedRegionRaw()
         guard let rawImage else { return nil }
         return snapshotAnnotationData(rawImage: rawImage)
     }
@@ -534,7 +547,7 @@ extension OverlayWindowController: OverlayViewDelegate {
         // so the editor shows clean corners when re-editing.
         let hasAnnotations = overlayView?.annotations.contains(where: { $0.isMovable }) ?? false
         let annotationData: CaptureAnnotationData?
-        if hasAnnotations {
+        if hasAnnotations || hasEffects || hasBeautify {
             let rawImage: NSImage? = (beautifyCfg.isWindowSnap && snapWindowImg != nil)
                 ? snapWindowImg : overlayView?.captureSelectedRegionRaw()
             if let raw = rawImage {
@@ -567,17 +580,16 @@ extension OverlayWindowController: OverlayViewDelegate {
         // Copy button / Cmd+C always copies to clipboard
         ImageEncoder.copyToClipboard(finalImage)
 
-        // Don't save annotation data if effects/beautify were applied — the raw image
-        // wouldn't match what the user sees, making annotation re-editing confusing.
         overlayDelegate?.overlayDidConfirm(self, capturedImage: finalImage, annotationData: annotationData)
     }
 
     func overlayViewDidRequestPin() {
         guard var image = captureRegion() else { return }
+        let annotationData = currentAnnotationDataForHistory()
         image = applyBeautifyIfNeeded(image) ?? image
         playCopySound()
         dismiss()
-        overlayDelegate?.overlayDidRequestPin(self, image: image)
+        overlayDelegate?.overlayDidRequestPin(self, image: image, annotationData: annotationData)
     }
 
     func overlayViewDidRequestOCR() {
@@ -601,10 +613,11 @@ extension OverlayWindowController: OverlayViewDelegate {
 
     func overlayViewDidRequestUpload() {
         guard var image = captureRegion() else { return }
+        let annotationData = currentAnnotationDataForHistory()
         image = applyBeautifyIfNeeded(image) ?? image
         playCopySound()
         dismiss()
-        overlayDelegate?.overlayDidRequestUpload(self, image: image)
+        overlayDelegate?.overlayDidRequestUpload(self, image: image, annotationData: annotationData)
     }
 
     func overlayViewDidRequestShare(anchorView: NSView?) {
@@ -616,6 +629,7 @@ extension OverlayWindowController: OverlayViewDelegate {
 
         guard var image = captureRegion() else { return }
         image = applyBeautifyIfNeeded(image) ?? image
+        let annotationData = currentAnnotationDataForHistory()
         guard let imageData = ImageEncoder.encode(image) else { return }
         let tempURL = TmpScratchDirectory.makeURL(
             filename: FilenameFormatter.defaultImageFilename(windowTitle: capturedWindowTitle))
@@ -645,7 +659,7 @@ extension OverlayWindowController: OverlayViewDelegate {
                 self.playCopySound()
                 let img = image
                 self.dismiss()
-                self.overlayDelegate?.overlayDidConfirm(self, capturedImage: img, annotationData: nil)
+                self.overlayDelegate?.overlayDidConfirm(self, capturedImage: img, annotationData: annotationData)
             },
             onDismiss: { [weak self] in
                 self?.overlayWindow?.level = savedLevel
@@ -791,12 +805,14 @@ extension OverlayWindowController: OverlayViewDelegate {
         let tool = view.currentTool
         let color = view.currentColor
         let stroke = view.currentStrokeWidth
+        let editState = view.captureEditState()
 
         dismiss()
         overlayDelegate?.overlayDidCancel(self)
         DetachedEditorWindowController.open(
             image: image, tool: tool, color: color, strokeWidth: stroke,
-            annotations: shiftedAnnotations, fromCapture: true)
+            annotations: shiftedAnnotations, fromCapture: true,
+            editState: editState.hasPostProcessing ? editState : nil)
     }
 
     @available(macOS 14.0, *)
@@ -889,7 +905,7 @@ extension OverlayWindowController: OverlayViewDelegate {
         // Snapshot annotation data — use snapped window image for clean corners
         let hasAnnotations = overlayView?.annotations.contains(where: { $0.isMovable }) ?? false
         let annotationData: CaptureAnnotationData?
-        if hasAnnotations {
+        if hasAnnotations || hasEffects || hasBeautify {
             let rawImage: NSImage? = (beautifyCfg.isWindowSnap && snapWindowImg != nil)
                 ? snapWindowImg : overlayView?.captureSelectedRegionRaw()
             if let raw = rawImage {

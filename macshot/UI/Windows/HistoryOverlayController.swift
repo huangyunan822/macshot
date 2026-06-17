@@ -185,10 +185,16 @@ final class HistoryOverlayController: NSObject, QLPreviewPanelDataSource, QLPrev
         if entry.hasAnnotations,
            let rawImage = ScreenshotHistory.shared.loadRawImage(for: entry),
            let annotations = ScreenshotHistory.shared.loadAnnotations(for: entry) {
+            let editState = ScreenshotHistory.shared.loadEditState(for: entry)
             dismiss()
             let entryID = entry.id
             DispatchQueue.main.async {
-                DetachedEditorWindowController.open(image: rawImage, annotations: annotations, historyEntryID: entryID)
+                DetachedEditorWindowController.open(
+                    image: rawImage,
+                    annotations: annotations,
+                    historyEntryID: entryID,
+                    editState: editState
+                )
             }
             return
         }

@@ -1641,8 +1641,15 @@ class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
             self.saveThumbnailImageAs(image)
         }
         controller.onPin = { [weak self, weak controller] in
-            guard let self = self, let image = controller?.image else { return }
-            ScreenshotHistory.shared.add(image: image)
+            guard let self = self, let controller = controller else { return }
+            let image = controller.image
+            let data = controller.annotationData
+            ScreenshotHistory.shared.add(
+                image: image,
+                rawImage: data?.rawImage,
+                annotations: data?.annotations,
+                editState: data?.editState
+            )
             self.showPin(image: image)
         }
         controller.onEdit = { [weak controller] in
@@ -1650,22 +1657,40 @@ class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
             let image = controller.image
             let id = controller.historyEntryID ?? historyEntryID
             if let data = controller.annotationData {
-                DetachedEditorWindowController.open(image: data.rawImage, annotations: data.annotations, historyEntryID: id)
+                DetachedEditorWindowController.open(
+                    image: data.rawImage,
+                    annotations: data.annotations,
+                    historyEntryID: id,
+                    editState: data.editState
+                )
                 return
             }
             if let id,
                let entry = ScreenshotHistory.shared.entries.first(where: { $0.id == id }),
                let rawImage = ScreenshotHistory.shared.loadRawImage(for: entry),
                let annotations = ScreenshotHistory.shared.loadAnnotations(for: entry) {
-                DetachedEditorWindowController.open(image: rawImage, annotations: annotations, historyEntryID: id)
+                let editState = ScreenshotHistory.shared.loadEditState(for: entry)
+                DetachedEditorWindowController.open(
+                    image: rawImage,
+                    annotations: annotations,
+                    historyEntryID: id,
+                    editState: editState
+                )
                 return
             }
             // Image already has beautify/effects baked in — disable to avoid double-applying
             DetachedEditorWindowController.open(image: image, historyEntryID: id, disableBeautify: true)
         }
         controller.onUpload = { [weak self, weak controller] in
-            guard let self = self, let image = controller?.image else { return }
-            ScreenshotHistory.shared.add(image: image)
+            guard let self = self, let controller = controller else { return }
+            let image = controller.image
+            let data = controller.annotationData
+            ScreenshotHistory.shared.add(
+                image: image,
+                rawImage: data?.rawImage,
+                annotations: data?.annotations,
+                editState: data?.editState
+            )
             self.showUploadProgress(image: image)
         }
         controller.onTransform = { transformed in
@@ -2127,7 +2152,8 @@ extension AppDelegate: OverlayWindowControllerDelegate {
             ScreenshotHistory.shared.add(
                 image: image,
                 rawImage: annotationData?.rawImage,
-                annotations: annotationData?.annotations)
+                annotations: annotationData?.annotations,
+                editState: annotationData?.editState)
             captureTimingTrace?.mark("screenshot added to history")
             // The entry just added is at index 0
             let entryID = ScreenshotHistory.shared.entries.first?.id
@@ -2141,7 +2167,12 @@ extension AppDelegate: OverlayWindowControllerDelegate {
             // "Also open in Editor" preference — open with history entry ID so Done saves back
             if UserDefaults.standard.bool(forKey: "quickCaptureOpenEditor") {
                 if let data = annotationData {
-                    DetachedEditorWindowController.open(image: data.rawImage, annotations: data.annotations, historyEntryID: entryID)
+                    DetachedEditorWindowController.open(
+                        image: data.rawImage,
+                        annotations: data.annotations,
+                        historyEntryID: entryID,
+                        editState: data.editState
+                    )
                 } else {
                     DetachedEditorWindowController.open(image: image, historyEntryID: entryID, disableBeautify: true)
                 }
@@ -2214,8 +2245,13 @@ extension AppDelegate: OverlayWindowControllerDelegate {
         return NSImage(cgImage: cgImage, size: globalRect.size)
     }
 
-    func overlayDidRequestPin(_ controller: OverlayWindowController, image: NSImage) {
-        ScreenshotHistory.shared.add(image: image)
+    func overlayDidRequestPin(_ controller: OverlayWindowController, image: NSImage, annotationData: CaptureAnnotationData?) {
+        ScreenshotHistory.shared.add(
+            image: image,
+            rawImage: annotationData?.rawImage,
+            annotations: annotationData?.annotations,
+            editState: annotationData?.editState
+        )
         let appToRefocus = previousApp
         dismissOverlays(refocusPreviousApp: false)
         let pin = PinWindowController(image: image)
@@ -2248,8 +2284,13 @@ extension AppDelegate: OverlayWindowControllerDelegate {
         }
     }
 
-    func overlayDidRequestUpload(_ controller: OverlayWindowController, image: NSImage) {
-        ScreenshotHistory.shared.add(image: image)
+    func overlayDidRequestUpload(_ controller: OverlayWindowController, image: NSImage, annotationData: CaptureAnnotationData?) {
+        ScreenshotHistory.shared.add(
+            image: image,
+            rawImage: annotationData?.rawImage,
+            annotations: annotationData?.annotations,
+            editState: annotationData?.editState
+        )
         let appToRefocus = previousApp
         dismissOverlays(refocusPreviousApp: false)
         showUploadProgress(image: image)
@@ -2944,7 +2985,7 @@ extension AppDelegate: OverlayWindowControllerDelegate {
         showFloatingThumbnail(image: image)
 
         if UserDefaults.standard.bool(forKey: "quickCaptureOpenEditor") {
-            DetachedEditorWindowController.open(image: image, historyEntryID: entryID)
+            DetachedEditorWindowController.open(image: image, historyEntryID: entryID, disableBeautify: true)
         }
     }
 

@@ -32,11 +32,14 @@ class DetachedEditorWindowController: NSObject, NSWindowDelegate {
     private var historyEntryID: String?
     /// Snapshot of undo stack depth when last saved, to detect changes.
     private var lastSavedUndoDepth: Int = 0
+    /// Snapshot of serialized editable state when last saved, to catch object mutations like drag moves.
+    private var lastSavedStateSignature: String = ""
     /// True if the image has never been output (copied, saved, etc.) — closing would lose the capture.
     /// Set to false on first output action. Editors opened from files start false.
     private var screenshotNeverOutput: Bool = true
     /// When true, force beautify off on open (image already has beautify baked in).
     private var disableBeautifyOnOpen: Bool = false
+    private var initialEditState: CaptureEditState?
 
     /// Open an editor window with the given image (typically from captureSelectedRegion).
     /// When `disableBeautify` is true, beautify starts off regardless of UserDefaults
@@ -49,10 +52,11 @@ class DetachedEditorWindowController: NSObject, NSWindowDelegate {
     /// here: writing `view.currentTool = .arrow` triggers the didSet that
     /// persists "arrow" globally, wiping the user's last-tool memory across
     /// the whole app.
-    static func open(image: NSImage, tool: AnnotationTool? = nil, color: NSColor? = nil, strokeWidth: CGFloat? = nil, annotations: [Annotation] = [], historyEntryID: String? = nil, fromCapture: Bool = false, disableBeautify: Bool = false) {
+    static func open(image: NSImage, tool: AnnotationTool? = nil, color: NSColor? = nil, strokeWidth: CGFloat? = nil, annotations: [Annotation] = [], historyEntryID: String? = nil, fromCapture: Bool = false, disableBeautify: Bool = false, editState: CaptureEditState? = nil) {
         let controller = DetachedEditorWindowController()
         controller.historyEntryID = historyEntryID
         controller.disableBeautifyOnOpen = disableBeautify
+        controller.initialEditState = editState
         // Only warn about unsaved capture if the image came from a live capture (not a file on disk)
         controller.screenshotNeverOutput = fromCapture && historyEntryID == nil
         controller.show(image: image, tool: tool, color: color, strokeWidth: strokeWidth, annotations: annotations)
@@ -178,9 +182,13 @@ class DetachedEditorWindowController: NSObject, NSWindowDelegate {
 
         view.applySelection(NSRect(origin: .zero, size: imgSize))
         if !annotations.isEmpty { view.setAnnotations(annotations) }
+        if let editState = initialEditState {
+            view.applyCaptureEditState(editState)
+        }
 
         // Snapshot undo depth as the "clean" state for unsaved changes detection
         lastSavedUndoDepth = view.undoStack.count
+        lastSavedStateSignature = view.editableStateSignature()
 
         win.contentView = container
         win.makeKeyAndOrderFront(nil)
@@ -229,10 +237,12 @@ class DetachedEditorWindowController: NSObject, NSWindowDelegate {
         if historyEntryID != nil {
             // Linked to history — check if undo stack changed since last save
             hasChanges = view.undoStack.count != lastSavedUndoDepth
+                || view.editableStateSignature() != lastSavedStateSignature
         } else {
             // Not in history — warn if the image has never been saved/copied
             // (the capture would be lost entirely on close)
             hasChanges = view.undoStack.count > lastSavedUndoDepth
+                || view.editableStateSignature() != lastSavedStateSignature
                 || view.annotations.contains(where: { $0.isMovable })
                 || screenshotNeverOutput
         }
@@ -263,6 +273,7 @@ class DetachedEditorWindowController: NSObject, NSWindowDelegate {
                 self.historyEntryID = nil
                 self.screenshotNeverOutput = false
                 self.lastSavedUndoDepth = view.undoStack.count
+                self.lastSavedStateSignature = view.editableStateSignature()
                 sender.close()
             default:
                 break  // Cancel
@@ -294,8 +305,10 @@ class DetachedEditorWindowController: NSObject, NSWindowDelegate {
             id: entryID,
             compositedImage: finalImage,
             rawImage: data?.rawImage,
-            annotations: data?.annotations)
+            annotations: data?.annotations,
+            editState: data?.editState)
         lastSavedUndoDepth = view.undoStack.count
+        lastSavedStateSignature = view.editableStateSignature()
         // Update floating thumbnail if it's still visible
         (NSApp.delegate as? AppDelegate)?.refreshThumbnail(for: entryID, image: finalImage, annotationData: data)
     }
@@ -330,9 +343,14 @@ class DetachedEditorWindowController: NSObject, NSWindowDelegate {
     private func currentAnnotationData() -> CaptureAnnotationData? {
         guard let view = overlayView else { return nil }
         let annotations = view.annotations.filter { $0.isMovable }
-        guard !annotations.isEmpty,
+        let editState = view.captureEditState()
+        guard !annotations.isEmpty || editState.hasPostProcessing,
               let rawImage = view.captureSelectedRegionRaw() else { return nil }
-        return CaptureAnnotationData(rawImage: rawImage, annotations: annotations)
+        return CaptureAnnotationData(
+            rawImage: rawImage,
+            annotations: annotations,
+            editState: editState.hasPostProcessing ? editState : nil
+        )
     }
 
     /// Apply image effects and beautify to the captured image.
@@ -463,7 +481,8 @@ extension DetachedEditorWindowController: OverlayViewDelegate {
         ScreenshotHistory.shared.add(
             image: compositedImage,
             rawImage: data?.rawImage,
-            annotations: data?.annotations)
+            annotations: data?.annotations,
+            editState: data?.editState)
         historyEntryID = ScreenshotHistory.shared.entries.first?.id
         if historyEntryID != nil {
             topBar?.showDoneButton()
@@ -632,12 +651,12 @@ private class AddCaptureOverlayHandler: NSObject, OverlayWindowControllerDelegat
         }
     }
 
-    func overlayDidRequestPin(_ controller: OverlayWindowController, image: NSImage) {
+    func overlayDidRequestPin(_ controller: OverlayWindowController, image: NSImage, annotationData: CaptureAnnotationData?) {
         dismissOverlays()
         onCapture?(image)
     }
     func overlayDidRequestOCR(_ controller: OverlayWindowController, result: OCRScanResult, image: NSImage?) {}
-    func overlayDidRequestUpload(_ controller: OverlayWindowController, image: NSImage) {}
+    func overlayDidRequestUpload(_ controller: OverlayWindowController, image: NSImage, annotationData: CaptureAnnotationData?) {}
     func overlayDidRequestStartRecording(_ controller: OverlayWindowController, rect: NSRect, screen: NSScreen) {}
     func overlayDidRequestStopRecording(_ controller: OverlayWindowController) {}
     func overlayDidRequestScrollCapture(_ controller: OverlayWindowController, rect: NSRect, screen: NSScreen) {}
