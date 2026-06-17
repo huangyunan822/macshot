@@ -17,8 +17,8 @@ final class OverlayChromePanel: NSPanel {
     // By default never become key/main: clicking a toolbar button shouldn't make
     // this panel the key window, which would put NSGlassEffectView into its
     // brightened "active" state (buttons still click via acceptsFirstMouse).
-    // Panels that host editable text fields (the resolution box) opt back in so
-    // the fields can take keyboard focus.
+    // Panels that host editable text fields (the resolution box) opt back in,
+    // but become key only when the clicked subview explicitly needs it.
     private let keyCapable: Bool
     override var canBecomeKey: Bool { keyCapable }
     override var canBecomeMain: Bool { false }
@@ -35,6 +35,7 @@ final class OverlayChromePanel: NSPanel {
         acceptsMouseMovedEvents = true
         hidesOnDeactivate = false
         isReleasedWhenClosed = false
+        becomesKeyOnlyIfNeeded = canBecomeKey
         collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
         if #available(macOS 26.0, *) { animationBehavior = .none }
 

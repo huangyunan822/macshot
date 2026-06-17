@@ -15,8 +15,8 @@ final class ResolutionBoxView: NSView, NSTextFieldDelegate, ChromeContent {
     /// Called when the presets button is clicked; passes the button for anchoring.
     var onPresets: ((_ anchor: NSView) -> Void)?
 
-    private let widthField = NSTextField()
-    private let heightField = NSTextField()
+    private let widthField = ResolutionNumberField()
+    private let heightField = ResolutionNumberField()
     private let timesLabel = CenteredGlyphView(glyph: "\u{00D7}")
     private let presetsButton = NSButton()
 
@@ -189,6 +189,13 @@ final class ResolutionBoxView: NSView, NSTextFieldDelegate, ChromeContent {
         addCursorRect(heightField.frame, cursor: .iBeam)
         addCursorRect(presetsButton.frame, cursor: .arrow)
     }
+}
+
+/// A number field is the only resolution-box subview that should make the glass
+/// panel key. Background/button clicks must leave the glass in its inactive
+/// appearance, but fields still need key focus for typing.
+private final class ResolutionNumberField: NSTextField {
+    override var needsPanelToBecomeKey: Bool { true }
 }
 
 /// Draws a single glyph centered both horizontally and vertically — used for the
