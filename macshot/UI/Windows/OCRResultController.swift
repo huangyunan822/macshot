@@ -85,7 +85,7 @@ class OCRResultController: NSObject {
         let rightX = previewW + gap
         let rightW = W - rightX
         let footerH: CGFloat = 52
-        let headerH: CGFloat = 44
+        let headerH: CGFloat = 52
 
         // Header bar (language selector + stats)
         let header = NSView(frame: NSRect(x: rightX, y: H - headerH, width: rightW, height: headerH))
@@ -96,10 +96,10 @@ class OCRResultController: NSObject {
         let langLabel = NSTextField(labelWithString: L("Translate to:"))
         langLabel.font = NSFont.systemFont(ofSize: 12)
         langLabel.textColor = .secondaryLabelColor
-        langLabel.frame = NSRect(x: 12, y: (headerH - 16) / 2, width: 90, height: 16)
+        langLabel.frame = NSRect(x: 12, y: 25, width: 90, height: 16)
         header.addSubview(langLabel)
 
-        let popup = NSPopUpButton(frame: NSRect(x: 106, y: (headerH - 24) / 2, width: 160, height: 24), pullsDown: false)
+        let popup = NSPopUpButton(frame: NSRect(x: 106, y: 21, width: 160, height: 24), pullsDown: false)
         for lang in TranslationService.availableLanguages {
             popup.addItem(withTitle: lang.name)
             popup.lastItem?.representedObject = lang.code
@@ -114,15 +114,31 @@ class OCRResultController: NSObject {
         header.addSubview(popup)
         self.langPopup = popup
 
-        // Char/word count label (right side of header)
+        // Translate button
+        let translateBtn = NSButton(title: L("Translate"), target: self, action: #selector(toggleTranslate))
+        translateBtn.bezelStyle = .rounded
+        translateBtn.frame = NSRect(x: 276, y: 19, width: 100, height: 28)
+        header.addSubview(translateBtn)
+        self.translateButton = translateBtn
+
+        // Spinner (hidden)
+        let spinner = NSProgressIndicator(frame: NSRect(x: 388, y: 25, width: 16, height: 16))
+        spinner.style = .spinning
+        spinner.controlSize = .small
+        spinner.isIndeterminate = true
+        spinner.isHidden = true
+        header.addSubview(spinner)
+        self.spinnerView = spinner
+
+        // Char/word count label
         let charCount = text.count
         let wordCount = text.split(whereSeparator: { $0.isWhitespace || $0.isNewline }).count
         let countLbl = NSTextField(labelWithString: String(format: L("%d chars · %d words"), charCount, wordCount))
         countLbl.font = NSFont.systemFont(ofSize: 11)
         countLbl.textColor = .tertiaryLabelColor
-        countLbl.frame = NSRect(x: rightW - 180, y: (headerH - 14) / 2, width: 168, height: 14)
+        countLbl.frame = NSRect(x: 12, y: 5, width: rightW - 24, height: 14)
         countLbl.alignment = .right
-        countLbl.autoresizingMask = [.minXMargin]
+        countLbl.autoresizingMask = [.width]
         header.addSubview(countLbl)
         self.charCountLabel = countLbl
 
@@ -160,24 +176,6 @@ class OCRResultController: NSObject {
         aiSearchBtn.frame = NSRect(x: rightW - 220, y: (footerH - 28) / 2, width: 100, height: 28)
         aiSearchBtn.autoresizingMask = [.minXMargin]
         footer.addSubview(aiSearchBtn)
-
-        // Translate button
-        let translateBtn = NSButton(title: L("Translate"), target: self, action: #selector(toggleTranslate))
-        translateBtn.bezelStyle = .rounded
-        translateBtn.frame = NSRect(x: rightW - 330, y: (footerH - 28) / 2, width: 100, height: 28)
-        translateBtn.autoresizingMask = [.minXMargin]
-        footer.addSubview(translateBtn)
-        self.translateButton = translateBtn
-
-        // Spinner (hidden)
-        let spinner = NSProgressIndicator(frame: NSRect(x: rightW - 350, y: (footerH - 16) / 2, width: 16, height: 16))
-        spinner.style = .spinning
-        spinner.controlSize = .small
-        spinner.isIndeterminate = true
-        spinner.isHidden = true
-        spinner.autoresizingMask = [.minXMargin]
-        footer.addSubview(spinner)
-        self.spinnerView = spinner
 
         let qrSectionH = qrCodes.isEmpty ? CGFloat(0) : min(CGFloat(46 + qrCodes.count * 36), 168)
 
