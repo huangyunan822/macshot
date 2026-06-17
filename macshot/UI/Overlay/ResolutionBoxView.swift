@@ -195,8 +195,26 @@ final class ResolutionBoxView: NSView, NSTextFieldDelegate, ChromeContent {
 /// A number field is the only resolution-box subview that should make the glass
 /// panel key. Background/button clicks must leave the glass in its inactive
 /// appearance, but fields still need key focus for typing.
-private final class ResolutionNumberField: NSTextField {
+private final class ResolutionNumberField: NSTextField, PanelKeyRequestingView {
+    var requestsPanelKeyForMouseDown: Bool { true }
+    private var acceptingMouseFocus = false
+
     override var needsPanelToBecomeKey: Bool { true }
+
+    override var acceptsFirstResponder: Bool {
+        acceptingMouseFocus || currentEditor() != nil
+    }
+
+    override func becomeFirstResponder() -> Bool {
+        guard acceptingMouseFocus || currentEditor() != nil else { return false }
+        return super.becomeFirstResponder()
+    }
+
+    override func mouseDown(with event: NSEvent) {
+        acceptingMouseFocus = true
+        defer { acceptingMouseFocus = false }
+        super.mouseDown(with: event)
+    }
 }
 
 /// Draws a single glyph centered both horizontally and vertically — used for the
