@@ -192,14 +192,14 @@ final class ResolutionBoxView: NSView, NSTextFieldDelegate, ChromeContent {
     }
 }
 
-/// A number field is the only resolution-box subview that should make the glass
-/// panel key. Background/button clicks must leave the glass in its inactive
-/// appearance, but fields still need key focus for typing.
+/// A number field may enter editing from a direct mouse click, but it must not
+/// make the glass panel key. A key glass panel brightens the whole resolution
+/// box, which reads like an unwanted active/hover state.
 private final class ResolutionNumberField: NSTextField, PanelKeyRequestingView {
-    var requestsPanelKeyForMouseDown: Bool { true }
+    var requestsPanelKeyForMouseDown: Bool { false }
     private var acceptingMouseFocus = false
 
-    override var needsPanelToBecomeKey: Bool { true }
+    override var needsPanelToBecomeKey: Bool { false }
 
     override var acceptsFirstResponder: Bool {
         acceptingMouseFocus || currentEditor() != nil

@@ -7,6 +7,8 @@ enum PopoverHelper {
 
     private static var activePopover: NSPopover?
     private static var anchorView: NSView?
+    private static var localMouseDownMonitor: Any?
+    private static var globalMouseDownMonitor: Any?
 
     /// Show a popover with the given content view, anchored relative to a rect in the given parent view.
     static func show(_ contentView: NSView, size: NSSize, relativeTo rect: NSRect, of view: NSView, preferredEdge: NSRectEdge = .minY) {
@@ -21,9 +23,11 @@ enum PopoverHelper {
         let vc = NSViewController()
         vc.view = cursorWrapped(contentView)
         popover.contentViewController = vc
+        popover.delegate = AnchorCleanupDelegate.shared
         popover.show(relativeTo: rect, of: view, preferredEdge: preferredEdge)
         configureShownPopover(popover, parentWindow: view.window)
         activePopover = popover
+        installOutsideClickMonitors()
     }
 
     /// Show a popover anchored to a specific point in a view (for overlay mode where buttons aren't real views).
@@ -49,6 +53,7 @@ enum PopoverHelper {
         popover.show(relativeTo: anchor.bounds, of: anchor, preferredEdge: preferredEdge)
         configureShownPopover(popover, parentWindow: parentView.window)
         activePopover = popover
+        installOutsideClickMonitors()
     }
 
     /// Time the most recent popover was dismissed — used to implement
@@ -61,6 +66,7 @@ enum PopoverHelper {
         if activePopover?.isShown == true { lastDismissedAt = Date() }
         activePopover?.close()
         activePopover = nil
+        removeOutsideClickMonitors()
         anchorView?.removeFromSuperview()
         anchorView = nil
     }
@@ -123,6 +129,41 @@ enum PopoverHelper {
         DispatchQueue.main.async {
             configure()
         }
+    }
+
+    private static func installOutsideClickMonitors() {
+        removeOutsideClickMonitors()
+        let mask: NSEvent.EventTypeMask = [.leftMouseDown, .rightMouseDown, .otherMouseDown]
+        localMouseDownMonitor = NSEvent.addLocalMonitorForEvents(matching: mask) { event in
+            if shouldDismiss(forMouseDownAt: NSEvent.mouseLocation) {
+                dismiss()
+            }
+            return event
+        }
+        globalMouseDownMonitor = NSEvent.addGlobalMonitorForEvents(matching: mask) { _ in
+            DispatchQueue.main.async {
+                if shouldDismiss(forMouseDownAt: NSEvent.mouseLocation) {
+                    dismiss()
+                }
+            }
+        }
+    }
+
+    private static func removeOutsideClickMonitors() {
+        if let localMouseDownMonitor {
+            NSEvent.removeMonitor(localMouseDownMonitor)
+            self.localMouseDownMonitor = nil
+        }
+        if let globalMouseDownMonitor {
+            NSEvent.removeMonitor(globalMouseDownMonitor)
+            self.globalMouseDownMonitor = nil
+        }
+    }
+
+    private static func shouldDismiss(forMouseDownAt screenPoint: NSPoint) -> Bool {
+        guard let popover = activePopover, popover.isShown else { return false }
+        guard let popoverWindow = popover.contentViewController?.view.window else { return true }
+        return !popoverWindow.frame.contains(screenPoint)
     }
 }
 
