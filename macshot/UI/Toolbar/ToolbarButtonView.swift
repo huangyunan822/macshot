@@ -187,8 +187,16 @@ class ToolbarButtonView: NSView {
     // crosshair / hidden drawing-cursor that would otherwise bleed through.
     override func cursorUpdate(with event: NSEvent) { NSCursor.arrow.set() }
 
+    private var owningStrip: ToolbarStripView? {
+        superview as? ToolbarStripView ?? superview?.superview as? ToolbarStripView
+    }
+
     override func mouseEntered(with event: NSEvent) {
         NSCursor.arrow.set()
+        guard owningStrip?.suppressesHover != true else {
+            setHovered(false)
+            return
+        }
         guard suppressHoverStartPoint == nil else {
             setHovered(false)
             return
@@ -196,12 +204,16 @@ class ToolbarButtonView: NSView {
         // Robustly clear any sibling that AppKit failed to send mouseExited to
         // (common in non-activating glass chrome panels) so only one button is
         // ever hovered.
-        (superview as? ToolbarStripView ?? superview?.superview as? ToolbarStripView)?.clearHover(except: self)
+        owningStrip?.clearHover(except: self)
         setHovered(true)
     }
 
     override func mouseMoved(with event: NSEvent) {
         NSCursor.arrow.set()
+        guard owningStrip?.suppressesHover != true else {
+            setHovered(false)
+            return
+        }
         if let start = suppressHoverStartPoint {
             let now = NSEvent.mouseLocation
             let dx = now.x - start.x
@@ -216,7 +228,7 @@ class ToolbarButtonView: NSView {
             suppressHoverStartPoint = nil
         }
         if bounds.contains(convert(event.locationInWindow, from: nil)) {
-            (superview as? ToolbarStripView ?? superview?.superview as? ToolbarStripView)?.clearHover(except: self)
+            owningStrip?.clearHover(except: self)
             setHovered(true)
         }
     }
@@ -234,10 +246,15 @@ class ToolbarButtonView: NSView {
         onHover?(action, hovered)
     }
 
-    func clearInteractionState(suppressHoverUntilMouseMoved suppress: Bool = false) {
+    func clearInteractionState(
+        suppressHoverUntilMouseMoved suppress: Bool = false,
+        clearPressed: Bool = true
+    ) {
         suppressHoverStartPoint = suppress ? NSEvent.mouseLocation : nil
         forwardingDrag = false
-        isPressed = false
+        if clearPressed {
+            isPressed = false
+        }
         setHovered(false)
         needsDisplay = true
     }

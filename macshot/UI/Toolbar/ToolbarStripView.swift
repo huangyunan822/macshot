@@ -10,6 +10,15 @@ class ToolbarStripView: NSView, ChromeContent {
     private(set) var buttonViews: [ToolbarButtonView] = []
     /// Set to true in editor mode so gap clicks pass through to the image beneath.
     var passesThrough = false
+    /// Suppress hover visuals/callbacks while a toolbar-initiated drag is moving
+    /// the whole toolbar panel under the cursor.
+    var suppressesHover = false {
+        didSet {
+            if suppressesHover {
+                for bv in buttonViews { bv.setHovered(false) }
+            }
+        }
+    }
 
     var onClick: ((ToolbarButtonAction) -> Void)?
     var onRightClick: ((ToolbarButtonAction, NSView) -> Void)?
@@ -46,7 +55,7 @@ class ToolbarStripView: NSView, ChromeContent {
     override func mouseMoved(with event: NSEvent) { NSCursor.arrow.set() }
     override func cursorUpdate(with event: NSEvent) { NSCursor.arrow.set() }
     override func mouseExited(with event: NSEvent) {
-        clearInteractionState()
+        clearInteractionState(clearPressed: !suppressesHover)
     }
 
     /// Rebuild buttons from ToolbarButton data.
@@ -73,12 +82,18 @@ class ToolbarStripView: NSView, ChromeContent {
     /// entered, to defensively reset any sibling AppKit failed to send
     /// mouseExited to (happens in non-activating glass chrome panels).
     func clearHover(except keep: ToolbarButtonView) {
+        if suppressesHover { return }
         for bv in buttonViews where bv !== keep { bv.setHovered(false) }
     }
 
-    func clearInteractionState(suppressHoverUntilMouseMoved suppress: Bool = false) {
+    func clearInteractionState(
+        suppressHoverUntilMouseMoved suppress: Bool = false,
+        clearPressed: Bool = true
+    ) {
         for bv in buttonViews {
-            bv.clearInteractionState(suppressHoverUntilMouseMoved: suppress)
+            bv.clearInteractionState(
+                suppressHoverUntilMouseMoved: suppress,
+                clearPressed: clearPressed)
         }
     }
 

@@ -638,6 +638,7 @@ class OverlayView: NSView {
     // Instant tooltip for hovered toolbar button
     private var hoveredTooltip: String?
     private var hoveredTooltipButtonView: ToolbarButtonView?
+    private var isToolbarMoveDragActive = false
 
     private var currentCanvasMousePoint: NSPoint? {
         guard let windowPoint = window?.mouseLocationOutsideOfEventStream else { return nil }
@@ -5799,7 +5800,15 @@ class OverlayView: NSView {
                 updateResolutionBox()
                 needsDisplay = true
             } else if isResizingSelection {
-                resizeSelection(to: point)
+                if spaceRepositioning {
+                    let dx = point.x - spaceRepositionLast.x
+                    let dy = point.y - spaceRepositionLast.y
+                    selectionRect.origin.x += dx
+                    selectionRect.origin.y += dy
+                    spaceRepositionLast = point
+                } else {
+                    resizeSelection(to: point)
+                }
                 overlayDelegate?.overlayViewSelectionDidChange(selectionRect)
                 updateResolutionBox()
                 needsDisplay = true
@@ -6533,6 +6542,7 @@ class OverlayView: NSView {
 
     /// Handle right-click on a toolbar button (context menus, popovers).
     private func handleToolbarButtonHover(_ action: ToolbarButtonAction, hovered: Bool, strip: ToolbarStripView?) {
+        if isToolbarMoveDragActive { return }
         if hovered {
             let btn = strip?.buttonViews.first { bv in
                 // Compare by identity — find the button that triggered the hover
@@ -6557,19 +6567,33 @@ class OverlayView: NSView {
         return "\(base) (\(shortcut))"
     }
 
-    private func clearToolbarHoverState(suppressUntilMouseMoved: Bool = false) {
-        hoveredTooltip = nil
-        hoveredTooltipButtonView = nil
-        bottomStripView?.clearInteractionState(suppressHoverUntilMouseMoved: suppressUntilMouseMoved)
-        rightStripView?.clearInteractionState(suppressHoverUntilMouseMoved: suppressUntilMouseMoved)
+    private func clearToolbarHoverState(
+        suppressUntilMouseMoved: Bool = false,
+        clearTooltip: Bool = true,
+        clearPressed: Bool = true
+    ) {
+        if clearTooltip {
+            hoveredTooltip = nil
+            hoveredTooltipButtonView = nil
+        }
+        bottomStripView?.clearInteractionState(
+            suppressHoverUntilMouseMoved: suppressUntilMouseMoved,
+            clearPressed: clearPressed)
+        rightStripView?.clearInteractionState(
+            suppressHoverUntilMouseMoved: suppressUntilMouseMoved,
+            clearPressed: clearPressed)
         needsDisplay = true
     }
 
-    private func setFloatingToolbarMouseInteractionEnabled(_ enabled: Bool) {
-        guard usesGlassChrome else { return }
-        bottomChrome.setMouseInteractionEnabled(enabled)
-        rightChrome.setMouseInteractionEnabled(enabled)
-        optionsChrome.setMouseInteractionEnabled(enabled)
+    private func showMoveDragTooltip(anchor moveButton: ToolbarButtonView?) {
+        hoveredTooltip = L("Release to finish")
+        hoveredTooltipButtonView = moveButton
+        needsDisplay = true
+    }
+
+    private func setToolbarHoverSuppressed(_ suppressed: Bool) {
+        bottomStripView?.suppressesHover = suppressed
+        rightStripView?.suppressesHover = suppressed
     }
 
     /// True if `btn` belongs to `strip` (direct subview or via the strip's view
@@ -7061,20 +7085,29 @@ class OverlayView: NSView {
             break
         case .moveSelection:
             guard let win = window else { break }
-            let suppressFloatingChromeMouse = usesGlassChrome
-            if suppressFloatingChromeMouse {
-                setFloatingToolbarMouseInteractionEnabled(false)
-                clearToolbarHoverState(suppressUntilMouseMoved: true)
+            isToolbarMoveDragActive = true
+            var moveButton = rightStripView?.buttonViews.first {
+                if case .moveSelection = $0.action { return true }
+                return false
             }
+            setToolbarHoverSuppressed(true)
+            clearToolbarHoverState(suppressUntilMouseMoved: true, clearPressed: false)
             // Moving breaks window snap — revert to normal beautify mode
             if selectionIsWindowSnap {
                 selectionIsWindowSnap = false
                 snappedWindowID = nil
                 snappedWindowImage = nil
                 rebuildToolbarLayout()
+                setToolbarHoverSuppressed(true)
+                moveButton = rightStripView?.buttonViews.first {
+                    if case .moveSelection = $0.action { return true }
+                    return false
+                }
             }
-            // Show drag hint tooltip
-            hoveredTooltip = L("Drag to reposition")
+            moveButton?.isPressed = true
+            moveButton?.needsDisplay = true
+            moveButton?.displayIfNeeded()
+            showMoveDragTooltip(anchor: moveButton)
             needsDisplay = true
             displayIfNeeded()
             // Synchronous drag loop: tracks mouse from button press until release.
@@ -7094,17 +7127,21 @@ class OverlayView: NSView {
                 selectionRect.origin = NSPoint(x: point.x - offset.x, y: point.y - offset.y)
                 if hasWebcam { repositionWebcamSetupPreview() }
                 updateResolutionBox()  // track the box live during the move drag
+                repositionToolbars()
+                showMoveDragTooltip(anchor: moveButton)
                 needsDisplay = true
                 displayIfNeeded()
                 if event.type == .leftMouseUp { break }
             }
+            moveButton?.isPressed = false
+            moveButton?.needsDisplay = true
+            moveButton?.displayIfNeeded()
             clearToolbarHoverState(suppressUntilMouseMoved: true)
-            if suppressFloatingChromeMouse {
-                DispatchQueue.main.async { [weak self] in
-                    guard let self else { return }
-                    self.setFloatingToolbarMouseInteractionEnabled(true)
-                    self.clearToolbarHoverState(suppressUntilMouseMoved: true)
-                }
+            DispatchQueue.main.async { [weak self] in
+                guard let self else { return }
+                self.clearToolbarHoverState(suppressUntilMouseMoved: true)
+                self.setToolbarHoverSuppressed(false)
+                self.isToolbarMoveDragActive = false
             }
         case .undo:
             undo()
@@ -8010,14 +8047,19 @@ class OverlayView: NSView {
                     currentAnnotation != nil && currentAnnotation!.tool != .pencil
                     && currentAnnotation!.tool != .marker
                 let isResizingExistingAnnotation = isResizingAnnotation && selectedAnnotation != nil
+                let isResizingCaptureSelection = isResizingSelection
                 let isDraggingNewSelection = state == .selecting
 
-                if isDrawingAnnotation || isResizingExistingAnnotation || isDraggingNewSelection {
+                if isDrawingAnnotation || isResizingExistingAnnotation
+                    || isResizingCaptureSelection || isDraggingNewSelection
+                {
                     spaceRepositioning = true
                     if isDrawingAnnotation {
                         spaceRepositionLast = lastDragPoint ?? currentCanvasMousePoint ?? .zero
                     } else if isResizingExistingAnnotation {
                         spaceRepositionLast = currentCanvasMousePoint ?? annotationResizeMouseStart
+                    } else if isResizingCaptureSelection, let windowPoint = window?.mouseLocationOutsideOfEventStream {
+                        spaceRepositionLast = convert(windowPoint, from: nil)
                     } else if let windowPoint = window?.mouseLocationOutsideOfEventStream {
                         spaceRepositionLast = convert(windowPoint, from: nil)
                     }
