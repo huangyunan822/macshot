@@ -1,5 +1,16 @@
 # Changelog
 
+## [4.2.0-beta.4] - 2026-06-19
+
+### Added
+
+- Boundary snap — when enabled, the capture selection's edges snap to strong color edges in the image (UI lines, window borders) while you drag or resize it. Off by default (Settings → Capture); hold Option to bypass.
+
+### Fixed
+
+- Menu bar icon could freeze the app and stop the global hotkey from working.
+- Number tool no longer draws a handle dot over the digit while selected.
+
 ## [4.2.0-beta.3] - 2026-06-18
 
 ### Added
