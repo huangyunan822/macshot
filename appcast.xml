@@ -24,10 +24,10 @@
     <enclosure url="https://github.com/sw33tLie/macshot/releases/download/v4.1.2/MacShot.dmg" length="6150800" type="application/octet-stream" sparkle:edSignature="mJwEP5fVlL63jskhtsVeHmVtphcbspKsePHLlqnOhv074M9XoSNC3tHXumkUujouFL2rt/8PNOlHl/mM/e0gBg==" />
 </item>
 <item>
-    <title>v4.2.0-beta.3</title>
-    <pubDate>Thu, 18 Jun 2026 16:01:55 +0000</pubDate>
-    <sparkle:version>84</sparkle:version>
-    <sparkle:shortVersionString>4.2.0-beta.3</sparkle:shortVersionString>
+    <title>v4.2.0-beta.4</title>
+    <pubDate>Fri, 19 Jun 2026 14:32:23 +0000</pubDate>
+    <sparkle:version>85</sparkle:version>
+    <sparkle:shortVersionString>4.2.0-beta.4</sparkle:shortVersionString>
     <sparkle:minimumSystemVersion>12.3</sparkle:minimumSystemVersion>
     <sparkle:channel>beta</sparkle:channel>
     <description><![CDATA[
@@ -38,13 +38,13 @@
         ul { padding-left: 18px; margin: 4px 0; }
         li { margin: 4px 0; line-height: 1.5; }
       </style>
-      <h3>Added</h3><ul>  <li>Highlight (spotlight) tool — drag a rectangle to keep that region bright while dimming the rest of the capture. Adjustable dim strength and a solid/dashed border.</li>  </ul><h3>Changed</h3><ul>  <li>Removed scroll/pinch-to-zoom from the capture overlay (the editor window still zooms).</li> <li>Selected text now shows a plain selection rectangle instead of an outline tracing the letters.</li>  </ul><h3>Fixed</h3><ul>  <li>Clicking outside a text box closes it without dropping a new empty text box where you clicked.</li> <li>Text no longer clips at the bottom when a text box is resized to its minimum height.</li></ul>
+      <h3>Added</h3><ul>  <li>Boundary snap — when enabled, the capture selection's edges snap to strong color edges in the image (UI lines, window borders) while you drag or resize it. Off by default (Settings → Capture); hold Option to bypass.</li>  </ul><h3>Fixed</h3><ul>  <li>Menu bar icon could freeze the app and stop the global hotkey from working.</li> <li>Number tool no longer draws a handle dot over the digit while selected.</li></ul>
     ]]></description>
     <enclosure
-        url="https://github.com/sw33tLie/macshot/releases/download/v4.2.0-beta.3/MacShot.dmg"
-        length="6504494"
+        url="https://github.com/sw33tLie/macshot/releases/download/v4.2.0-beta.4/MacShot.dmg"
+        length="6517091"
         type="application/octet-stream"
-        sparkle:edSignature="UgFx9z3ve0tZYqRc3xLtO/nn5BuFZyLMjmacKmyLoGpzMEuctHy2pQg5EoqA6sFKE/cztXW/n2T0Ix2X5vP/BA=="
+        sparkle:edSignature="yGEKvYnPQP6yd2l9hqBqFpzdIivC//b/KPDh+/4kbshLgoeIWaaZAc1FFJ3kOQtu84C5b9Bi638KA1RMVpgXDw=="
     />
 </item>
     </channel>
