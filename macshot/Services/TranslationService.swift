@@ -261,9 +261,13 @@ enum TranslationService {
         recognizer.processString(combined)
 
         guard let detected = recognizer.dominantLanguage else {
-            // Can't detect language (single word, ambiguous text) — assume English
-            // rather than passing nil which triggers Apple's blocking "Choose Language" dialog
-            completion(.failure(TranslationError.appleTranslation("Could not detect source language. Try selecting more text.")))
+            // Can't detect language (single word, ambiguous text). Report on the
+            // main thread — this is invoked from a background OCR queue and the
+            // completion handler mutates overlay UI (the success path below also
+            // hops to main).
+            DispatchQueue.main.async {
+                completion(.failure(TranslationError.appleTranslation("Could not detect source language. Try selecting more text.")))
+            }
             return
         }
 

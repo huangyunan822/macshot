@@ -157,9 +157,15 @@ final class MarkerToolHandler: AnnotationToolHandler {
             return
         }
 
-        // Crop selection to CGImage for OCR
+        // Crop the selection region to a CGImage for OCR. The screenshot fills
+        // captureDrawRect; offset it so the part inside selectionRect lands at the
+        // region image's origin. In overlay mode captureDrawRect.origin is .zero
+        // (so this is -selectionRect.origin); in the editor captureDrawRect ==
+        // selectionRect, so the offset is .zero — using captureDrawRect.origin
+        // here avoids double-counting selectionRect.origin in editor mode.
         let regionImage = NSImage(size: selectionRect.size, flipped: false) { _ in
-            screenshot.draw(in: NSRect(x: -selectionRect.origin.x, y: -selectionRect.origin.y,
+            screenshot.draw(in: NSRect(x: captureDrawRect.origin.x - selectionRect.origin.x,
+                                        y: captureDrawRect.origin.y - selectionRect.origin.y,
                                         width: captureDrawRect.width, height: captureDrawRect.height),
                             from: .zero, operation: .copy, fraction: 1.0)
             return true
@@ -259,8 +265,12 @@ final class MarkerToolHandler: AnnotationToolHandler {
         ocrInFlight = true
         let captureDrawRect = canvas.captureDrawRect
 
+        // See the matching crop in finishSmartMarker: offset by
+        // captureDrawRect.origin - selectionRect.origin so the editor's non-zero
+        // captureDrawRect.origin isn't double-counted.
         let regionImage = NSImage(size: selectionRect.size, flipped: false) { _ in
-            screenshot.draw(in: NSRect(x: -selectionRect.origin.x, y: -selectionRect.origin.y,
+            screenshot.draw(in: NSRect(x: captureDrawRect.origin.x - selectionRect.origin.x,
+                                        y: captureDrawRect.origin.y - selectionRect.origin.y,
                                         width: captureDrawRect.width, height: captureDrawRect.height),
                             from: .zero, operation: .copy, fraction: 1.0)
             return true
