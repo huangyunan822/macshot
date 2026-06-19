@@ -620,11 +620,14 @@ class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
     private func applyNormalStatusBarIcon() {
         if let button = statusItem.button {
             applyPreferredIconImage(to: button)
-            // Use custom click handler so we can dismiss modals before showing the menu
-            button.target = self
-            button.action = #selector(statusBarIconClicked(_:))
-            button.sendAction(on: [.leftMouseDown, .rightMouseDown])
-            (button.cell as? NSButtonCell)?.highlightsBy = .pushInCellMask
+            // Use the NATIVE status-item menu (no custom click action). Showing
+            // the menu by synthesizing a click from the button's mouse-down
+            // action re-enters AppKit's mouse-tracking loop and can hang the main
+            // thread (which also kills the global hotkey). The menu's delegate
+            // handles modal dismissal + prewarm in menuWillOpen instead.
+            button.target = nil
+            button.action = nil
+            statusItem.menu = statusBarMenu
         }
     }
 
@@ -658,30 +661,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
     func refreshStatusBarIcon() {
         guard recordingEngine == nil, let button = statusItem.button else { return }
         applyPreferredIconImage(to: button)
-    }
-
-    @objc private func statusBarIconClicked(_ sender: NSStatusBarButton) {
-        // Pre-warm ScreenCaptureKit content while the user browses the menu
-        ScreenCaptureManager.prewarm()
-
-        if let modalWin = NSApp.modalWindow {
-            // Modal is active — dismiss it, then show menu after it unwinds
-            NSApp.stopModal()
-            modalWin.close()
-            DispatchQueue.main.async { [weak self] in
-                guard let self = self, let menu = self.statusBarMenu else { return }
-                // Show via the standard statusItem path so it looks native (no arrow)
-                self.statusItem.menu = menu
-                sender.performClick(nil)
-                self.statusItem.menu = nil
-            }
-        } else {
-            // No modal — show menu normally via standard NSStatusItem path
-            guard let menu = statusBarMenu else { return }
-            statusItem.menu = menu
-            sender.performClick(nil)
-            statusItem.menu = nil
-        }
     }
 
     private func rebuildStatusBarMenu() {
@@ -783,7 +762,13 @@ class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
         quitItem.target = self
         menu.addItem(quitItem)
 
+        menu.delegate = self  // menuWillOpen dismisses any modal + prewarms capture
         statusBarMenu = menu
+        // Re-attach to the status item unless we're in recording mode (which owns
+        // the icon and uses a custom stop action with no menu).
+        if recordingEngine == nil {
+            statusItem?.menu = menu
+        }
     }
 
     private func makeCaptureMenuItem(_ itemID: CaptureMenuItemID) -> NSMenuItem {
@@ -2999,12 +2984,24 @@ extension AppDelegate: PinWindowControllerDelegate {
     }
 }
 
-// MARK: - NSMenuDelegate (Recent Captures)
+// MARK: - NSMenuDelegate (status bar menu + Recent Captures submenu)
 
 extension AppDelegate: NSMenuDelegate {
+    func menuWillOpen(_ menu: NSMenu) {
+        // Only for the main status-bar menu (the history submenu rebuilds via
+        // menuNeedsUpdate). Dismiss any active modal before the menu shows, and
+        // pre-warm ScreenCaptureKit content while the user browses.
+        guard menu === statusBarMenu else { return }
+        ScreenCaptureManager.prewarm()
+        if let modalWin = NSApp.modalWindow {
+            NSApp.stopModal()
+            modalWin.close()
+        }
+    }
+
     func menuNeedsUpdate(_ menu: NSMenu) {
         // Only rebuild the history submenu, not the main status bar menu
-        guard menu == historyMenu else { return }
+        guard menu === historyMenu else { return }
 
         menu.removeAllItems()
 
