@@ -854,7 +854,7 @@ class OverlayView: NSView {
     // edges in the captured image (UI lines, window borders, etc.). Off by
     // default. Hold Option while dragging to bypass.
     var boundarySnapEnabled: Bool {
-        UserDefaults.standard.object(forKey: "boundarySnapEnabled") as? Bool ?? false
+        UserDefaults.standard.object(forKey: "boundarySnapEnabled") as? Bool ?? true
     }
     private var boundarySnapIndex: BoundarySnapIndex?
     private var boundarySnapBuildGeneration = 0

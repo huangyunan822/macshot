@@ -2234,7 +2234,7 @@ class SettingsWindowController: NSWindowController, NSToolbarDelegate, NSWindowD
 
         let snapGuides = UserDefaults.standard.object(forKey: "snapGuidesEnabled") as? Bool ?? true
         snapGuidesCheckbox.state = snapGuides ? .on : .off
-        let boundarySnap = UserDefaults.standard.object(forKey: "boundarySnapEnabled") as? Bool ?? false
+        let boundarySnap = UserDefaults.standard.object(forKey: "boundarySnapEnabled") as? Bool ?? true
         boundarySnapCheckbox.state = boundarySnap ? .on : .off
         showToolShortcutsInTooltipsCheckbox.state = UserDefaults.standard.bool(forKey: "showToolShortcutsInTooltips") ? .on : .off
 
