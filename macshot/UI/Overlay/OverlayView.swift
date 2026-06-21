@@ -2446,13 +2446,8 @@ class OverlayView: NSView {
 
     /// Toggle the presets popover (aspect ratios + common resolutions) from `anchor`.
     private func showResolutionPresets(from anchor: NSView) {
-        // Clicking the button while the popover is open should close it. A
-        // semitransient popover auto-dismisses on the outside click before this
-        // runs, so also treat a just-dismissed popover as the toggle-close.
-        if PopoverHelper.isVisible || PopoverHelper.wasRecentlyDismissed() {
-            PopoverHelper.dismiss()
-            return
-        }
+        // Clicking the button while the popover is open should close it.
+        if PopoverHelper.toggleClosedIfOpen() { return }
         let activePreset = activePreSelectionPreset
         let view = ResolutionPresetsView()
 
@@ -2655,10 +2650,7 @@ class OverlayView: NSView {
     }
 
     private func showPreSelectionResolutionPresets(from anchor: NSView) {
-        if PopoverHelper.isVisible || PopoverHelper.wasRecentlyDismissed() {
-            PopoverHelper.dismiss()
-            return
-        }
+        if PopoverHelper.toggleClosedIfOpen() { return }
 
         let activePreset = activePreSelectionPreset
         let view = ResolutionPresetsView()
@@ -7380,7 +7372,7 @@ class OverlayView: NSView {
             currentTool = .loupe
             needsDisplay = true
         case .color:
-            if PopoverHelper.isVisible { PopoverHelper.dismiss(); break }
+            if PopoverHelper.toggleClosedIfOpen() { break }
             let colorBtn = bottomStripView?.buttonViews.first { if case .color = $0.action { return true }; return false }
             showColorPickerPopover(target: .drawColor, anchorView: colorBtn)
         case .sizeDisplay:

@@ -76,6 +76,23 @@ enum PopoverHelper {
         Date().timeIntervalSince(lastDismissedAt) < seconds
     }
 
+    /// Toggle helper for anchor buttons that open a popover. Clicking the same
+    /// button that opened a popover should CLOSE it (and not reopen).
+    ///
+    /// The catch: a semitransient popover's outside-click monitor fires on the
+    /// same mouseDown and dismisses it BEFORE the button's action runs, so by the
+    /// time the handler checks `isVisible` it's already false and the handler
+    /// would reopen. So we also treat "a popover was just dismissed" as
+    /// already-handled. Returns true if the click closed an open/just-closed
+    /// popover — callers should `return` early when it does.
+    static func toggleClosedIfOpen() -> Bool {
+        if isVisible || wasRecentlyDismissed() {
+            dismiss()
+            return true
+        }
+        return false
+    }
+
     static var isVisible: Bool { activePopover?.isShown == true }
 
     static var isMouseInsidePopover: Bool {
