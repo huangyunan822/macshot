@@ -39,16 +39,10 @@ class RecordingHUDPanel: NSPanel {
         containerView.wantsLayer = true
         containerView.layer?.cornerRadius = cornerRadius
         containerView.panel = self
-        // Glass theme: host the HUD content on glass; otherwise the panel's
-        // content view IS the container with a solid dark layer background.
-        if let glass = LiquidGlass.host(containerView, frame: containerView.bounds, cornerRadius: cornerRadius) {
-            contentView = glass
-        } else {
-            containerView.layer?.backgroundColor = ToolbarLayout.bgColor.withAlphaComponent(0.94).cgColor
-            containerView.layer?.borderWidth = 0.5
-            containerView.layer?.borderColor = ToolbarLayout.iconColor.withAlphaComponent(0.1).cgColor
-            contentView = containerView
-        }
+        containerView.layer?.backgroundColor = ToolbarLayout.bgColor.withAlphaComponent(0.94).cgColor
+        containerView.layer?.borderWidth = 0.5
+        containerView.layer?.borderColor = ToolbarLayout.iconColor.withAlphaComponent(0.1).cgColor
+        contentView = containerView
 
         setupStopButton()
         setupPauseButton()

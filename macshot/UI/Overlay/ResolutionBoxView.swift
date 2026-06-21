@@ -5,7 +5,7 @@ import Cocoa
 /// Two real, separately-editable number fields with a non-editable "×" between
 /// them (so the separator can't be deleted), plus a presets dropdown button for
 /// aspect ratios and common resolutions. Replaces the old drawn "W × H" badge.
-final class ResolutionBoxView: NSView, NSTextFieldDelegate, ChromeContent {
+final class ResolutionBoxView: NSView, NSTextFieldDelegate {
 
     enum EditedDimension {
         case width
@@ -32,12 +32,6 @@ final class ResolutionBoxView: NSView, NSTextFieldDelegate, ChromeContent {
     private let pad: CGFloat = 6
     private let btnW: CGFloat = 30
     private var suppressNextEndEditingCommit = false
-
-    /// When hosted in a Liquid Glass chrome panel, the panel's glass provides the
-    /// background, so the box clears its own solid layer fill (ChromeContent).
-    var hostedInGlassPanel = false {
-        didSet { layer?.backgroundColor = hostedInGlassPanel ? NSColor.clear.cgColor : ToolbarLayout.bgColor.cgColor }
-    }
 
     init() {
         super.init(frame: .zero)
@@ -244,19 +238,18 @@ private final class VCenterTextFieldCell: NSTextFieldCell {
 
 /// A number field may enter editing from a direct mouse click, without becoming
 /// a stray first responder during overlay keyboard handling.
-private final class ResolutionNumberField: NSTextField, PanelKeyRequestingView {
+private final class ResolutionNumberField: NSTextField {
     private var acceptingMouseFocus = false
-    var requestsPanelKeyForMouseDown: Bool { true }
 
     override class var cellClass: AnyClass? {
         get { VCenterTextFieldCell.self }
         set {}
     }
 
-    // The field lives inside a borderless, non-activating glass child panel. For
-    // AppKit to install a field editor there, the field must advertise that it
-    // needs the panel to become key — otherwise clicks focus it inconsistently
-    // and typing beeps.
+    // The field lives in a borderless, non-activating overlay window. For AppKit
+    // to install a field editor there, the field must advertise that it needs the
+    // window to become key — otherwise clicks focus it inconsistently and typing
+    // beeps.
     override var needsPanelToBecomeKey: Bool { true }
 
     override var acceptsFirstResponder: Bool {

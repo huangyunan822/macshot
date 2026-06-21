@@ -14,8 +14,6 @@ class EditorTopBarView: NSView {
         super.init(frame: frame)
         wantsLayer = true
         autoresizingMask = [.width, .minYMargin]  // pin to top, stretch width
-        // (Editor top bar uses Auto Layout constraints for its content, so it
-        // keeps a solid background even under the glass theme for now.)
         layer?.backgroundColor = ToolbarLayout.bgColor.cgColor
 
         sizeLabel = makeLabel("")

@@ -389,9 +389,7 @@ class OverlayView: NSView {
                 bottomStripView?.isHidden = true
                 rightStripView?.isHidden = true
                 toolOptionsRowView?.isHidden = true
-                // Dismiss any glass chrome panels so they don't linger as empty
-                // clickable child windows (e.g. after clearSelection).
-                teardownGlassChromePanels()
+                dismissResolutionBox()
                 optionsRowRect = .zero
             }
         }
@@ -400,18 +398,8 @@ class OverlayView: NSView {
     private var rightStripView: ToolbarStripView?
     private var toolOptionsRowView: ToolOptionsRowView?
 
-    /// Liquid Glass: when the glass theme is on (overlay mode only), each toolbar
-    /// surface is lifted into a floating child panel above the overlay window via
-    /// its presenter, so its NSGlassEffectView can sample the overlay beneath.
-    private let bottomChrome = OverlayChromePresenter(cornerRadius: 6)
-    private let rightChrome = OverlayChromePresenter(cornerRadius: 6)
-    private let optionsChrome = OverlayChromePresenter(cornerRadius: 6)
-    private let resolutionChrome = OverlayChromePresenter(cornerRadius: 6, keyCapable: true)
-    /// Intended overlay-space rect of the options row (its live frame becomes
-    /// panel-local when glass-hosted). .zero when the row is hidden.
+    /// Intended overlay-space rect of the options row. .zero when the row is hidden.
     private var optionsRowRect: NSRect = .zero
-    /// Whether toolbars are routed through glass chrome panels.
-    private var usesGlassChrome: Bool { LiquidGlass.isEnabled && !isEditorMode }
     // Resolution box (W × H fields + presets). Replaces the old drawn size badge.
     private var resolutionBox: ResolutionBoxView?
     /// Overlay-space frame of the resolution box (for chrome hit-test / cursor /
@@ -997,11 +985,9 @@ class OverlayView: NSView {
     }
 
     @objc private func handleToolbarColorsChanged() {
-        // Rebuild toolbars and options row with new colors. The row owns its own
-        // background via hostedInGlassPanel (clear when glass-hosted, solid
-        // otherwise), so re-assert it from that flag rather than guessing here.
+        // Rebuild toolbars and options row with new colors.
         if let row = toolOptionsRowView {
-            row.layer?.backgroundColor = row.hostedInGlassPanel ? NSColor.clear.cgColor : ToolbarLayout.bgColor.cgColor
+            row.layer?.backgroundColor = ToolbarLayout.bgColor.cgColor
         }
         toolOptionsRowView?.appearance = ToolbarLayout.appearance
         rebuildToolbarLayout()
@@ -1376,11 +1362,7 @@ class OverlayView: NSView {
         // In editor mode the strips live in chromeParentView (a sibling container), not in
         // this view — AppKit's normal hit testing on the container handles them. Routing them
         // here would compare coordinates in different spaces and cause false matches.
-        // In glass-chrome mode the strips/options row live in separate child
-        // panels (different windows) — AppKit hit-tests those panels directly, so
-        // don't route to them here (their frames are panel-local and would
-        // false-match near the overlay origin).
-        if !isEditorMode && !usesGlassChrome {
+        if !isEditorMode {
             let localPoint = convert(point, from: superview)
             if let strip = bottomStripView, !strip.isHidden, strip.frame.contains(localPoint) {
                 return strip.hitTest(convert(point, to: strip.superview))
@@ -2407,19 +2389,13 @@ class OverlayView: NSView {
     /// the toolbars); otherwise it's a solid-bg overlay subview.
     func updateResolutionBox() {
         guard shouldShowResolutionBox() else {
-            // Dispose the glass panel (if any) WITHOUT re-adding the box to the
-            // overlay, then drop the box entirely. (reclaim re-parents the box,
-            // which previously left a stray box stuck in the corner.)
-            resolutionChrome.teardown()
-            resolutionBox?.removeFromSuperview()
-            resolutionBox = nil
-            resolutionBoxRect = .zero
+            dismissResolutionBox()
             return
         }
-        // While a W/H field is being edited, leave the box (and its glass panel)
-        // exactly where it is. Re-laying-out or re-presenting mid-edit disturbs
-        // the field editor / first responder, which makes typing beep. The
-        // selection isn't changing during editing, so there's nothing to update.
+        // While a W/H field is being edited, leave the box exactly where it is.
+        // Re-laying-out mid-edit disturbs the field editor / first responder,
+        // which makes typing beep. The selection isn't changing during editing,
+        // so there's nothing to update.
         if let editing = resolutionBox, editing.isActivelyEditing { return }
 
         let box: ResolutionBoxView
@@ -2448,18 +2424,9 @@ class OverlayView: NSView {
         box.setDimensions(w: px.w, h: px.h)
         box.setActivePresetLabel(preSelectionPresetDisplayLabel)
 
-        if usesGlassChrome {
-            // Lift into a glass chrome panel positioned at the screen rect.
-            box.hostedInGlassPanel = true
-            resolutionChrome.present(box, overlayRect: frame, visible: true, glass: true, in: self)
-        } else {
-            // Inline: a solid-bg overlay subview at the overlay-space frame. Make
-            // sure any prior glass panel is gone (without re-parenting the box).
-            if resolutionChrome.hasPanel { resolutionChrome.teardown() }
-            box.hostedInGlassPanel = false
-            if box.superview !== self { box.removeFromSuperview(); addSubview(box) }
-            box.frame = frame
-        }
+        // Inline: a solid-bg overlay subview at the overlay-space frame.
+        if box.superview !== self { box.removeFromSuperview(); addSubview(box) }
+        box.frame = frame
     }
 
     private func refreshResolutionAndToolbarLayout() {
@@ -4919,10 +4886,10 @@ class OverlayView: NSView {
         rightStrip.isHidden = !visible || !rightHasButtons
         toolOptionsRowView?.isHidden = !visible || !toolHasOptionsRow || !bottomHasButtons
         guard visible else {
-            // Toolbars hidden (deselected / scroll capture): also dismiss the
-            // glass chrome panels so they don't linger as clickable windows, and
-            // clear the chrome rects so isPointOnChrome doesn't see stale areas.
-            teardownGlassChromePanels()
+            // Toolbars hidden (deselected / scroll capture): dismiss the
+            // resolution box and clear the chrome rects so isPointOnChrome
+            // doesn't see stale areas.
+            dismissResolutionBox()
             optionsRowRect = .zero
             return
         }
@@ -5131,14 +5098,10 @@ class OverlayView: NSView {
                 rowY = bottomBarRect.minY - row.frame.height - 2
                 row.frame.origin = NSPoint(x: rowX, y: rowY)
             }
-            // Capture the intended overlay-space rect before the row is lifted
-            // into a glass panel (where its live frame becomes panel-local).
             optionsRowRect = NSRect(origin: row.frame.origin, size: row.frame.size)
         } else {
             optionsRowRect = .zero
         }
-
-        syncGlassChromePanels()
     }
 
     /// Liquid Glass: lift each toolbar surface (bottom strip, right strip, tool
@@ -5146,35 +5109,10 @@ class OverlayView: NSView {
     /// positioned at its screen rect, so its glass refracts the overlay
     /// (screenshot + dim) beneath. `repositionToolbars` has just set the intended
     /// OVERLAY-space frames; we use those (not the live panel-local frames).
-    private func syncGlassChromePanels() {
-        let glass = usesGlassChrome
-        if let s = bottomStripView {
-            bottomChrome.present(s, overlayRect: bottomBarRect,
-                                 visible: !s.isHidden, glass: glass, in: self)
-        }
-        if let s = rightStripView {
-            rightChrome.present(s, overlayRect: rightBarRect,
-                                visible: !s.isHidden, glass: glass, in: self)
-        }
-        if let row = toolOptionsRowView {
-            optionsChrome.present(row, overlayRect: optionsRowRect,
-                                  visible: !row.isHidden, glass: glass, in: self)
-        }
-        // Note: the resolution box's glass panel is owned by updateResolutionBox(),
-        // not synced here, so editing it is never disturbed by draw-driven
-        // repositionToolbars() calls.
-    }
-
-    /// Tear down all glass chrome panels, returning their views to the overlay.
-    private func teardownGlassChromePanels() {
-        bottomChrome.reclaim(bottomStripView, to: self)
-        rightChrome.reclaim(rightStripView, to: self)
-        optionsChrome.reclaim(toolOptionsRowView, to: self)
-        // The resolution box is recreated on demand by updateResolutionBox(), and
-        // unlike the strips it has no inline hidden home to return to. Reclaiming
-        // it would re-parent it into the overlay at its stale panel-local frame,
-        // leaving a stray visible box in the bottom-left corner. Dispose it fully.
-        resolutionChrome.teardown()
+    /// Dismiss the resolution box. It is recreated on demand by
+    /// updateResolutionBox(), so it's fully disposed (not just hidden) on
+    /// deselect to avoid leaving a stray box behind.
+    private func dismissResolutionBox() {
         resolutionBox?.removeFromSuperview()
         resolutionBox = nil
         resolutionBoxRect = .zero
@@ -9236,7 +9174,7 @@ class OverlayView: NSView {
         currentTool = OverlayView.initialTool
         numberCounter = 0
         showToolbars = false
-        teardownGlassChromePanels()
+        dismissResolutionBox()
         bottomStripView?.isHidden = true
         rightStripView?.isHidden = true
         toolOptionsRowView?.isHidden = true
@@ -9278,10 +9216,7 @@ class OverlayView: NSView {
         currentRectCornerRadius = CGFloat(
             UserDefaults.standard.object(forKey: "currentRectCornerRadius") as? Double ?? 0)
         textEditor.dismiss()
-        resolutionChrome.teardown()
-        resolutionBox?.removeFromSuperview()
-        resolutionBox = nil
-        resolutionBoxRect = .zero
+        dismissResolutionBox()
         hidePreSelectionPresetButton()
         lockedAspect = activePreSelectionRatio
         isResizingAnnotation = false
