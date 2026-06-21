@@ -12,26 +12,11 @@ class ScrollCaptureHUDView: NSView {
     var onStop: (() -> Void)?
     var onToggleAutoScroll: (() -> Void)?
 
-    /// Glass content host (macOS 26+): controls are routed here so they render on
-    /// the glass. nil when the glass theme is off.
-    private var glassHost: NSView?
-    private let glassContent = NSView()
-
-    override func addSubview(_ view: NSView) {
-        if glassHost != nil { glassContent.addSubview(view) } else { super.addSubview(view) }
-    }
-
     override init(frame: NSRect) {
         super.init(frame: frame)
         wantsLayer = true
         layer?.cornerRadius = ToolbarLayout.cornerRadius
-        if let host = LiquidGlass.host(glassContent, frame: bounds, cornerRadius: ToolbarLayout.cornerRadius) {
-            host.autoresizingMask = [.width, .height]
-            super.addSubview(host)
-            glassHost = host
-        } else {
-            layer?.backgroundColor = ToolbarLayout.bgColor.cgColor
-        }
+        layer?.backgroundColor = ToolbarLayout.bgColor.cgColor
 
         infoLabel.font = .systemFont(ofSize: 12, weight: .medium)
         infoLabel.textColor = ToolbarLayout.iconColor
@@ -154,6 +139,11 @@ class ScrollCaptureHUDPanel: NSPanel {
         contentView = container
         container.addSubview(hudView)
     }
+
+    // Never become key: clicking the HUD shouldn't steal focus from the app
+    // underneath (matches RecordingHUDPanel). Buttons still work via the
+    // nonactivating panel + acceptsFirstMouse.
+    override var canBecomeKey: Bool { false }
 
     func position(relativeTo selectionRect: NSRect, in overlayWindow: NSWindow) {
         hudView.layoutSubviews()

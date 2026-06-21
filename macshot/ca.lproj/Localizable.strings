@@ -246,8 +246,6 @@
 "Default" = "Per defecte";
 "Custom symbol" = "Símbol personalitzat";
 "Enter any SF Symbol name (e.g. camera.fill) or pick a preset. Browse names in Apple's SF Symbols app. Invalid names fall back to the default icon." = "Introduïu qualsevol nom de SF Symbol (p. ex. camera.fill) o trieu un predefinit. Exploreu els noms a l'aplicació SF Symbols d'Apple. Els noms no vàlids tornen a la icona per defecte.";
-"Liquid Glass theme" = "Tema Liquid Glass";
-"Translucent toolbars that show the screen behind them." = "Barres d'eines translucides que mostren la pantalla del darrere.";
 "Accent color:" = "Color d'accent:";
 "Icon color:" = "Color de la icona:";
 "Background color:" = "Color de fons:";

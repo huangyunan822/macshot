@@ -2,7 +2,7 @@ import Cocoa
 
 /// Real NSView-based tool options row, replacing the custom-drawn drawToolOptionsRow().
 /// Dynamically rebuilds its content when the selected tool changes.
-class ToolOptionsRowView: NSView, ChromeContent {
+class ToolOptionsRowView: NSView {
 
     weak var overlayView: OverlayView?
     private(set) var currentTool: AnnotationTool?
@@ -38,12 +38,6 @@ class ToolOptionsRowView: NSView, ChromeContent {
         if let btn = view as? NSButton, btn.tag < 990 { btn.contentTintColor = ToolbarLayout.accentColor }
         if let slider = view as? NSSlider { slider.trackFillColor = ToolbarLayout.accentColor }
         if let seg = view as? NSSegmentedControl { seg.selectedSegmentBezelColor = ToolbarLayout.accentColor }
-    }
-
-    /// When hosted in a Liquid Glass chrome panel, the panel's glass provides the
-    /// background, so the row clears its own solid layer fill (ChromeContent).
-    var hostedInGlassPanel = false {
-        didSet { layer?.backgroundColor = hostedInGlassPanel ? NSColor.clear.cgColor : ToolbarLayout.bgColor.cgColor }
     }
 
     override init(frame: NSRect) {

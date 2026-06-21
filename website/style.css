@@ -132,7 +132,17 @@ footer .links{display:flex;gap:20px;justify-content:center;margin-top:8px}
 .lead{max-width:680px;margin:16px auto 0;color:var(--muted);font-size:clamp(16px,2.2vw,18px);text-align:center}
 .page-hero{padding-top:120px;text-align:center}
 .page-hero h1{font-size:clamp(30px,5vw,48px);font-weight:800;letter-spacing:-1px;line-height:1.15}
+.page-hero .btn-primary{background:var(--accent);color:#fff}
+.page-hero .btn-primary:hover{background:#5090ff}
+.page-hero .meta{font-size:13px;color:var(--muted)}
+.page-hero .meta span{margin:0 8px}
 
 /* Tag links (Guides on homepage) */
 a.tool-tag{color:var(--text);transition:border-color .2s,color .2s}
 a.tool-tag:hover{text-decoration:none;border-color:rgba(61,124,251,.5);color:#fff}
+
+/* Hero screenshot on feature pages sits inside the hero (no inter-section gap) */
+.page-hero{padding-bottom:32px}
+
+/* Guides strip: cap width so 6 tags wrap evenly (3+3) instead of 5+1 */
+.guides-strip{max-width:760px;margin-left:auto;margin-right:auto}

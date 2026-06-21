@@ -2,7 +2,7 @@ import Cocoa
 
 /// Real NSView container for a row (horizontal) or column (vertical) of ToolbarButtonViews.
 /// Dark rounded background matching the existing toolbar look.
-class ToolbarStripView: NSView, ChromeContent {
+class ToolbarStripView: NSView {
 
     enum Orientation { case horizontal, vertical }
 
@@ -26,10 +26,6 @@ class ToolbarStripView: NSView, ChromeContent {
 
     private let padding: CGFloat = 4
     private let spacing: CGFloat = 2
-
-    /// When hosted in a Liquid Glass chrome panel, the panel's glass provides the
-    /// background, so the strip skips its own solid fill (ChromeContent).
-    var hostedInGlassPanel = false { didSet { needsDisplay = true } }
 
     init(orientation: Orientation) {
         self.orientation = orientation
@@ -133,8 +129,6 @@ class ToolbarStripView: NSView, ChromeContent {
     }
 
     override func draw(_ dirtyRect: NSRect) {
-        // When hosted in a glass chrome panel, the panel renders the background.
-        if hostedInGlassPanel { return }
         ToolbarLayout.bgColor.setFill()
         NSBezierPath(roundedRect: bounds, xRadius: 6, yRadius: 6).fill()
     }

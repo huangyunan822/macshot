@@ -1,5 +1,20 @@
 # Changelog
 
+## [4.2.0-beta.5] - 2026-06-21
+
+### Added
+
+- Paste a clipboard image directly into the Editor window with Cmd+V.
+
+### Changed
+
+- Boundary snap is now enabled by default.
+- Removed the Liquid Glass theme. Toolbars, popovers, and HUDs use the standard solid appearance everywhere.
+
+### Fixed
+
+- Clicking the scroll-capture HUD no longer steals focus from the window being captured.
+
 ## [4.2.0-beta.4] - 2026-06-19
 
 ### Added

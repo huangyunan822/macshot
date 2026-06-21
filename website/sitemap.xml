@@ -26,6 +26,11 @@
     <priority>0.8</priority>
   </url>
   <url>
+    <loc>https://macshot.io/video-editor-mac</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
     <loc>https://macshot.io/pin-screenshot-mac</loc>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
