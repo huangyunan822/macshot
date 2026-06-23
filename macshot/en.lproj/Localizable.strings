@@ -250,11 +250,14 @@
 "Screenshot History" = "Screenshot History";
 "History size:" = "History size:";
 "screenshots kept on disk (0 = off)" = "screenshots kept on disk (0 = off)";
+"Order history by last edit" = "Order history by last edit";
+"Edited screenshots move to the top. Off keeps them in capture order." = "Edited screenshots move to the top. Off keeps them in capture order.";
 "Save Directory" = "Save Directory";
 "Save folder:" = "Save folder:";
 "Browse…" = "Browse…";
 "Appearance" = "Appearance";
 "Freeform" = "Freeform";
+"Custom · %@" = "Custom · %@";
 "Aspect ratio & resolution presets" = "Aspect ratio & resolution presets";
 "Aspect ratio" = "Aspect ratio";
 "Resolution" = "Resolution";

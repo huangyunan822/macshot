@@ -22,7 +22,9 @@ final class ResolutionPresetsView: NSView {
     var onPickUnit: ((Int) -> Void)?
 
     private let rowH: CGFloat = 26
-    private let colW: CGFloat = 116
+    // Wide enough to fit the longest row labels without crowding the edge,
+    // e.g. "Custom · 1.54 : 1" in the aspect-ratio column.
+    private let colW: CGFloat = 140
     private let headerH: CGFloat = 22
     private let vPad: CGFloat = 8
     private let fullFooterH: CGFloat = 78
