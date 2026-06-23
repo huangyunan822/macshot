@@ -1,5 +1,20 @@
 # Changelog
 
+## [4.2.0-beta.7] - 2026-06-23
+
+### Added
+
+- Custom aspect-ratio lock: in the aspect-ratio presets, a "Custom" option locks the current selection's exact ratio, so you can type a width and height and then resize while keeping that proportion.
+- History can be ordered by last edit (Settings, on by default): editing a screenshot moves it to the top of the history panel. Turn it off to keep capture order.
+- Hold Space while dragging to move the whole selection, and boundary snap now applies when moving a selection (not just resizing).
+
+### Fixed
+
+- The editor no longer asks "Save changes?" when you close it without having made any edits.
+- Moving, resizing, or rotating an existing annotation is now undoable and correctly counts as an edit.
+- The editor's "Done" button only appears once you've actually made an edit.
+- Capture reliability on macOS 26.
+
 ## [4.2.0-beta.6] - 2026-06-21
 
 ### Added
