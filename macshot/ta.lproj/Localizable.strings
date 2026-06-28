@@ -499,6 +499,7 @@
 "Cam shape:" = "கேம் வடிவம்:";
 
 /* Settings */
+"Settings" = "அமைப்புகள்";
 "Settings..." = "அமைப்புகள்...";
 "macshot Settings" = "macshot அமைப்புகள்";
 "Also open in Editor" = "எடிட்டரிலும் திற";
@@ -541,6 +542,7 @@
 "Download language packs in System Settings…" = "கணினி அமைப்புகளில் மொழி தொகுப்புகளைப் பதிவிறக்கவும்…";
 "Configure S3 in Settings" = "அமைப்புகளில் S3 கட்டமைக்கவும்";
 "Sign in to Google Drive in Settings" = "அமைப்புகளில் Google Drive-இல் உள்நுழையவும்";
+"Corporate build: upload and cloud storage integrations are removed. Screenshots and recordings stay local unless you share or save them yourself." = "நிறுவனப் பதிப்பு: பதிவேற்றம் மற்றும் கிளவுட் சேமிப்பு ஒருங்கிணைப்புகள் அகற்றப்பட்டுள்ளன. நீங்கள் அவற்றைப் பகிரவோ சேமிக்கவோ செய்யாவிட்டால், திரைப்பிடிப்புகளும் பதிவுகளும் உள்ளூரிலேயே இருக்கும்.";
 "Position:" = "நிலை:";
 "Size:" = "அளவு:";
 "Shape:" = "வடிவம்:";

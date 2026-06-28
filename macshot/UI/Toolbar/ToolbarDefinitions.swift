@@ -54,6 +54,184 @@ struct ToolbarButton {
     var hasContextMenu: Bool = false  // draw small corner triangle to indicate right-click options
 }
 
+enum ToolbarCustomAction: Int {
+    #if !CORPORATE
+    case upload = 1001
+    #endif
+    case pin = 1002
+    case ocr = 1003
+    case beautify = 1004
+    case removeBackground = 1005
+    case autoRedact = 1006
+    case reserved1007 = 1007
+    case translate = 1008
+    case record = 1009
+    case scrollCapture = 1010
+    case invertColors = 1011
+    case share = 1012
+    case effects = 1013
+
+    static var allKnownActions: [ToolbarCustomAction] {
+        var actions: [ToolbarCustomAction] = []
+        #if !CORPORATE
+        actions.append(.upload)
+        #endif
+        actions.append(contentsOf: [
+            .pin, .ocr, .beautify, .removeBackground, .autoRedact, .reserved1007,
+            .translate, .record, .scrollCapture, .invertColors, .share, .effects,
+        ])
+        return actions
+    }
+
+    static var bottomToolbarActions: [ToolbarCustomAction] {
+        [.invertColors, .effects, .beautify, .removeBackground]
+    }
+
+    static var rightToolbarActions: [ToolbarCustomAction] {
+        var actions: [ToolbarCustomAction] = [.share]
+        #if !CORPORATE
+        actions.append(.upload)
+        #endif
+        actions.append(contentsOf: [.pin, .ocr, .translate, .scrollCapture, .record])
+        return actions
+    }
+
+    static var bottomSettingsActions: [ToolbarCustomAction] {
+        bottomToolbarActions
+    }
+
+    static var rightSettingsActions: [ToolbarCustomAction] {
+        var actions: [ToolbarCustomAction] = []
+        #if !CORPORATE
+        actions.append(.upload)
+        #endif
+        actions.append(contentsOf: [.pin, .ocr, .autoRedact, .translate, .record, .scrollCapture, .share])
+        return actions
+    }
+
+    var settingsLabel: String {
+        switch self {
+        #if !CORPORATE
+        case .upload: return L("Upload")
+        #endif
+        case .pin: return L("Pin (floating window)")
+        case .ocr: return L("OCR & QR")
+        case .beautify: return L("Beautify")
+        case .removeBackground: return L("Remove Background")
+        case .autoRedact: return L("Auto-Redact sensitive data")
+        case .reserved1007: return ""
+        case .translate: return L("Translate")
+        case .record: return L("Record screen")
+        case .scrollCapture: return L("Scroll Capture")
+        case .invertColors: return L("Invert Colors")
+        case .share: return L("Share")
+        case .effects: return L("Adjust (Image Effects)")
+        }
+    }
+
+    func makeToolbarButton(
+        beautifyEnabled: Bool = false,
+        translateEnabled: Bool = false,
+        effectsActive: Bool = false,
+        isRecording: Bool = false,
+        isEditorMode: Bool = false
+    ) -> ToolbarButton? {
+        switch self {
+        #if !CORPORATE
+        case .upload:
+            var button = ToolbarButton(action: .upload, sfSymbol: "icloud.and.arrow.up", tooltip: L("Upload"))
+            button.hasContextMenu = true
+            return button
+        #endif
+        case .pin:
+            return ToolbarButton(action: .pin, sfSymbol: "pin.fill", tooltip: L("Pin"))
+        case .ocr:
+            return ToolbarButton(action: .ocr, sfSymbol: "doc.text.viewfinder", tooltip: L("OCR & QR"))
+        case .beautify:
+            var button = ToolbarButton(action: .beautify, sfSymbol: "sparkles", tooltip: L("Beautify"))
+            if beautifyEnabled {
+                button.tintColor = NSColor(calibratedRed: 1.0, green: 0.8, blue: 0.2, alpha: 1.0)
+            }
+            return button
+        case .removeBackground:
+            if #available(macOS 14.0, *) {
+                return ToolbarButton(
+                    action: .removeBackground,
+                    sfSymbol: "person.crop.circle.dashed",
+                    tooltip: L("Remove Background")
+                )
+            }
+            return nil
+        case .autoRedact, .reserved1007:
+            return nil
+        case .translate:
+            var button = ToolbarButton(action: .translate, sfSymbol: "translate", tooltip: L("Translate"))
+            button.isSelected = translateEnabled
+            button.hasContextMenu = true
+            return button
+        case .record:
+            guard !isEditorMode else { return nil }
+            var button = ToolbarButton(action: .record, sfSymbol: "video.fill", tooltip: L("Record"))
+            button.tintColor = ToolbarLayout.iconColor
+            return button
+        case .scrollCapture:
+            guard !isRecording && !isEditorMode else { return nil }
+            return ToolbarButton(action: .scrollCapture, sfSymbol: "scroll", tooltip: L("Scroll Capture"))
+        case .invertColors:
+            return ToolbarButton(
+                action: .invertColors,
+                sfSymbol: "circle.righthalf.filled.inverse",
+                tooltip: L("Invert Colors")
+            )
+        case .share:
+            return ToolbarButton(action: .share, sfSymbol: "square.and.arrow.up", tooltip: L("Share"))
+        case .effects:
+            var button = ToolbarButton(action: .effects, sfSymbol: "slider.horizontal.3", tooltip: L("Adjust"))
+            if effectsActive {
+                button.tintColor = NSColor(calibratedRed: 1.0, green: 0.8, blue: 0.2, alpha: 1.0)
+            }
+            return button
+        }
+    }
+}
+
+enum ToolbarActionPreferences {
+    static let enabledDefaultsKey = "enabledActions"
+    static let knownDefaultsKey = "knownActionTags"
+
+    static var allKnownRawValues: [Int] {
+        ToolbarCustomAction.allKnownActions.map(\.rawValue)
+    }
+
+    static var defaultEnabledRawValues: [Int] {
+        allKnownRawValues
+    }
+
+    static func enabledRawValuesAfterMigration() -> [Int]? {
+        var enabledActions = UserDefaults.standard.array(forKey: enabledDefaultsKey) as? [Int]
+        let knownActionTags = UserDefaults.standard.array(forKey: knownDefaultsKey) as? [Int]
+        let newTags = allKnownRawValues.filter { !(knownActionTags ?? []).contains($0) }
+
+        if !newTags.isEmpty {
+            if enabledActions == nil {
+                enabledActions = allKnownRawValues
+            } else if knownActionTags == nil {
+                // Upgrading from a version before knownActionTags tracking was added.
+            } else {
+                enabledActions = enabledActions! + newTags
+            }
+            UserDefaults.standard.set(enabledActions, forKey: enabledDefaultsKey)
+            UserDefaults.standard.set(allKnownRawValues, forKey: knownDefaultsKey)
+        }
+
+        return enabledActions
+    }
+
+    static func isEnabled(_ action: ToolbarCustomAction, in enabledActions: [Int]?) -> Bool {
+        enabledActions == nil || enabledActions!.contains(action.rawValue)
+    }
+}
+
 class ToolbarLayout {
 
     // Default theme colors (Flameshot purple style)
@@ -85,9 +263,6 @@ class ToolbarLayout {
     }
     static var handleColor: NSColor { accentColor }
     static let cornerRadius: CGFloat = 6
-    static let allKnownActionTags: [Int] = [
-        1001, 1002, 1003, 1004, 1005, 1006, 1007, 1008, 1009, 1010, 1011, 1012, 1013,
-    ]
 
     /// Save accent color to UserDefaults.
     static func saveAccentColor(_ color: NSColor) {
@@ -209,47 +384,16 @@ class ToolbarLayout {
             ToolbarButton(
                 action: .redo, sfSymbol: "arrow.uturn.forward", tooltip: L("Redo")))
 
-        // Processing actions (moved from right bar) — respect enabledActions toggles
-        let enabledActions = UserDefaults.standard.array(forKey: "enabledActions") as? [Int]
-        func actionEnabled(_ tag: Int) -> Bool {
-            return enabledActions == nil || enabledActions!.contains(tag)
-        }
-
-        // Auto-redact moved to blur/pixelate options row
-
-        // Invert colors (tag 1011)
-        if !isRecording && actionEnabled(1011) {
-            buttons.append(
-                ToolbarButton(
-                    action: .invertColors, sfSymbol: "circle.righthalf.filled.inverse",
-                    tooltip: L("Invert Colors")))
-        }
-
-        if !isRecording && actionEnabled(1013) {
-            var effectsBtn = ToolbarButton(
-                action: .effects, sfSymbol: "slider.horizontal.3", tooltip: L("Adjust"))
-            if effectsActive {
-                effectsBtn.tintColor = NSColor(
-                    calibratedRed: 1.0, green: 0.8, blue: 0.2, alpha: 1.0)
+        let enabledActions = ToolbarActionPreferences.enabledRawValuesAfterMigration()
+        for action in ToolbarCustomAction.bottomToolbarActions {
+            guard ToolbarActionPreferences.isEnabled(action, in: enabledActions) else { continue }
+            if let button = action.makeToolbarButton(
+                beautifyEnabled: beautifyEnabled,
+                effectsActive: effectsActive,
+                isRecording: isRecording
+            ) {
+                buttons.append(button)
             }
-            buttons.append(effectsBtn)
-        }
-
-        if !isRecording && actionEnabled(1004) {
-            var beautifyBtn = ToolbarButton(
-                action: .beautify, sfSymbol: "sparkles", tooltip: L("Beautify"))
-            if beautifyEnabled {
-                beautifyBtn.tintColor = NSColor(
-                    calibratedRed: 1.0, green: 0.8, blue: 0.2, alpha: 1.0)
-            }
-            buttons.append(beautifyBtn)
-        }
-
-        if !isRecording, #available(macOS 14.0, *), actionEnabled(1005) {
-            buttons.append(
-                ToolbarButton(
-                    action: .removeBackground, sfSymbol: "person.crop.circle.dashed",
-                    tooltip: L("Remove Background")))
         }
 
         return buttons
@@ -329,29 +473,7 @@ class ToolbarLayout {
             return buttons
         }
 
-        // Migrate: only add action tags that are brand-new (never seen before).
-        // knownActionTags tracks which tags have been introduced so user-disabled tags are
-        // never silently re-enabled when future versions add new action tags.
-        var enabledActions = UserDefaults.standard.array(forKey: "enabledActions") as? [Int]
-        let knownActionTags = UserDefaults.standard.array(forKey: "knownActionTags") as? [Int]
-        let newTags = allKnownActionTags.filter { !(knownActionTags ?? []).contains($0) }
-        if !newTags.isEmpty {
-            if enabledActions == nil {
-                // Fresh install: enable everything.
-                enabledActions = allKnownActionTags
-            } else if knownActionTags == nil {
-                // Upgrading from a version before knownActionTags tracking was added.
-                // Respect existing enabledActions as-is; just mark all current tags as known.
-            } else {
-                // Normal upgrade path: newly added tags — enable by default.
-                enabledActions = (enabledActions! + newTags)
-            }
-            UserDefaults.standard.set(enabledActions, forKey: "enabledActions")
-            UserDefaults.standard.set(allKnownActionTags, forKey: "knownActionTags")
-        }
-        func actionEnabled(_ tag: Int) -> Bool {
-            return enabledActions == nil || enabledActions!.contains(tag)
-        }
+        let enabledActions = ToolbarActionPreferences.enabledRawValuesAfterMigration()
 
         // Cancel, move-selection, editor — not shown in editor window
         if !isEditorMode {
@@ -384,57 +506,15 @@ class ToolbarLayout {
         saveBtn.hasContextMenu = true
         buttons.append(saveBtn)
 
-        // Share (tag 1012)
-        if actionEnabled(1012) {
-            buttons.append(
-                ToolbarButton(
-                    action: .share, sfSymbol: "square.and.arrow.up", tooltip: L("Share")))
-        }
-
-        // Upload (tag 1001)
-        if actionEnabled(1001) {
-            var uploadBtn = ToolbarButton(
-                action: .upload, sfSymbol: "icloud.and.arrow.up", tooltip: L("Upload"))
-            uploadBtn.hasContextMenu = true
-            buttons.append(uploadBtn)
-        }
-
-        // Pin (tag 1002)
-        if actionEnabled(1002) {
-            buttons.append(
-                ToolbarButton(action: .pin, sfSymbol: "pin.fill", tooltip: L("Pin")))
-        }
-
-        // OCR & QR (tag 1003)
-        if actionEnabled(1003) {
-            buttons.append(
-                ToolbarButton(
-                    action: .ocr, sfSymbol: "doc.text.viewfinder", tooltip: L("OCR & QR")))
-        }
-
-        // Translate (tag 1008)
-        if actionEnabled(1008) {
-            var translateBtn = ToolbarButton(
-                action: .translate, sfSymbol: "translate", tooltip: L("Translate"))
-            translateBtn.isSelected = translateEnabled
-            translateBtn.hasContextMenu = true
-            buttons.append(translateBtn)
-        }
-
-        // Scroll Capture (tag 1010) — hidden when recording or in editor mode
-        if !isRecording && !isEditorMode && actionEnabled(1010) {
-            buttons.append(
-                ToolbarButton(
-                    action: .scrollCapture, sfSymbol: "scroll",
-                    tooltip: L("Scroll Capture")))
-        }
-
-        // Record (tag 1009) — hidden in editor mode. Right-click for options.
-        if !isEditorMode && actionEnabled(1009) {
-            var recordBtn = ToolbarButton(
-                action: .record, sfSymbol: "video.fill", tooltip: L("Record"))
-            recordBtn.tintColor = ToolbarLayout.iconColor
-            buttons.append(recordBtn)
+        for action in ToolbarCustomAction.rightToolbarActions {
+            guard ToolbarActionPreferences.isEnabled(action, in: enabledActions) else { continue }
+            if let button = action.makeToolbarButton(
+                translateEnabled: translateEnabled,
+                isRecording: isRecording,
+                isEditorMode: isEditorMode
+            ) {
+                buttons.append(button)
+            }
         }
 
         return buttons

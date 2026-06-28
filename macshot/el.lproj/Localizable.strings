@@ -499,6 +499,7 @@
 "Cam shape:" = "Σχήμα κάμ.:";
 
 /* Settings */
+"Settings" = "Ρυθμίσεις";
 "Settings..." = "Ρυθμίσεις...";
 "macshot Settings" = "Ρυθμίσεις macshot";
 "Also open in Editor" = "Άνοιγμα και σε επεξεργαστή";
@@ -541,6 +542,7 @@
 "Download language packs in System Settings…" = "Λήψη πακέτων γλώσσας στις Ρυθμίσεις Συστήματος…";
 "Configure S3 in Settings" = "Ρύθμιση S3 στις Ρυθμίσεις";
 "Sign in to Google Drive in Settings" = "Σύνδεση στο Google Drive στις Ρυθμίσεις";
+"Corporate build: upload and cloud storage integrations are removed. Screenshots and recordings stay local unless you share or save them yourself." = "Εταιρική έκδοση: οι ενσωματώσεις μεταφόρτωσης και αποθήκευσης στο cloud έχουν αφαιρεθεί. Τα στιγμιότυπα και οι εγγραφές παραμένουν τοπικά, εκτός αν τα κοινοποιήσετε ή τα αποθηκεύσετε εσείς.";
 "Position:" = "Θέση:";
 "Size:" = "Μέγεθος:";
 "Shape:" = "Σχήμα:";

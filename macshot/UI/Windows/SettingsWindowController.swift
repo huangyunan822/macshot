@@ -23,15 +23,20 @@ class SettingsWindowController: NSWindowController, NSToolbarDelegate, NSWindowD
         let symbolName: String
         let legacyImageName: String  // fallback for older macOS if needed
     }
-    private static let tabDefs: [TabDef] = [
-        TabDef(id: "general",   label: "General",   symbolName: "gearshape",                 legacyImageName: NSImage.preferencesGeneralName),
-        TabDef(id: "capture",   label: "Capture",   symbolName: "camera.viewfinder",         legacyImageName: NSImage.preferencesGeneralName),
-        TabDef(id: "shortcuts", label: "Shortcuts", symbolName: "keyboard",                  legacyImageName: NSImage.preferencesGeneralName),
-        TabDef(id: "tools",     label: "Tools",     symbolName: "paintbrush",                legacyImageName: NSImage.preferencesGeneralName),
-        TabDef(id: "recording", label: "Recording", symbolName: "record.circle",             legacyImageName: NSImage.preferencesGeneralName),
-        TabDef(id: "uploads",   label: "Uploads",   symbolName: "icloud.and.arrow.up",       legacyImageName: NSImage.preferencesGeneralName),
-        TabDef(id: "about",     label: "About",     symbolName: "info.circle",               legacyImageName: NSImage.preferencesGeneralName),
-    ]
+    private static var tabDefs: [TabDef] {
+        var tabs: [TabDef] = [
+            TabDef(id: "general",   label: "General",   symbolName: "gearshape",                 legacyImageName: NSImage.preferencesGeneralName),
+            TabDef(id: "capture",   label: "Capture",   symbolName: "camera.viewfinder",         legacyImageName: NSImage.preferencesGeneralName),
+            TabDef(id: "shortcuts", label: "Shortcuts", symbolName: "keyboard",                  legacyImageName: NSImage.preferencesGeneralName),
+            TabDef(id: "tools",     label: "Tools",     symbolName: "paintbrush",                legacyImageName: NSImage.preferencesGeneralName),
+            TabDef(id: "recording", label: "Recording", symbolName: "record.circle",             legacyImageName: NSImage.preferencesGeneralName),
+        ]
+        #if !CORPORATE
+        tabs.append(TabDef(id: "uploads", label: "Uploads", symbolName: "icloud.and.arrow.up", legacyImageName: NSImage.preferencesGeneralName))
+        #endif
+        tabs.append(TabDef(id: "about", label: "About", symbolName: "info.circle", legacyImageName: NSImage.preferencesGeneralName))
+        return tabs
+    }
 
     private var tabContentContainer: NSView!
     private var tabContentViews: [String: NSView] = [:]
@@ -99,8 +104,9 @@ class SettingsWindowController: NSWindowController, NSToolbarDelegate, NSWindowD
     private var captureMenuOrder: [CaptureMenuItemID] = []
     private var captureMenuOrderRowsStack: NSStackView?
     // embedColorProfileCheckbox removed — native color profile is always embedded
-    private var imgbbKeyField: NSTextField!
     private var localMonitor: Any?
+    #if !CORPORATE
+    private var imgbbKeyField: NSTextField!
     private weak var uploadsStack: NSStackView?
     private var providerPopup: NSPopUpButton!
     private var gdriveSignInBtn: NSButton!
@@ -115,6 +121,7 @@ class SettingsWindowController: NSWindowController, NSToolbarDelegate, NSWindowD
     private var s3PathPrefixField: NSTextField!
     private var s3TestBtn: NSButton!
     private var s3StatusLabel: NSTextField!
+    #endif
     // Recording tab controls
     private var recordingFPSPopup: NSPopUpButton!
     private var recordingOnStopPopup: NSPopUpButton!
@@ -140,7 +147,7 @@ class SettingsWindowController: NSWindowController, NSToolbarDelegate, NSWindowD
             backing: .buffered,
             defer: false
         )
-        window.title = L("macshot Settings")
+        window.title = "\(BuildVariant.displayName) \(L("Settings"))"
         window.center()
         window.isReleasedWhenClosed = false
         // Window is non-resizable (no .resizable in styleMask), so content size
@@ -187,7 +194,9 @@ class SettingsWindowController: NSWindowController, NSToolbarDelegate, NSWindowD
         tabContentViews["shortcuts"] = makeShortcutsTabView()
         tabContentViews["tools"]     = makeToolsTabView()
         tabContentViews["recording"] = makeRecordingTabView()
-        tabContentViews["uploads"]   = makeUploadsTabView()
+        #if !CORPORATE
+        tabContentViews["uploads"] = makeUploadsTabView()
+        #endif
         tabContentViews["about"]     = makeAboutTabView()
 
         // Container that swaps content views
@@ -263,10 +272,12 @@ class SettingsWindowController: NSWindowController, NSToolbarDelegate, NSWindowD
             view.bottomAnchor.constraint(equalTo: container.bottomAnchor),
         ])
         currentTabID = id
-        window?.title = "\(L("macshot Settings")) — \(L(Self.tabDefs.first(where: { $0.id == id })?.label ?? ""))"
+        window?.title = "\(BuildVariant.displayName) \(L("Settings")) — \(L(Self.tabDefs.first(where: { $0.id == id })?.label ?? ""))"
+        #if !CORPORATE
         if id == "uploads" {
             reloadUploadsTab()
         }
+        #endif
     }
 
     @objc private func toolbarTabSelected(_ sender: NSToolbarItem) {
@@ -1302,12 +1313,9 @@ class SettingsWindowController: NSWindowController, NSToolbarDelegate, NSWindowD
         stack.addArrangedSubview(noteB)
         stack.setCustomSpacing(10, after: stack.arrangedSubviews.last!)
 
-        let bottomActionItems: [(tag: Int, label: String)] = [
-            (1011, L("Invert Colors")),
-            (1013, L("Adjust (Image Effects)")),
-            (1004, L("Beautify")),
-            (1005, L("Remove Background")),
-        ]
+        let bottomActionItems = ToolbarCustomAction.bottomSettingsActions.map {
+            (tag: $0.rawValue, label: $0.settingsLabel)
+        }
         let enabledActions = UserDefaults.standard.array(forKey: "enabledActions") as? [Int]
         let bottomActionsGrid = makeToggleGrid(items: bottomActionItems,
                                                defaultsKey: "enabledActions", enabledValues: enabledActions)
@@ -1325,14 +1333,9 @@ class SettingsWindowController: NSWindowController, NSToolbarDelegate, NSWindowD
         stack.addArrangedSubview(noteC)
         stack.setCustomSpacing(10, after: stack.arrangedSubviews.last!)
 
-        let rightActionItems: [(tag: Int, label: String)] = [
-            (1001, L("Upload")), (1002, L("Pin (floating window)")),
-            (1003, L("OCR & QR")), (1006, L("Auto-Redact sensitive data")),
-            (1008, L("Translate")),
-            (1009, L("Record screen")),
-            (1010, L("Scroll Capture")),
-            (1012, L("Share")),
-        ]
+        let rightActionItems = ToolbarCustomAction.rightSettingsActions.map {
+            (tag: $0.rawValue, label: $0.settingsLabel)
+        }
         let rightActionsGrid = makeToggleGrid(items: rightActionItems,
                                               defaultsKey: "enabledActions", enabledValues: enabledActions)
         stack.addArrangedSubview(rightActionsGrid)
@@ -1531,6 +1534,7 @@ class SettingsWindowController: NSWindowController, NSToolbarDelegate, NSWindowD
         return scroll
     }
 
+    #if !CORPORATE
     // MARK: - Uploads Tab
 
     private func makeUploadsTabView() -> NSView {
@@ -1723,6 +1727,7 @@ class SettingsWindowController: NSWindowController, NSToolbarDelegate, NSWindowD
 
         return scroll
     }
+    #endif
 
     // MARK: - About Tab
 
@@ -1753,7 +1758,7 @@ class SettingsWindowController: NSWindowController, NSToolbarDelegate, NSWindowD
         stack.setCustomSpacing(12, after: icon)
 
         // App name
-        let name = NSTextField(labelWithString: "macshot")
+        let name = NSTextField(labelWithString: BuildVariant.displayName)
         name.font = NSFont.systemFont(ofSize: 22, weight: .bold)
         name.textColor = .labelColor
         stack.addArrangedSubview(name)
@@ -1774,6 +1779,15 @@ class SettingsWindowController: NSWindowController, NSToolbarDelegate, NSWindowD
         desc.alignment = .center
         stack.addArrangedSubview(desc)
         stack.setCustomSpacing(20, after: desc)
+
+        #if CORPORATE
+        let corporateNote = NSTextField(wrappingLabelWithString: L("Corporate build: upload and cloud storage integrations are removed. Screenshots and recordings stay local unless you share or save them yourself."))
+        corporateNote.font = NSFont.systemFont(ofSize: 12)
+        corporateNote.textColor = .secondaryLabelColor
+        corporateNote.alignment = .center
+        stack.addArrangedSubview(corporateNote)
+        stack.setCustomSpacing(20, after: corporateNote)
+        #endif
 
         // License
         let license = NSTextField(labelWithString: L("Licensed under the GPLv3"))
@@ -1859,6 +1873,7 @@ class SettingsWindowController: NSWindowController, NSToolbarDelegate, NSWindowD
         }
     }
 
+    #if !CORPORATE
     private func updateGDriveStatus() {
         if GoogleDriveUploader.shared.isSignedIn {
             gdriveStatusLabel?.stringValue = GoogleDriveUploader.shared.userEmail ?? L("Signed in")
@@ -2048,6 +2063,7 @@ class SettingsWindowController: NSWindowController, NSToolbarDelegate, NSWindowD
 
         return row
     }
+    #endif
 
     // MARK: - Layout helpers
 
@@ -2284,7 +2300,9 @@ class SettingsWindowController: NSWindowController, NSToolbarDelegate, NSWindowD
         downscaleRetinaCheckbox.state = ImageEncoder.downscaleRetina ? .on : .off
         updateQualityVisibility()
 
+        #if !CORPORATE
         imgbbKeyField.stringValue = UserDefaults.standard.string(forKey: "imgbbAPIKey") ?? ""
+        #endif
 
         // Recording
         let recFPS = UserDefaults.standard.integer(forKey: "recordingFPS")
@@ -2449,11 +2467,13 @@ class SettingsWindowController: NSWindowController, NSToolbarDelegate, NSWindowD
     @objc private func downscaleRetinaChanged(_ sender: NSButton) {
         UserDefaults.standard.set(sender.state == .on, forKey: "downscaleRetina")
     }
+    #if !CORPORATE
     @objc private func imgbbKeyChanged(_ sender: NSTextField) {
         let key = sender.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
         if key.isEmpty { UserDefaults.standard.removeObject(forKey: "imgbbAPIKey") }
         else { UserDefaults.standard.set(key, forKey: "imgbbAPIKey") }
     }
+    #endif
     @objc private func historySizeChanged(_ sender: NSStepper) {
         historySizeField.integerValue = sender.integerValue
         UserDefaults.standard.set(sender.integerValue, forKey: "historySize")
@@ -2546,7 +2566,7 @@ class SettingsWindowController: NSWindowController, NSToolbarDelegate, NSWindowD
         let key = sender.identifier?.rawValue ?? "enabledTools"
         let allTools: [AnnotationTool] = [.pencil, .line, .arrow, .rectangle,
                                           .ellipse, .marker, .text, .number, .pixelate, .highlight, .loupe, .stamp, .measure]
-        let defaultValues: [Int] = key == "enabledTools" ? allTools.map { $0.rawValue } : ToolbarLayout.allKnownActionTags
+        let defaultValues: [Int] = key == "enabledTools" ? allTools.map { $0.rawValue } : ToolbarActionPreferences.defaultEnabledRawValues
         var enabled = UserDefaults.standard.array(forKey: key) as? [Int] ?? defaultValues
         if sender.state == .on { if !enabled.contains(sender.tag) { enabled.append(sender.tag) } }
         else { enabled.removeAll { $0 == sender.tag } }

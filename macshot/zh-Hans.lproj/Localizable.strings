@@ -487,6 +487,7 @@
 "Cam shape:" = "摄像头形状:";
 
 /* New Strings */
+"Settings" = "设置";
 "Settings..." = "设置...";
 "macshot Settings" = "macshot 设置";
 "Also open in Editor" = "同时在编辑器中打开";
@@ -529,6 +530,7 @@
 "Download language packs in System Settings…" = "在系统设置中下载语言包…";
 "Configure S3 in Settings" = "在设置中配置 S3";
 "Sign in to Google Drive in Settings" = "在设置中登录 Google Drive";
+"Corporate build: upload and cloud storage integrations are removed. Screenshots and recordings stay local unless you share or save them yourself." = "企业版：已移除上传和云存储集成。除非您自行共享或存储，否则截图和录制内容会保留在本地。";
 "Position:" = "位置:";
 "  Position:" = "  位置:";
 "Size:" = "大小:";

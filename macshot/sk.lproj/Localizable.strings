@@ -499,6 +499,7 @@
 
 /* New Strings */
 "Settings..." = "Nastavenia...";
+"Settings" = "Nastavenia";
 "macshot Settings" = "Nastavenia macshot";
 "Also open in Editor" = "Otvorit aj v editore";
 "Hide controls" = "Skryt ovladacie prvky";
@@ -538,6 +539,7 @@
 "Download language packs in System Settings…" = "Stiahnite jazykove balicky v Nastaveniach systemu…";
 "Configure S3 in Settings" = "Nastavte S3 v Nastaveniach";
 "Sign in to Google Drive in Settings" = "Prihlaste sa do Google Drive v Nastaveniach";
+"Corporate build: upload and cloud storage integrations are removed. Screenshots and recordings stay local unless you share or save them yourself." = "Firemná zostava: integrácie nahrávania a cloudového úložiska boli odstránené. Snímky obrazovky a nahrávky zostávajú lokálne, pokiaľ ich sami nezdieľate alebo neuložíte.";
 "Position:" = "Pozicia:";
 "  Position:" = "  Pozicia:";
 "Size:" = "Velkost:";

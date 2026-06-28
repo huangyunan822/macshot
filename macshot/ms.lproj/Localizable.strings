@@ -498,6 +498,8 @@
 "Cam shape:" = "Bentuk kam:";
 
 /* Settings */
+"Settings" = "Tetapan";
+"Corporate build: upload and cloud storage integrations are removed. Screenshots and recordings stay local unless you share or save them yourself." = "Binaan korporat: integrasi muat naik dan storan awan telah dibuang. Tangkapan skrin dan rakaman kekal setempat melainkan anda sendiri berkongsi atau menyimpannya.";
 "Settings..." = "Tetapan...";
 "macshot Settings" = "Tetapan macshot";
 "Also open in Editor" = "Buka juga dalam Editor";

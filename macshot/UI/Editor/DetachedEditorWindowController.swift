@@ -519,11 +519,13 @@ extension DetachedEditorWindowController: OverlayViewDelegate {
         }
     }
     func overlayViewDidRequestUpload() {
+        #if !CORPORATE
         guard let raw = overlayView?.captureSelectedRegion() else { return }
         let image = applyPostProcessing(raw)
         playCopySound()
         (NSApp.delegate as? AppDelegate)?.uploadImage(image)
         autoSaveToHistoryIfNeeded(compositedImage: image)
+        #endif
     }
 
     func overlayViewDidRequestShare(anchorView: NSView?) {

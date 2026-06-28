@@ -1015,11 +1015,13 @@ private final class VideoEditorView: NSView {
         x -= gap + iconBtnW
         finderBtnRect = NSRect(x: x, y: btnY, width: iconBtnW, height: btnH)
         drawIconButton(rect: finderBtnRect, symbol: "folder", accent: false, dimmed: savedURL == nil)
+        #if !CORPORATE
         x -= gap + labelBtnW
         let uploadProvider = UserDefaults.standard.string(forKey: "uploadProvider") ?? "imgbb"
         let canUpload = (uploadProvider == "gdrive" && GoogleDriveUploader.shared.isSignedIn) || (uploadProvider == "s3" && S3Uploader.shared.isConfigured)
         uploadBtnRect = NSRect(x: x, y: btnY, width: labelBtnW, height: btnH)
         drawLabelButton(rect: uploadBtnRect, symbol: "icloud.and.arrow.up", label: L("Upload"), dimmed: !canUpload)
+        #endif
         let arrowW: CGFloat = 20
         x -= gap + labelBtnW + arrowW
         let fullSaveW = labelBtnW + arrowW
@@ -1356,7 +1358,9 @@ private final class VideoEditorView: NSView {
         if muteBtnRect.contains(point) { toggleMute(); return }
         if saveArrowRect.contains(point) { showSaveMenu(); return }
         if saveBtnRect.contains(point) { saveVideo(); return }
+        #if !CORPORATE
         if uploadBtnRect.contains(point) { uploadVideo(); return }
+        #endif
         if finderBtnRect.contains(point) {
             if let url = savedURL { NSWorkspace.shared.activateFileViewerSelecting([url]) }
             return
@@ -2091,6 +2095,7 @@ private final class VideoEditorView: NSView {
         }
     }
 
+    #if !CORPORATE
     private func uploadVideo() {
         let provider = UserDefaults.standard.string(forKey: "uploadProvider") ?? "imgbb"
 
@@ -2171,6 +2176,7 @@ private final class VideoEditorView: NSView {
             }
         }
     }
+    #endif
 
     // MARK: - Keyboard
 

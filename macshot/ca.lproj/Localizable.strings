@@ -491,6 +491,7 @@
 "Cam shape:" = "Forma cam:";
 
 /* Settings */
+"Settings" = "Configuració";
 "Settings..." = "Configuració...";
 "macshot Settings" = "Configuracio de macshot";
 "Also open in Editor" = "Obrir tambe a l'editor";
@@ -533,6 +534,7 @@
 "Download language packs in System Settings…" = "Descarregar paquets d'idioma a la Configuracio del sistema…";
 "Configure S3 in Settings" = "Configurar S3 a la Configuracio";
 "Sign in to Google Drive in Settings" = "Iniciar sessio a Google Drive a la Configuracio";
+"Corporate build: upload and cloud storage integrations are removed. Screenshots and recordings stay local unless you share or save them yourself." = "Versió corporativa: s'han eliminat les integracions de pujada i d'emmagatzematge al núvol. Les captures de pantalla i les gravacions es mantenen locals tret que les compartiu o les deseu vosaltres mateixos.";
 "Position:" = "Posicio:";
 "Size:" = "Mida:";
 "Shape:" = "Forma:";

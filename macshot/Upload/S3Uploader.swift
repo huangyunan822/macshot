@@ -1,3 +1,4 @@
+#if !CORPORATE
 import Cocoa
 import CryptoKit
 import UniformTypeIdentifiers
@@ -291,3 +292,4 @@ private extension Data {
         map { String(format: "%02x", $0) }.joined()
     }
 }
+#endif

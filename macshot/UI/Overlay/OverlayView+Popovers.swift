@@ -3,6 +3,7 @@ import UniformTypeIdentifiers
 
 extension OverlayView {
 
+    #if !CORPORATE
     func showUploadConfirmPopover(anchorRect: NSRect, anchorView: NSView? = nil) {
         if PopoverHelper.toggleClosedIfOpen() { return }
 
@@ -39,6 +40,7 @@ extension OverlayView {
                 in: self, preferredEdge: .maxX)
         }
     }
+    #endif
 
     func showRedactTypePopover(anchorRect: NSRect, anchorView: NSView? = nil) {
         if PopoverHelper.toggleClosedIfOpen() { return }

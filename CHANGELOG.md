@@ -1,5 +1,15 @@
 # Changelog
 
+## [4.2.0-beta.9] - 2026-06-28
+
+### Added
+
+- Corporate build: a separate `macshot Corporate` app variant with upload and cloud storage integrations removed.
+
+### Fixed
+
+- Highlight rectangles no longer appear temporarily thinner while drawing a new highlight rectangle.
+
 ## [4.2.0-beta.8] - 2026-06-24
 
 ### Fixed

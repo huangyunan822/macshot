@@ -499,6 +499,8 @@
 "Cam shape:" = "Kam. alak:";
 
 /* New Strings */
+"Settings" = "Beállítások";
+"Corporate build: upload and cloud storage integrations are removed. Screenshots and recordings stay local unless you share or save them yourself." = "Vállalati kiadás: a feltöltési és felhőalapú tárhely-integrációk el lettek távolítva. A képernyőképek és felvételek helyben maradnak, hacsak nem osztod meg vagy mented őket te magad.";
 "Settings..." = "Beállítások...";
 "macshot Settings" = "macshot beállítások";
 "Also open in Editor" = "Megnyitás a szerkesztőben is";

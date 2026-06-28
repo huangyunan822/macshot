@@ -636,3 +636,5 @@
 "Trigger macshot from Raycast, Alfred, Shortcuts, or any tool that opens URLs." = "Trigger macshot from Raycast, Alfred, Shortcuts, or any tool that opens URLs.";
 "URL scheme info" = "URL scheme info";
 "sec (0 = never)" = "sec (0 = never)";
+"Settings" = "Settings";
+"Corporate build: upload and cloud storage integrations are removed. Screenshots and recordings stay local unless you share or save them yourself." = "Corporate build: upload and cloud storage integrations are removed. Screenshots and recordings stay local unless you share or save them yourself.";

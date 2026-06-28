@@ -479,6 +479,8 @@
 "Cam shape:" = "Forma cam:";
 
 /* New strings */
+"Settings" = "Impostazioni";
+"Corporate build: upload and cloud storage integrations are removed. Screenshots and recordings stay local unless you share or save them yourself." = "Build aziendale: le integrazioni di caricamento e archiviazione cloud sono state rimosse. Screenshot e registrazioni restano locali, a meno che non li condivida o salvi tu.";
 "Settings..." = "Impostazioni...";
 "macshot Settings" = "Impostazioni macshot";
 "Also open in Editor" = "Apri anche nell'editor";

@@ -198,7 +198,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
     private var delayCountdownWindow: NSWindow?
     private var delayTimer: Timer?
     private var delayEscMonitor: Any?
+    #if !CORPORATE
     private var uploadToastController: UploadToastController?
+    #endif
     private var recordingEngine: RecordingEngine?
     private var audioMergeController: AudioMergeController?
     private var recordingOverlayController: OverlayWindowController?
@@ -508,7 +510,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
 
         let alert = NSAlert()
         alert.messageText = "Move to Applications folder?"
-        alert.informativeText = "macshot is running from a disk image. Move it to your Applications folder for auto-updates and best experience."
+        alert.informativeText = "\(BuildVariant.displayName) is running from a disk image. Move it to your Applications folder for auto-updates and best experience."
         alert.addButton(withTitle: "Move to Applications")
         alert.addButton(withTitle: "Not Now")
         alert.showsSuppressionButton = true
@@ -520,7 +522,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
         }
         guard response == .alertFirstButtonReturn else { return }
 
-        let dest = URL(fileURLWithPath: "/Applications/macshot.app")
+        let dest = URL(fileURLWithPath: "/Applications/\(BuildVariant.displayName).app")
         let src = URL(fileURLWithPath: bundlePath)
         do {
             // Remove old version if present
@@ -1680,6 +1682,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
             // Image already has beautify/effects baked in — disable to avoid double-applying
             DetachedEditorWindowController.open(image: image, historyEntryID: id, disableBeautify: true)
         }
+        #if !CORPORATE
         controller.onUpload = { [weak self, weak controller] in
             guard let self = self, let controller = controller else { return }
             let image = controller.image
@@ -1692,6 +1695,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
             )
             self.showUploadProgress(image: image)
         }
+        #endif
         controller.onTransform = { transformed in
             if let id = historyEntryID {
                 ScreenshotHistory.shared.updateEntry(id: id, compositedImage: transformed, rawImage: nil, annotations: nil)
@@ -1857,11 +1861,13 @@ class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
         ImageSaveService.saveToConfiguredFolder(image, panelLevel: .floating, activateApp: true)
     }
 
+    #if !CORPORATE
     // MARK: - Upload
 
     func uploadImage(_ image: NSImage) {
         showUploadProgress(image: image)
     }
+    #endif
 
     @objc private func pinFromHistory(_ notification: Notification) {
         guard let image = notification.object as? NSImage else { return }
@@ -1875,6 +1881,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
         pinControllers.append(pin)
     }
 
+    #if !CORPORATE
     private func showUploadProgress(image: NSImage) {
         uploadToastController?.dismiss()
         let toast = UploadToastController()
@@ -1945,6 +1952,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
             }
         }
     }
+    #endif
 
     // MARK: - Open Image
 
@@ -2284,6 +2292,7 @@ extension AppDelegate: OverlayWindowControllerDelegate {
     }
 
     func overlayDidRequestUpload(_ controller: OverlayWindowController, image: NSImage, annotationData: CaptureAnnotationData?) {
+        #if !CORPORATE
         ScreenshotHistory.shared.add(
             image: image,
             rawImage: annotationData?.rawImage,
@@ -2297,6 +2306,7 @@ extension AppDelegate: OverlayWindowControllerDelegate {
         if let app = appToRefocus, !app.isTerminated, app.bundleIdentifier != Bundle.main.bundleIdentifier {
             DispatchQueue.main.async { AppDelegate.activateApp(app) }
         }
+        #endif
     }
 
     func overlayDidRequestStartRecording(_ controller: OverlayWindowController, rect: NSRect, screen: NSScreen) {

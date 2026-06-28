@@ -636,3 +636,5 @@
 "Trigger macshot from Raycast, Alfred, Shortcuts, or any tool that opens URLs." = "הפעל את macshot מ-Raycast, Alfred, Shortcuts, או כל כלי שפותח כתובות URL.";
 "URL scheme info" = "מידע על סכמת URL";
 "sec (0 = never)" = "שניות (0 = אף פעם)";
+"Settings" = "הגדרות";
+"Corporate build: upload and cloud storage integrations are removed. Screenshots and recordings stay local unless you share or save them yourself." = "גרסה ארגונית: שילובי העלאה ואחסון בענן הוסרו. צילומי מסך והקלטות נשארים מקומיים, אלא אם תשתף או תשמור אותם בעצמך.";

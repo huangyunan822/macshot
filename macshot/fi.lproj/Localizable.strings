@@ -634,3 +634,5 @@
 "URL scheme info" = "URL-skeeman tiedot";
 "Enable macshot:// URL scheme" = "Ota macshot://-URL-skeema k\U00E4ytt\U00F6\U00F6n";
 "sec (0 = never)" = "s (0 = ei koskaan)";
+"Settings" = "Asetukset";
+"Corporate build: upload and cloud storage integrations are removed. Screenshots and recordings stay local unless you share or save them yourself." = "Yritysversio: lähetys- ja pilvitallennusintegraatiot on poistettu. Kuvakaappaukset ja tallenteet pysyvät paikallisina, ellet jaa tai tallenna niitä itse.";

@@ -497,6 +497,7 @@
 "  Position:" = "  Position:";
 
 /* New Strings */
+"Settings" = "Indstillinger";
 "Settings..." = "Indstillinger...";
 "macshot Settings" = "macshot Indstillinger";
 "Also open in Editor" = "\U00C5bn ogs\U00E5 i redigering";
@@ -539,6 +540,7 @@
 "Download language packs in System Settings\U2026" = "Download sprogpakker i Systemindstillinger\U2026";
 "Configure S3 in Settings" = "Konfigur\U00E9r S3 i Indstillinger";
 "Sign in to Google Drive in Settings" = "Log ind p\U00E5 Google Drive i Indstillinger";
+"Corporate build: upload and cloud storage integrations are removed. Screenshots and recordings stay local unless you share or save them yourself." = "Firmaversion: upload- og cloudlagerintegrationer er fjernet. Skærmbilleder og optagelser forbliver lokale, medmindre du selv deler eller gemmer dem.";
 "Position:" = "Position:";
 "Size:" = "St\U00F8rrelse:";
 "Shape:" = "Form:";

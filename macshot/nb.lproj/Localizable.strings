@@ -497,6 +497,8 @@
 "  Position:" = "  Posisjon:";
 
 /* New Strings */
+"Settings" = "Innstillinger";
+"Corporate build: upload and cloud storage integrations are removed. Screenshots and recordings stay local unless you share or save them yourself." = "Bedriftsversjon: integrasjoner for opplasting og skylagring er fjernet. Skjermbilder og opptak forblir lokale med mindre du deler eller lagrer dem selv.";
 "Settings..." = "Innstillinger...";
 "macshot Settings" = "macshot-innstillinger";
 "Also open in Editor" = "\U00C5pne ogs\U00E5 i redigering";

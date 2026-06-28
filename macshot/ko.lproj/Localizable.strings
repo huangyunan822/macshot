@@ -487,6 +487,8 @@
 "Cam shape:" = "캠 모양:";
 
 /* New Strings */
+"Settings" = "설정";
+"Corporate build: upload and cloud storage integrations are removed. Screenshots and recordings stay local unless you share or save them yourself." = "기업용 빌드: 업로드 및 클라우드 저장소 연동이 제거되었습니다. 스크린샷과 녹화는 직접 공유하거나 저장하지 않는 한 로컬에 유지됩니다.";
 "Settings..." = "설정...";
 "macshot Settings" = "macshot 설정";
 "Also open in Editor" = "편집기에서도 열기";

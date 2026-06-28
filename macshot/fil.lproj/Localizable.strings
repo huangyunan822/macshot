@@ -636,3 +636,5 @@
 "URL scheme info" = "Impormasyon ng URL scheme";
 "Enable macshot:// URL scheme" = "I-enable ang macshot:// URL scheme";
 "sec (0 = never)" = "seg (0 = hindi kailanman)";
+"Settings" = "Settings";
+"Corporate build: upload and cloud storage integrations are removed. Screenshots and recordings stay local unless you share or save them yourself." = "Corporate build: inalis ang mga integration para sa pag-upload at cloud storage. Mananatiling local ang mga screenshot at recording maliban kung ikaw mismo ang mag-share o mag-save ng mga ito.";

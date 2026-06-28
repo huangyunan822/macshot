@@ -1,3 +1,4 @@
+#if !CORPORATE
 import Cocoa
 import Security
 import CryptoKit
@@ -535,4 +536,4 @@ final class GoogleDriveUploader: NSObject, ASWebAuthenticationPresentationContex
     }
 
 }
-
+#endif

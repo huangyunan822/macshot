@@ -1,3 +1,4 @@
+#if !CORPORATE
 import Cocoa
 
 struct ImageUploadResult {
@@ -94,3 +95,4 @@ enum ImageUploader {
     }
 
 }
+#endif

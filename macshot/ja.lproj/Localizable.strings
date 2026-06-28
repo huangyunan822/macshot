@@ -487,6 +487,8 @@
 "Cam shape:" = "カメラ形状:";
 
 /* New strings */
+"Settings" = "設定";
+"Corporate build: upload and cloud storage integrations are removed. Screenshots and recordings stay local unless you share or save them yourself." = "法人向けビルド: アップロードとクラウドストレージの連携は削除されています。スクリーンショットと録画は、自分で共有または保存しない限りローカルに残ります。";
 "Settings..." = "設定...";
 "macshot Settings" = "macshot 設定";
 "Also open in Editor" = "エディタでも開く";

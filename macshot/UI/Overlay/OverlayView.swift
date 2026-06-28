@@ -7455,8 +7455,10 @@ class OverlayView: NSView {
             menu.popUp(
                 positioning: nil, at: NSPoint(x: 0, y: anchorView.bounds.height), in: anchorView)
         case .upload:
+            #if !CORPORATE
             showUploadConfirmPopover(
                 anchorRect: anchorView.convert(anchorView.bounds, to: self), anchorView: anchorView)
+            #endif
         case .translate:
             showTranslatePopover(
                 anchorRect: anchorView.convert(anchorView.bounds, to: self), anchorView: anchorView)
@@ -7863,6 +7865,7 @@ class OverlayView: NSView {
         case .save:
             overlayDelegate?.overlayViewDidRequestSave()
         case .upload:
+            #if !CORPORATE
             let confirmEnabled = UserDefaults.standard.bool(forKey: "uploadConfirmEnabled")
             if confirmEnabled {
                 let provider = UserDefaults.standard.string(forKey: "uploadProvider") ?? "imgbb"
@@ -7889,6 +7892,7 @@ class OverlayView: NSView {
             } else {
                 overlayDelegate?.overlayViewDidRequestUpload()
             }
+            #endif
         case .share:
             // Show share picker anchored to the share button, then dismiss on selection
             let shareBtn = rightStripView?.buttonViews.first { if case .share = $0.action { return true }; return false }

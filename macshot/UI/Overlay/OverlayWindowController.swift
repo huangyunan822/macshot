@@ -618,12 +618,14 @@ extension OverlayWindowController: OverlayViewDelegate {
     }
 
     func overlayViewDidRequestUpload() {
+        #if !CORPORATE
         guard var image = captureRegion() else { return }
         let annotationData = currentAnnotationDataForHistory()
         image = applyBeautifyIfNeeded(image) ?? image
         playCopySound()
         dismiss()
         overlayDelegate?.overlayDidRequestUpload(self, image: image, annotationData: annotationData)
+        #endif
     }
 
     func overlayViewDidRequestShare(anchorView: NSView?) {

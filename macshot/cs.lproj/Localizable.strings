@@ -498,6 +498,7 @@
 "Cam shape:" = "Tvar kam.:";
 
 /* New Strings */
+"Settings" = "Nastavení";
 "Settings..." = "Nastavení...";
 "macshot Settings" = "Nastavení macshot";
 "Also open in Editor" = "Otevřít také v editoru";
@@ -538,6 +539,7 @@
 "Download language packs in System Settings…" = "Stáhněte jazykové balíčky v Nastavení systému…";
 "Configure S3 in Settings" = "Nastavte S3 v Nastavení";
 "Sign in to Google Drive in Settings" = "Přihlaste se ke Google Drive v Nastavení";
+"Corporate build: upload and cloud storage integrations are removed. Screenshots and recordings stay local unless you share or save them yourself." = "Firemní sestavení: integrace nahrávání a cloudového úložiště byly odebrány. Snímky obrazovky a nahrávky zůstávají uložené místně, pokud je sami nesdílíte nebo neuložíte.";
 "Position:" = "Pozice:";
 "  Position:" = "  Pozice:";
 "Size:" = "Velikost:";

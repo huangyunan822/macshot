@@ -489,6 +489,7 @@
 "Cam shape:" = "Kam.-Form:";
 
 /* New strings */
+"Settings" = "Einstellungen";
 "Settings..." = "Einstellungen ...";
 "macshot Settings" = "macshot Einstellungen";
 "Also open in Editor" = "Auch im Editor öffnen";
@@ -529,6 +530,7 @@
 "Download language packs in System Settings…" = "Sprachpakete in den Systemeinstellungen laden …";
 "Configure S3 in Settings" = "S3 in den Einstellungen konfigurieren";
 "Sign in to Google Drive in Settings" = "In den Einstellungen bei Google Drive anmelden";
+"Corporate build: upload and cloud storage integrations are removed. Screenshots and recordings stay local unless you share or save them yourself." = "Unternehmens-Build: Upload- und Cloudspeicher-Integrationen wurden entfernt. Screenshots und Aufzeichnungen bleiben lokal, sofern Sie sie nicht selbst teilen oder sichern.";
 "Position:" = "Position:";
 "Size:" = "Größe:";
 "Shape:" = "Form:";
