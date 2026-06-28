@@ -24,10 +24,10 @@
     <enclosure url="https://github.com/sw33tLie/macshot/releases/download/v4.1.2/MacShot.dmg" length="6150800" type="application/octet-stream" sparkle:edSignature="mJwEP5fVlL63jskhtsVeHmVtphcbspKsePHLlqnOhv074M9XoSNC3tHXumkUujouFL2rt/8PNOlHl/mM/e0gBg==" />
 </item>
 <item>
-    <title>v4.2.0-beta.8</title>
-    <pubDate>Wed, 24 Jun 2026 00:50:39 +0000</pubDate>
-    <sparkle:version>91</sparkle:version>
-    <sparkle:shortVersionString>4.2.0-beta.8</sparkle:shortVersionString>
+    <title>v4.2.0-beta.9</title>
+    <pubDate>Sun, 28 Jun 2026 17:28:30 +0000</pubDate>
+    <sparkle:version>92</sparkle:version>
+    <sparkle:shortVersionString>4.2.0-beta.9</sparkle:shortVersionString>
     <sparkle:minimumSystemVersion>12.3</sparkle:minimumSystemVersion>
     <sparkle:channel>beta</sparkle:channel>
     <description><![CDATA[
@@ -38,13 +38,13 @@
         ul { padding-left: 18px; margin: 4px 0; }
         li { margin: 4px 0; line-height: 1.5; }
       </style>
-      <h3>Fixed</h3><ul>  <li>Fix crash on launch on macOS versions older than 12.3 where ScreenCaptureKit is unavailable (weak-link the framework).</li></ul>
+      <h3>Added</h3><ul>  <li>Corporate build: a separate `macshot Corporate` app variant with upload and cloud storage integrations removed.</li>  </ul><h3>Fixed</h3><ul>  <li>Highlight rectangles no longer appear temporarily thinner while drawing a new highlight rectangle.</li></ul>
     ]]></description>
     <enclosure
-        url="https://github.com/sw33tLie/macshot/releases/download/v4.2.0-beta.8/MacShot.dmg"
-        length="6602929"
+        url="https://github.com/sw33tLie/macshot/releases/download/v4.2.0-beta.9/MacShot.dmg"
+        length="6617907"
         type="application/octet-stream"
-        sparkle:edSignature="QewMwo8fdEaWuvf+CJwR4E2kRUX3v1d/k+QoCFDpoLXWILrSr735gOqEcVWca8tdotAPv6hmhKhMKLiXzgFJAg=="
+        sparkle:edSignature="xjPZVqWSZNydP7MaBTQnjtSy9snjTKHWaV98ofziP7QDxmL4FsRRyNcOdk+qArIet84bQ9esNGp7GcfWoP2WDQ=="
     />
 </item>
     </channel>
