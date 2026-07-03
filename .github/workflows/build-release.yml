@@ -89,7 +89,7 @@ jobs:
           rm /tmp/cert.p12
 
       # ── 4. Resolve SPM packages + Build ───────────────────────────────────
-      - name: Build normal and corporate apps
+      - name: Build normal and offline apps
         run: |
           xcodebuild \
             -project macshot.xcodeproj \
@@ -117,31 +117,39 @@ jobs:
             -project macshot.xcodeproj \
             -scheme macshot \
             -configuration Release \
-            -derivedDataPath build-corporate \
+            -derivedDataPath build-offline \
             CODE_SIGN_IDENTITY="" \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGNING_ALLOWED=NO \
             MARKETING_VERSION="$VERSION" \
             CURRENT_PROJECT_VERSION="$BUILD_NUMBER" \
-            SWIFT_ACTIVE_COMPILATION_CONDITIONS="CORPORATE" \
-            PRODUCT_BUNDLE_IDENTIFIER="com.sw33tlie.macshot.corporate" \
-            PRODUCT_NAME="macshot Corporate" \
-            INFOPLIST_KEY_CFBundleDisplayName="macshot Corporate" \
-            INFOPLIST_KEY_CFBundleName="macshot Corporate" \
-            INFOPLIST_KEY_SUFeedURL="https://raw.githubusercontent.com/sw33tLie/macshot/main/appcast-corporate.xml" \
+            SWIFT_ACTIVE_COMPILATION_CONDITIONS="OFFLINE" \
+            PRODUCT_BUNDLE_IDENTIFIER="com.sw33tlie.macshot.offline" \
+            PRODUCT_NAME="macshot Offline" \
+            INFOPLIST_KEY_CFBundleDisplayName="macshot Offline" \
+            INFOPLIST_KEY_CFBundleName="macshot Offline" \
+            INFOPLIST_KEY_SUFeedURL="https://raw.githubusercontent.com/sw33tLie/macshot/main/appcast-offline.xml" \
             build
 
           python3 << 'PYEOF'
           import plistlib
           from pathlib import Path
 
-          plist_path = Path("build-corporate/Build/Products/Release/macshot Corporate.app/Contents/Info.plist")
+          plist_path = Path("build-offline/Build/Products/Release/macshot Offline.app/Contents/Info.plist")
           plist = plistlib.loads(plist_path.read_bytes())
-          plist["SUFeedURL"] = "https://raw.githubusercontent.com/sw33tLie/macshot/main/appcast-corporate.xml"
+          expected_bundle_id = "com.sw33tlie.macshot.offline"
+          expected_feed_url = "https://raw.githubusercontent.com/sw33tLie/macshot/main/appcast-offline.xml"
+          plist["SUFeedURL"] = expected_feed_url
           plist["CFBundleURLTypes"] = [
               item for item in plist.get("CFBundleURLTypes", [])
               if item.get("CFBundleURLName") != "Google OAuth"
           ]
+          if plist.get("CFBundleIdentifier") != expected_bundle_id:
+              raise SystemExit(f"Offline bundle id mismatch: {plist.get('CFBundleIdentifier')}")
+          if plist.get("SUFeedURL") != expected_feed_url:
+              raise SystemExit(f"Offline Sparkle feed mismatch: {plist.get('SUFeedURL')}")
+          if any(item.get("CFBundleURLName") == "Google OAuth" for item in plist.get("CFBundleURLTypes", [])):
+              raise SystemExit("Offline build still contains Google OAuth URL scheme")
           plist_path.write_bytes(plistlib.dumps(plist))
           PYEOF
 
@@ -154,10 +162,10 @@ jobs:
 
           entitlements = plistlib.loads(Path("macshot/macshot.entitlements").read_bytes())
           entitlements["com.apple.security.temporary-exception.mach-lookup.global-name"] = [
-              "com.sw33tlie.macshot.corporate-spks",
-              "com.sw33tlie.macshot.corporate-spki",
+              "com.sw33tlie.macshot.offline-spks",
+              "com.sw33tlie.macshot.offline-spki",
           ]
-          Path("/tmp/macshot-corporate.entitlements").write_bytes(plistlib.dumps(entitlements))
+          Path("/tmp/macshot-offline.entitlements").write_bytes(plistlib.dumps(entitlements))
           PYEOF
 
           sign_app() {
@@ -229,7 +237,7 @@ jobs:
           }
 
           sign_app "build/Build/Products/Release/macshot.app" "macshot/macshot.entitlements"
-          sign_app "build-corporate/Build/Products/Release/macshot Corporate.app" "/tmp/macshot-corporate.entitlements"
+          sign_app "build-offline/Build/Products/Release/macshot Offline.app" "/tmp/macshot-offline.entitlements"
 
       # ── 6. Package into DMGs ───────────────────────────────────────────────
       - name: Package DMGs
@@ -266,7 +274,7 @@ jobs:
           }
 
           package_dmg "build/Build/Products/Release/macshot.app" "MacShot.dmg" "macshot" "/tmp/dmg-staging-normal"
-          package_dmg "build-corporate/Build/Products/Release/macshot Corporate.app" "MacShot-Corporate.dmg" "macshot Corporate" "/tmp/dmg-staging-corporate"
+          package_dmg "build-offline/Build/Products/Release/macshot Offline.app" "MacShot-Offline.dmg" "macshot Offline" "/tmp/dmg-staging-offline"
 
       # ── 7. Notarize ────────────────────────────────────────────────────────
       - name: Notarize
@@ -279,7 +287,7 @@ jobs:
           echo "$ASC_API_KEY_BASE64" | base64 --decode \
             > ~/.appstoreconnect/private_keys/AuthKey_${ASC_API_KEY_ID}.p8
 
-          for dmg in MacShot.dmg MacShot-Corporate.dmg; do
+          for dmg in MacShot.dmg MacShot-Offline.dmg; do
             xcrun notarytool submit "$dmg" \
               --key ~/.appstoreconnect/private_keys/AuthKey_${ASC_API_KEY_ID}.p8 \
               --key-id "$ASC_API_KEY_ID" \
@@ -298,11 +306,11 @@ jobs:
       - name: Compute SHA256
         run: |
           SHA256=$(shasum -a 256 MacShot.dmg | awk '{print $1}')
-          CORPORATE_SHA256=$(shasum -a 256 MacShot-Corporate.dmg | awk '{print $1}')
+          OFFLINE_SHA256=$(shasum -a 256 MacShot-Offline.dmg | awk '{print $1}')
           echo "SHA256=$SHA256" >> $GITHUB_ENV
-          echo "CORPORATE_SHA256=$CORPORATE_SHA256" >> $GITHUB_ENV
+          echo "OFFLINE_SHA256=$OFFLINE_SHA256" >> $GITHUB_ENV
           echo "SHA256: $SHA256"
-          echo "CORPORATE_SHA256: $CORPORATE_SHA256"
+          echo "OFFLINE_SHA256: $OFFLINE_SHA256"
 
       # ── 9. Extract changelog entry for this version ───────────────────────
       - name: Extract release notes
@@ -402,7 +410,7 @@ jobs:
           if [ "$IS_BETA" = "true" ]; then
             git fetch origin main:refs/remotes/origin/main
             git show origin/main:appcast.xml > appcast.xml 2>/dev/null || true
-            git show origin/main:appcast-corporate.xml > appcast-corporate.xml 2>/dev/null || true
+            git show origin/main:appcast-offline.xml > appcast-offline.xml 2>/dev/null || true
           fi
 
           # Convert release notes markdown to HTML for Sparkle update dialog
@@ -461,7 +469,7 @@ jobs:
           }
 
           update_appcast "normal" "MacShot.dmg" "appcast.xml" "macshot" "macshot updates"
-          update_appcast "corporate" "MacShot-Corporate.dmg" "appcast-corporate.xml" "macshot Corporate" "macshot Corporate updates"
+          update_appcast "offline" "MacShot-Offline.dmg" "appcast-offline.xml" "macshot Offline" "macshot Offline updates"
           rm -f /tmp/sparkle_key
 
       # ── 11. Create GitHub Release ──────────────────────────────────────────
@@ -474,13 +482,13 @@ jobs:
             PRERELEASE_FLAG="--prerelease"
           fi
           if gh release view "v$VERSION" >/dev/null 2>&1; then
-            gh release upload "v$VERSION" MacShot.dmg MacShot-Corporate.dmg --clobber
+            gh release upload "v$VERSION" MacShot.dmg MacShot-Offline.dmg --clobber
             gh release edit "v$VERSION" \
               --title "v$VERSION" \
               --notes-file release_notes.md \
               $PRERELEASE_FLAG
           else
-            gh release create "v$VERSION" MacShot.dmg MacShot-Corporate.dmg \
+            gh release create "v$VERSION" MacShot.dmg MacShot-Offline.dmg \
               --title "v$VERSION" \
               --notes-file release_notes.md \
               $PRERELEASE_FLAG
@@ -493,16 +501,16 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
           # Save the generated appcasts before switching branches
           cp appcast.xml /tmp/appcast.xml
-          cp appcast-corporate.xml /tmp/appcast-corporate.xml
+          cp appcast-offline.xml /tmp/appcast-offline.xml
           git fetch origin main:refs/remotes/origin/main
           git checkout -B main origin/main
           cp /tmp/appcast.xml appcast.xml
-          cp /tmp/appcast-corporate.xml appcast-corporate.xml
+          cp /tmp/appcast-offline.xml appcast-offline.xml
           if [ "$IS_BETA" = "false" ]; then
             sed -i '' "s/v[0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*/v${VERSION}/" website/index.html
             git add website/index.html
           fi
-          git add appcast.xml appcast-corporate.xml
+          git add appcast.xml appcast-offline.xml
           git diff --cached --quiet && echo "No changes" || {
             git commit -m "ci: update appcasts for v${VERSION}"
             git push origin main
@@ -521,19 +529,19 @@ jobs:
             -e "s/sha256 \".*\"/sha256 \"$SHA256\"/" \
             /tmp/tap/Casks/macshot.rb
 
-          CORPORATE_CASK="/tmp/tap/Casks/macshot-corporate.rb"
-          cat > "$CORPORATE_CASK" <<EOF
-          cask "macshot-corporate" do
+          OFFLINE_CASK="/tmp/tap/Casks/macshot-offline.rb"
+          cat > "$OFFLINE_CASK" <<EOF
+          cask "macshot-offline" do
             version "$VERSION"
-            sha256 "$CORPORATE_SHA256"
+            sha256 "$OFFLINE_SHA256"
 
-            url "https://github.com/sw33tLie/macshot/releases/download/v#{version}/MacShot-Corporate.dmg"
-            name "macshot Corporate"
+            url "https://github.com/sw33tLie/macshot/releases/download/v#{version}/MacShot-Offline.dmg"
+            name "macshot Offline"
             desc "Native macOS screenshot tool without upload integrations"
             homepage "https://github.com/sw33tLie/macshot"
 
             livecheck do
-              url "https://raw.githubusercontent.com/sw33tLie/macshot/main/appcast-corporate.xml"
+              url "https://raw.githubusercontent.com/sw33tLie/macshot/main/appcast-offline.xml"
               strategy :sparkle do |items|
                 items.find { |item| item.channel.nil? }&.short_version
               end
@@ -542,14 +550,14 @@ jobs:
             auto_updates true
             depends_on macos: :monterey
 
-            app "macshot Corporate.app"
+            app "macshot Offline.app"
 
-            uninstall quit: "com.sw33tlie.macshot.corporate"
+            uninstall quit: "com.sw33tlie.macshot.offline"
 
             zap trash: [
-              "~/Library/Application Scripts/com.sw33tlie.macshot.corporate",
-              "~/Library/Containers/com.sw33tlie.macshot.corporate",
-              "~/Library/Preferences/com.sw33tlie.macshot.corporate.plist",
+              "~/Library/Application Scripts/com.sw33tlie.macshot.offline",
+              "~/Library/Containers/com.sw33tlie.macshot.offline",
+              "~/Library/Preferences/com.sw33tlie.macshot.offline.plist",
             ]
           end
           EOF
@@ -557,7 +565,7 @@ jobs:
           cd /tmp/tap
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add Casks/macshot.rb Casks/macshot-corporate.rb
+          git add Casks/macshot.rb Casks/macshot-offline.rb
           git diff --cached --quiet && echo "No Homebrew changes" || {
             git commit -m "macshot $VERSION"
             git push

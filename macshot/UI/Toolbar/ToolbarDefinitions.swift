@@ -55,7 +55,7 @@ struct ToolbarButton {
 }
 
 enum ToolbarCustomAction: Int {
-    #if !CORPORATE
+    #if !OFFLINE
     case upload = 1001
     #endif
     case pin = 1002
@@ -73,7 +73,7 @@ enum ToolbarCustomAction: Int {
 
     static var allKnownActions: [ToolbarCustomAction] {
         var actions: [ToolbarCustomAction] = []
-        #if !CORPORATE
+        #if !OFFLINE
         actions.append(.upload)
         #endif
         actions.append(contentsOf: [
@@ -89,7 +89,7 @@ enum ToolbarCustomAction: Int {
 
     static var rightToolbarActions: [ToolbarCustomAction] {
         var actions: [ToolbarCustomAction] = [.share]
-        #if !CORPORATE
+        #if !OFFLINE
         actions.append(.upload)
         #endif
         actions.append(contentsOf: [.pin, .ocr, .translate, .scrollCapture, .record])
@@ -102,7 +102,7 @@ enum ToolbarCustomAction: Int {
 
     static var rightSettingsActions: [ToolbarCustomAction] {
         var actions: [ToolbarCustomAction] = []
-        #if !CORPORATE
+        #if !OFFLINE
         actions.append(.upload)
         #endif
         actions.append(contentsOf: [.pin, .ocr, .autoRedact, .translate, .record, .scrollCapture, .share])
@@ -111,7 +111,7 @@ enum ToolbarCustomAction: Int {
 
     var settingsLabel: String {
         switch self {
-        #if !CORPORATE
+        #if !OFFLINE
         case .upload: return L("Upload")
         #endif
         case .pin: return L("Pin (floating window)")
@@ -137,7 +137,7 @@ enum ToolbarCustomAction: Int {
         isEditorMode: Bool = false
     ) -> ToolbarButton? {
         switch self {
-        #if !CORPORATE
+        #if !OFFLINE
         case .upload:
             var button = ToolbarButton(action: .upload, sfSymbol: "icloud.and.arrow.up", tooltip: L("Upload"))
             button.hasContextMenu = true

@@ -31,7 +31,7 @@ class SettingsWindowController: NSWindowController, NSToolbarDelegate, NSWindowD
             TabDef(id: "tools",     label: "Tools",     symbolName: "paintbrush",                legacyImageName: NSImage.preferencesGeneralName),
             TabDef(id: "recording", label: "Recording", symbolName: "record.circle",             legacyImageName: NSImage.preferencesGeneralName),
         ]
-        #if !CORPORATE
+        #if !OFFLINE
         tabs.append(TabDef(id: "uploads", label: "Uploads", symbolName: "icloud.and.arrow.up", legacyImageName: NSImage.preferencesGeneralName))
         #endif
         tabs.append(TabDef(id: "about", label: "About", symbolName: "info.circle", legacyImageName: NSImage.preferencesGeneralName))
@@ -105,7 +105,7 @@ class SettingsWindowController: NSWindowController, NSToolbarDelegate, NSWindowD
     private var captureMenuOrderRowsStack: NSStackView?
     // embedColorProfileCheckbox removed — native color profile is always embedded
     private var localMonitor: Any?
-    #if !CORPORATE
+    #if !OFFLINE
     private var imgbbKeyField: NSTextField!
     private weak var uploadsStack: NSStackView?
     private var providerPopup: NSPopUpButton!
@@ -194,7 +194,7 @@ class SettingsWindowController: NSWindowController, NSToolbarDelegate, NSWindowD
         tabContentViews["shortcuts"] = makeShortcutsTabView()
         tabContentViews["tools"]     = makeToolsTabView()
         tabContentViews["recording"] = makeRecordingTabView()
-        #if !CORPORATE
+        #if !OFFLINE
         tabContentViews["uploads"] = makeUploadsTabView()
         #endif
         tabContentViews["about"]     = makeAboutTabView()
@@ -273,7 +273,7 @@ class SettingsWindowController: NSWindowController, NSToolbarDelegate, NSWindowD
         ])
         currentTabID = id
         window?.title = "\(BuildVariant.displayName) \(L("Settings")) — \(L(Self.tabDefs.first(where: { $0.id == id })?.label ?? ""))"
-        #if !CORPORATE
+        #if !OFFLINE
         if id == "uploads" {
             reloadUploadsTab()
         }
@@ -1534,7 +1534,7 @@ class SettingsWindowController: NSWindowController, NSToolbarDelegate, NSWindowD
         return scroll
     }
 
-    #if !CORPORATE
+    #if !OFFLINE
     // MARK: - Uploads Tab
 
     private func makeUploadsTabView() -> NSView {
@@ -1780,13 +1780,13 @@ class SettingsWindowController: NSWindowController, NSToolbarDelegate, NSWindowD
         stack.addArrangedSubview(desc)
         stack.setCustomSpacing(20, after: desc)
 
-        #if CORPORATE
-        let corporateNote = NSTextField(wrappingLabelWithString: L("Corporate build: upload and cloud storage integrations are removed. Screenshots and recordings stay local unless you share or save them yourself."))
-        corporateNote.font = NSFont.systemFont(ofSize: 12)
-        corporateNote.textColor = .secondaryLabelColor
-        corporateNote.alignment = .center
-        stack.addArrangedSubview(corporateNote)
-        stack.setCustomSpacing(20, after: corporateNote)
+        #if OFFLINE
+        let offlineNote = NSTextField(wrappingLabelWithString: L("Offline build: upload and cloud storage integrations are removed. Update checks may still connect to MacShot's update server. Screenshots and recordings stay local unless you share or save them yourself."))
+        offlineNote.font = NSFont.systemFont(ofSize: 12)
+        offlineNote.textColor = .secondaryLabelColor
+        offlineNote.alignment = .center
+        stack.addArrangedSubview(offlineNote)
+        stack.setCustomSpacing(20, after: offlineNote)
         #endif
 
         // License
@@ -1873,7 +1873,7 @@ class SettingsWindowController: NSWindowController, NSToolbarDelegate, NSWindowD
         }
     }
 
-    #if !CORPORATE
+    #if !OFFLINE
     private func updateGDriveStatus() {
         if GoogleDriveUploader.shared.isSignedIn {
             gdriveStatusLabel?.stringValue = GoogleDriveUploader.shared.userEmail ?? L("Signed in")
@@ -2300,7 +2300,7 @@ class SettingsWindowController: NSWindowController, NSToolbarDelegate, NSWindowD
         downscaleRetinaCheckbox.state = ImageEncoder.downscaleRetina ? .on : .off
         updateQualityVisibility()
 
-        #if !CORPORATE
+        #if !OFFLINE
         imgbbKeyField.stringValue = UserDefaults.standard.string(forKey: "imgbbAPIKey") ?? ""
         #endif
 
@@ -2467,7 +2467,7 @@ class SettingsWindowController: NSWindowController, NSToolbarDelegate, NSWindowD
     @objc private func downscaleRetinaChanged(_ sender: NSButton) {
         UserDefaults.standard.set(sender.state == .on, forKey: "downscaleRetina")
     }
-    #if !CORPORATE
+    #if !OFFLINE
     @objc private func imgbbKeyChanged(_ sender: NSTextField) {
         let key = sender.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
         if key.isEmpty { UserDefaults.standard.removeObject(forKey: "imgbbAPIKey") }

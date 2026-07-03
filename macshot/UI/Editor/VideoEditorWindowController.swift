@@ -1015,7 +1015,7 @@ private final class VideoEditorView: NSView {
         x -= gap + iconBtnW
         finderBtnRect = NSRect(x: x, y: btnY, width: iconBtnW, height: btnH)
         drawIconButton(rect: finderBtnRect, symbol: "folder", accent: false, dimmed: savedURL == nil)
-        #if !CORPORATE
+        #if !OFFLINE
         x -= gap + labelBtnW
         let uploadProvider = UserDefaults.standard.string(forKey: "uploadProvider") ?? "imgbb"
         let canUpload = (uploadProvider == "gdrive" && GoogleDriveUploader.shared.isSignedIn) || (uploadProvider == "s3" && S3Uploader.shared.isConfigured)
@@ -1358,7 +1358,7 @@ private final class VideoEditorView: NSView {
         if muteBtnRect.contains(point) { toggleMute(); return }
         if saveArrowRect.contains(point) { showSaveMenu(); return }
         if saveBtnRect.contains(point) { saveVideo(); return }
-        #if !CORPORATE
+        #if !OFFLINE
         if uploadBtnRect.contains(point) { uploadVideo(); return }
         #endif
         if finderBtnRect.contains(point) {
@@ -2095,7 +2095,7 @@ private final class VideoEditorView: NSView {
         }
     }
 
-    #if !CORPORATE
+    #if !OFFLINE
     private func uploadVideo() {
         let provider = UserDefaults.standard.string(forKey: "uploadProvider") ?? "imgbb"
 

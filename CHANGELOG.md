@@ -1,10 +1,21 @@
 # Changelog
 
+## [4.2.0-beta.10] - 2026-07-03
+
+### Added
+
+- Offline build: the no-upload variant is now `macshot Offline` with its own bundle id, Sparkle feed, DMG, and Homebrew cask naming.
+
+### Fixed
+
+- Clipboard copies now keep retained backing files so Finder paste and clipboard history apps do not point at deleted temporary files.
+- Clipboard copies include both image data and a file reference for better compatibility across paste targets.
+
 ## [4.2.0-beta.9] - 2026-06-28
 
 ### Added
 
-- Corporate build: a separate `macshot Corporate` app variant with upload and cloud storage integrations removed.
+- Offline build: a separate `macshot Offline` app variant with upload and cloud storage integrations removed.
 
 ### Fixed
 

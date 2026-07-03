@@ -542,7 +542,7 @@
 "Download language packs in System Settings…" = "கணினி அமைப்புகளில் மொழி தொகுப்புகளைப் பதிவிறக்கவும்…";
 "Configure S3 in Settings" = "அமைப்புகளில் S3 கட்டமைக்கவும்";
 "Sign in to Google Drive in Settings" = "அமைப்புகளில் Google Drive-இல் உள்நுழையவும்";
-"Corporate build: upload and cloud storage integrations are removed. Screenshots and recordings stay local unless you share or save them yourself." = "நிறுவனப் பதிப்பு: பதிவேற்றம் மற்றும் கிளவுட் சேமிப்பு ஒருங்கிணைப்புகள் அகற்றப்பட்டுள்ளன. நீங்கள் அவற்றைப் பகிரவோ சேமிக்கவோ செய்யாவிட்டால், திரைப்பிடிப்புகளும் பதிவுகளும் உள்ளூரிலேயே இருக்கும்.";
+"Offline build: upload and cloud storage integrations are removed. Update checks may still connect to MacShot's update server. Screenshots and recordings stay local unless you share or save them yourself." = "ஆஃப்லைன் பதிப்பு: பதிவேற்றம் மற்றும் கிளவுட் சேமிப்பக ஒருங்கிணைப்புகள் அகற்றப்பட்டுள்ளன. புதுப்பிப்புச் சரிபார்ப்புகள் இன்னும் MacShot-இன் புதுப்பிப்பு சேவையகத்துடன் இணையலாம். நீங்களே பகிர்ந்தாலோ சேமித்தாலோ தவிர, திரைப்பிடிப்புகளும் பதிவுகளும் உள்ளூரிலேயே இருக்கும்.";
 "Position:" = "நிலை:";
 "Size:" = "அளவு:";
 "Shape:" = "வடிவம்:";

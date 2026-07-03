@@ -1,4 +1,4 @@
-#if !CORPORATE
+#if !OFFLINE
 import Cocoa
 import CryptoKit
 import UniformTypeIdentifiers

@@ -480,7 +480,7 @@
 
 /* New strings */
 "Settings" = "Impostazioni";
-"Corporate build: upload and cloud storage integrations are removed. Screenshots and recordings stay local unless you share or save them yourself." = "Build aziendale: le integrazioni di caricamento e archiviazione cloud sono state rimosse. Screenshot e registrazioni restano locali, a meno che non li condivida o salvi tu.";
+"Offline build: upload and cloud storage integrations are removed. Update checks may still connect to MacShot's update server. Screenshots and recordings stay local unless you share or save them yourself." = "Versione offline: le integrazioni di caricamento e archiviazione cloud sono state rimosse. Il controllo degli aggiornamenti potrebbe ancora connettersi al server di aggiornamento di MacShot. Gli screenshot e le registrazioni restano locali a meno che tu non li condivida o li salvi personalmente.";
 "Settings..." = "Impostazioni...";
 "macshot Settings" = "Impostazioni macshot";
 "Also open in Editor" = "Apri anche nell'editor";

@@ -222,7 +222,7 @@ class FloatingThumbnailController: NSObject, NSDraggingSource, QLPreviewPanelDat
     var onSaveAs:   (() -> Void)?
     var onPin:      (() -> Void)?
     var onEdit:     (() -> Void)?
-    #if !CORPORATE
+    #if !OFFLINE
     var onUpload:   (() -> Void)?
     #endif
     var onDelete:   (() -> Void)?
@@ -295,7 +295,7 @@ class FloatingThumbnailController: NSObject, NSDraggingSource, QLPreviewPanelDat
         view.onSave     = { [weak self] in self?.onSave?();     self?.dismiss() }
         view.onPin      = { [weak self] in self?.onPin?();      self?.dismiss() }
         view.onEdit     = { [weak self] in self?.onEdit?();     self?.dismiss() }
-        #if !CORPORATE
+        #if !OFFLINE
         view.onUpload   = { [weak self] in self?.onUpload?();   self?.dismiss() }
         #endif
         view.onDelete   = { [weak self] in self?.onDelete?();   self?.dismiss() }
@@ -394,7 +394,7 @@ class FloatingThumbnailController: NSObject, NSDraggingSource, QLPreviewPanelDat
 
         menu.addItem(ImageContextMenu.item(title: L("Open in Editor"), symbolName: "pencil", action: #selector(contextOpenEditor), target: self, keyEquivalent: "e"))
         menu.addItem(ImageContextMenu.item(title: L("Pin to Screen"), symbolName: "pin.fill", action: #selector(contextPin), target: self))
-        #if !CORPORATE
+        #if !OFFLINE
         menu.addItem(ImageContextMenu.item(title: L("Upload"), symbolName: "icloud.and.arrow.up", action: #selector(contextUpload), target: self))
         #endif
         let quickLookItem = ImageContextMenu.item(title: L("Quick Look"), symbolName: "eye", action: #selector(contextQuickLook), target: self, keyEquivalent: " ")
@@ -427,7 +427,7 @@ class FloatingThumbnailController: NSObject, NSDraggingSource, QLPreviewPanelDat
     @objc private func contextSave() { onSave?(); dismiss() }
     @objc private func contextSaveAs() { onSaveAs?(); dismiss() }
     @objc private func contextPin() { onPin?(); dismiss() }
-    #if !CORPORATE
+    #if !OFFLINE
     @objc private func contextUpload() { onUpload?(); dismiss() }
     #endif
     @objc private func contextOpenEditor() { onEdit?(); dismiss() }
@@ -685,7 +685,7 @@ private class ThumbnailView: NSView {
     var onSave:     (() -> Void)?
     var onPin:      (() -> Void)?
     var onEdit:     (() -> Void)?
-    #if !CORPORATE
+    #if !OFFLINE
     var onUpload:   (() -> Void)?
     #endif
     var onDelete:   (() -> Void)?
@@ -724,7 +724,7 @@ private class ThumbnailView: NSView {
     private var closeBtnRect:  NSRect = .zero
     private var pinBtnRect:    NSRect = .zero
     private var editBtnRect:   NSRect = .zero
-    #if !CORPORATE
+    #if !OFFLINE
     private var uploadBtnRect: NSRect = .zero
     #endif
     private var copyBtnRect:   NSRect = .zero
@@ -825,7 +825,7 @@ private class ThumbnailView: NSView {
     override func mouseMoved(with event: NSEvent) {
         let p = convert(event.locationInWindow, from: nil)
         var rects = [closeBtnRect, pinBtnRect, editBtnRect, copyBtnRect, saveBtnRect]
-        #if !CORPORATE
+        #if !OFFLINE
         rects.insert(uploadBtnRect, at: 3)
         #endif
         let hit = rects.first { $0.contains(p) } ?? .zero
@@ -892,7 +892,7 @@ private class ThumbnailView: NSView {
             (NSPoint(x: r.maxX - pad - cornerD/2, y: r.maxY - pad - cornerD/2), "pin.fill"),
             (NSPoint(x: r.minX + pad + cornerD/2, y: r.minY + pad + cornerD/2), "pencil"),
         ]
-        #if !CORPORATE
+        #if !OFFLINE
         cornerDefs.append((NSPoint(x: r.maxX - pad - cornerD/2, y: r.minY + pad + cornerD/2), "icloud.and.arrow.up"))
         #endif
 
@@ -924,7 +924,7 @@ private class ThumbnailView: NSView {
             closeBtnRect  = cornerRects[0]
             pinBtnRect    = cornerRects[1]
             editBtnRect   = cornerRects[2]
-            #if !CORPORATE
+            #if !OFFLINE
             uploadBtnRect = cornerRects[3]
             #endif
         }
@@ -1041,7 +1041,7 @@ private class ThumbnailView: NSView {
         if closeBtnRect.contains(p)  { onClose?();  return }
         if pinBtnRect.contains(p)    { onPin?();    return }
         if editBtnRect.contains(p)   { onEdit?();   return }
-        #if !CORPORATE
+        #if !OFFLINE
         if uploadBtnRect.contains(p) { onUpload?(); return }
         #endif
         if copyBtnRect.contains(p)   { onCopy?();   return }
@@ -1127,7 +1127,7 @@ private class ThumbnailView: NSView {
 
     private func actionButtonRect(containing point: NSPoint) -> NSRect? {
         var rects = [closeBtnRect, pinBtnRect, editBtnRect, copyBtnRect, saveBtnRect]
-        #if !CORPORATE
+        #if !OFFLINE
         rects.insert(uploadBtnRect, at: 3)
         #endif
         return rects.first { !$0.isEmpty && $0.contains(point) }
