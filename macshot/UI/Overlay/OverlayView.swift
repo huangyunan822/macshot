@@ -7455,7 +7455,7 @@ class OverlayView: NSView {
             menu.popUp(
                 positioning: nil, at: NSPoint(x: 0, y: anchorView.bounds.height), in: anchorView)
         case .upload:
-            #if !CORPORATE
+            #if !OFFLINE
             showUploadConfirmPopover(
                 anchorRect: anchorView.convert(anchorView.bounds, to: self), anchorView: anchorView)
             #endif
@@ -7865,7 +7865,7 @@ class OverlayView: NSView {
         case .save:
             overlayDelegate?.overlayViewDidRequestSave()
         case .upload:
-            #if !CORPORATE
+            #if !OFFLINE
             let confirmEnabled = UserDefaults.standard.bool(forKey: "uploadConfirmEnabled")
             if confirmEnabled {
                 let provider = UserDefaults.standard.string(forKey: "uploadProvider") ?? "imgbb"

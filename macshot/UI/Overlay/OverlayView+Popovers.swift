@@ -3,7 +3,7 @@ import UniformTypeIdentifiers
 
 extension OverlayView {
 
-    #if !CORPORATE
+    #if !OFFLINE
     func showUploadConfirmPopover(anchorRect: NSRect, anchorView: NSView? = nil) {
         if PopoverHelper.toggleClosedIfOpen() { return }
 

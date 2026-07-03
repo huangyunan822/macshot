@@ -539,7 +539,7 @@
 "Download language packs in System Settings…" = "Stáhněte jazykové balíčky v Nastavení systému…";
 "Configure S3 in Settings" = "Nastavte S3 v Nastavení";
 "Sign in to Google Drive in Settings" = "Přihlaste se ke Google Drive v Nastavení";
-"Corporate build: upload and cloud storage integrations are removed. Screenshots and recordings stay local unless you share or save them yourself." = "Firemní sestavení: integrace nahrávání a cloudového úložiště byly odebrány. Snímky obrazovky a nahrávky zůstávají uložené místně, pokud je sami nesdílíte nebo neuložíte.";
+"Offline build: upload and cloud storage integrations are removed. Update checks may still connect to MacShot's update server. Screenshots and recordings stay local unless you share or save them yourself." = "Offline sestavení: integrace pro nahrávání a cloudové úložiště jsou odstraněny. Kontrola aktualizací se stále může připojovat k aktualizačnímu serveru MacShotu. Snímky obrazovky a nahrávky zůstávají lokální, dokud je sami nesdílíte nebo neuložíte.";
 "Position:" = "Pozice:";
 "  Position:" = "  Pozice:";
 "Size:" = "Velikost:";

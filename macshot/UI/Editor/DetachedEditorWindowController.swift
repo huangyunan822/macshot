@@ -519,7 +519,7 @@ extension DetachedEditorWindowController: OverlayViewDelegate {
         }
     }
     func overlayViewDidRequestUpload() {
-        #if !CORPORATE
+        #if !OFFLINE
         guard let raw = overlayView?.captureSelectedRegion() else { return }
         let image = applyPostProcessing(raw)
         playCopySound()

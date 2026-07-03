@@ -635,4 +635,4 @@
 /* Keyboard key names */
 "Space" = "Espace";
 "Settings" = "Réglages";
-"Corporate build: upload and cloud storage integrations are removed. Screenshots and recordings stay local unless you share or save them yourself." = "Version entreprise : les intégrations d’envoi et de stockage cloud sont supprimées. Les captures d’écran et les enregistrements restent locaux, sauf si vous les partagez ou les enregistrez vous-même.";
+"Offline build: upload and cloud storage integrations are removed. Update checks may still connect to MacShot's update server. Screenshots and recordings stay local unless you share or save them yourself." = "Version hors ligne : les intégrations de téléversement et de stockage cloud sont supprimées. La recherche de mises à jour peut toujours se connecter au serveur de mise à jour de MacShot. Les captures d'écran et les enregistrements restent locaux à moins que vous ne les partagiez ou ne les enregistriez vous-même.";

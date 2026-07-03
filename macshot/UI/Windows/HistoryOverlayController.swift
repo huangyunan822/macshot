@@ -242,7 +242,7 @@ final class HistoryOverlayController: NSObject, QLPreviewPanelDataSource, QLPrev
         )
     }
 
-    #if !CORPORATE
+    #if !OFFLINE
     func uploadEntry(index: Int) {
         let entries = ScreenshotHistory.shared.entries
         guard index >= 0, index < entries.count else { return }
@@ -320,7 +320,7 @@ final class HistoryOverlayController: NSObject, QLPreviewPanelDataSource, QLPrev
         pinItem.tag = globalIndex
         menu.addItem(pinItem)
 
-        #if !CORPORATE
+        #if !OFFLINE
         let uploadItem = ImageContextMenu.item(title: L("Upload"), symbolName: "icloud.and.arrow.up", action: #selector(contextUpload(_:)), target: self)
         uploadItem.tag = globalIndex
         menu.addItem(uploadItem)
@@ -361,7 +361,7 @@ final class HistoryOverlayController: NSObject, QLPreviewPanelDataSource, QLPrev
     @objc private func contextSave(_ sender: NSMenuItem) { saveToFile(index: sender.tag) }
     @objc private func contextOpenEditor(_ sender: NSMenuItem) { openInEditor(index: sender.tag) }
     @objc private func contextPin(_ sender: NSMenuItem) { pinToScreen(index: sender.tag) }
-    #if !CORPORATE
+    #if !OFFLINE
     @objc private func contextUpload(_ sender: NSMenuItem) { uploadEntry(index: sender.tag) }
     #endif
     @objc private func contextQuickLook(_ sender: NSMenuItem) { quickLook(index: sender.tag) }

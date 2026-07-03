@@ -1,9 +1,9 @@
 enum BuildVariant {
-    #if CORPORATE
-    static let isCorporate = true
-    static let displayName = "macshot Corporate"
+    #if OFFLINE
+    static let isOffline = true
+    static let displayName = "macshot Offline"
     #else
-    static let isCorporate = false
+    static let isOffline = false
     static let displayName = "macshot"
     #endif
 }

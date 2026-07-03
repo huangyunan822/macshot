@@ -488,7 +488,7 @@
 
 /* New strings */
 "Settings" = "設定";
-"Corporate build: upload and cloud storage integrations are removed. Screenshots and recordings stay local unless you share or save them yourself." = "法人向けビルド: アップロードとクラウドストレージの連携は削除されています。スクリーンショットと録画は、自分で共有または保存しない限りローカルに残ります。";
+"Offline build: upload and cloud storage integrations are removed. Update checks may still connect to MacShot's update server. Screenshots and recordings stay local unless you share or save them yourself." = "オフラインビルド：アップロードおよびクラウドストレージ連携は削除されています。アップデートの確認では、MacShotのアップデートサーバーに接続することがあります。スクリーンショットと録画は、自分で共有または保存しない限りローカルに保持されます。";
 "Settings..." = "設定...";
 "macshot Settings" = "macshot 設定";
 "Also open in Editor" = "エディタでも開く";

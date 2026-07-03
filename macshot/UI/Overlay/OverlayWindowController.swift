@@ -618,7 +618,7 @@ extension OverlayWindowController: OverlayViewDelegate {
     }
 
     func overlayViewDidRequestUpload() {
-        #if !CORPORATE
+        #if !OFFLINE
         guard var image = captureRegion() else { return }
         let annotationData = currentAnnotationDataForHistory()
         image = applyBeautifyIfNeeded(image) ?? image

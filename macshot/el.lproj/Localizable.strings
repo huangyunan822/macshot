@@ -542,7 +542,7 @@
 "Download language packs in System Settings…" = "Λήψη πακέτων γλώσσας στις Ρυθμίσεις Συστήματος…";
 "Configure S3 in Settings" = "Ρύθμιση S3 στις Ρυθμίσεις";
 "Sign in to Google Drive in Settings" = "Σύνδεση στο Google Drive στις Ρυθμίσεις";
-"Corporate build: upload and cloud storage integrations are removed. Screenshots and recordings stay local unless you share or save them yourself." = "Εταιρική έκδοση: οι ενσωματώσεις μεταφόρτωσης και αποθήκευσης στο cloud έχουν αφαιρεθεί. Τα στιγμιότυπα και οι εγγραφές παραμένουν τοπικά, εκτός αν τα κοινοποιήσετε ή τα αποθηκεύσετε εσείς.";
+"Offline build: upload and cloud storage integrations are removed. Update checks may still connect to MacShot's update server. Screenshots and recordings stay local unless you share or save them yourself." = "Έκδοση εκτός σύνδεσης: οι ενσωματώσεις μεταφόρτωσης και αποθήκευσης στο cloud έχουν αφαιρεθεί. Οι έλεγχοι ενημερώσεων ενδέχεται να συνδέονται ακόμη στον διακομιστή ενημερώσεων του MacShot. Τα στιγμιότυπα οθόνης και οι εγγραφές παραμένουν τοπικά, εκτός αν τα μοιραστείτε ή τα αποθηκεύσετε εσείς.";
 "Position:" = "Θέση:";
 "Size:" = "Μέγεθος:";
 "Shape:" = "Σχήμα:";

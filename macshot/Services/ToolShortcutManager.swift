@@ -24,7 +24,7 @@ enum ToolShortcutManager {
         case moveSelection
         case openInEditor
         case pin
-        #if !CORPORATE
+        #if !OFFLINE
         case upload
         #endif
         case copy
@@ -57,7 +57,7 @@ enum ToolShortcutManager {
             case .moveSelection: return L("Move Selection")
             case .openInEditor: return L("Open in Editor")
             case .pin: return L("Pin")
-            #if !CORPORATE
+            #if !OFFLINE
             case .upload: return L("Upload")
             #endif
             case .copy: return L("Copy")
@@ -92,7 +92,7 @@ enum ToolShortcutManager {
             case .moveSelection: return " "
             case .openInEditor: return "e"
             case .pin: return "f"
-            #if !CORPORATE
+            #if !OFFLINE
             case .upload: return "u"
             #endif
             case .copy: return ""
@@ -161,7 +161,7 @@ enum ToolShortcutManager {
             case .moveSelection: lookup[k] = .moveSelection
             case .openInEditor: lookup[k] = .detach
             case .pin: lookup[k] = .pin
-            #if !CORPORATE
+            #if !OFFLINE
             case .upload: lookup[k] = .upload
             #endif
             case .copy: lookup[k] = .copy
@@ -211,7 +211,7 @@ enum ToolShortcutManager {
             }
         case .detach: action = .openInEditor
         case .pin: action = .pin
-        #if !CORPORATE
+        #if !OFFLINE
         case .upload: action = .upload
         #endif
         case .copy: action = .copy

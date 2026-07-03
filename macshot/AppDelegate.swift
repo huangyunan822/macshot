@@ -198,7 +198,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
     private var delayCountdownWindow: NSWindow?
     private var delayTimer: Timer?
     private var delayEscMonitor: Any?
-    #if !CORPORATE
+    #if !OFFLINE
     private var uploadToastController: UploadToastController?
     #endif
     private var recordingEngine: RecordingEngine?
@@ -1680,7 +1680,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
             // Image already has beautify/effects baked in — disable to avoid double-applying
             DetachedEditorWindowController.open(image: image, historyEntryID: id, disableBeautify: true)
         }
-        #if !CORPORATE
+        #if !OFFLINE
         controller.onUpload = { [weak self, weak controller] in
             guard let self = self, let controller = controller else { return }
             let image = controller.image
@@ -1859,7 +1859,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
         ImageSaveService.saveToConfiguredFolder(image, panelLevel: .floating, activateApp: true)
     }
 
-    #if !CORPORATE
+    #if !OFFLINE
     // MARK: - Upload
 
     func uploadImage(_ image: NSImage) {
@@ -1879,7 +1879,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
         pinControllers.append(pin)
     }
 
-    #if !CORPORATE
+    #if !OFFLINE
     private func showUploadProgress(image: NSImage) {
         uploadToastController?.dismiss()
         let toast = UploadToastController()
@@ -2290,7 +2290,7 @@ extension AppDelegate: OverlayWindowControllerDelegate {
     }
 
     func overlayDidRequestUpload(_ controller: OverlayWindowController, image: NSImage, annotationData: CaptureAnnotationData?) {
-        #if !CORPORATE
+        #if !OFFLINE
         ScreenshotHistory.shared.add(
             image: image,
             rawImage: annotationData?.rawImage,

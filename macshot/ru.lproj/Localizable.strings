@@ -539,7 +539,7 @@
 "Download language packs in System Settings…" = "Загрузите языковые пакеты в Системных настройках…";
 "Configure S3 in Settings" = "Настройте S3 в Настройках";
 "Sign in to Google Drive in Settings" = "Войдите в Google Drive в Настройках";
-"Corporate build: upload and cloud storage integrations are removed. Screenshots and recordings stay local unless you share or save them yourself." = "Корпоративная сборка: интеграции для загрузки и облачного хранения удалены. Снимки экрана и записи остаются локальными, если только вы сами не поделитесь ими или не сохраните их.";
+"Offline build: upload and cloud storage integrations are removed. Update checks may still connect to MacShot's update server. Screenshots and recordings stay local unless you share or save them yourself." = "Офлайн-сборка: интеграции загрузки и облачного хранилища удалены. Проверка обновлений всё ещё может подключаться к серверу обновлений MacShot. Снимки экрана и записи остаются локальными, пока вы сами не поделитесь ими или не сохраните их.";
 "Position:" = "Позиция:";
 "  Position:" = "  Позиция:";
 "Size:" = "Размер:";
