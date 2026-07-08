@@ -659,3 +659,6 @@
 "This file is not a valid macshot settings file." = "Tệp này không phải là tệp cài đặt macshot hợp lệ.";
 "This settings file contains no settings." = "Tệp cài đặt này không chứa cài đặt nào.";
 "This settings file was made by a newer version of macshot. Please update macshot first." = "Tệp cài đặt này được tạo bởi một phiên bản macshot mới hơn. Vui lòng cập nhật macshot trước.";
+
+/* URL scheme: ocr-translate (issue #283) */
+"Capture, translate, and overlay the text on the image" = "Chụp, dịch và phủ văn bản lên hình ảnh";

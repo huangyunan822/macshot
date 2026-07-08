@@ -659,3 +659,6 @@
 "This file is not a valid macshot settings file." = "Tämä tiedosto ei ole kelvollinen macshot-asetustiedosto.";
 "This settings file contains no settings." = "Tämä asetustiedosto ei sisällä asetuksia.";
 "This settings file was made by a newer version of macshot. Please update macshot first." = "Tämä asetustiedosto on luotu uudemmalla macshot-versiolla. Päivitä macshot ensin.";
+
+/* URL scheme: ocr-translate (issue #283) */
+"Capture, translate, and overlay the text on the image" = "Kaappaa, käännä ja peitä kuvan teksti käännöksellä";

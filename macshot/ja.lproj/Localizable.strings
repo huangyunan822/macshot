@@ -659,3 +659,6 @@
 "This file is not a valid macshot settings file." = "このファイルは有効なmacshotの設定ファイルではありません。";
 "This settings file contains no settings." = "この設定ファイルには設定が含まれていません。";
 "This settings file was made by a newer version of macshot. Please update macshot first." = "この設定ファイルは新しいバージョンのmacshotで作成されています。先にmacshotをアップデートしてください。";
+
+/* URL scheme: ocr-translate (issue #283) */
+"Capture, translate, and overlay the text on the image" = "テキストをキャプチャして翻訳し、画像に重ねて表示します";

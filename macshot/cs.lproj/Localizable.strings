@@ -659,3 +659,6 @@
 "This file is not a valid macshot settings file." = "Tento soubor není platným souborem nastavení macshot.";
 "This settings file contains no settings." = "Tento soubor nastavení neobsahuje žádná nastavení.";
 "This settings file was made by a newer version of macshot. Please update macshot first." = "Tento soubor nastavení byl vytvořen novější verzí aplikace macshot. Nejprve prosím aktualizujte macshot.";
+
+/* URL scheme: ocr-translate (issue #283) */
+"Capture, translate, and overlay the text on the image" = "Zachytit, přeložit a překrýt text na obrázku";

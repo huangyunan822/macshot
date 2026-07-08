@@ -661,3 +661,6 @@
 "This file is not a valid macshot settings file." = "Αυτό το αρχείο δεν είναι έγκυρο αρχείο ρυθμίσεων του macshot.";
 "This settings file contains no settings." = "Αυτό το αρχείο ρυθμίσεων δεν περιέχει ρυθμίσεις.";
 "This settings file was made by a newer version of macshot. Please update macshot first." = "Αυτό το αρχείο ρυθμίσεων δημιουργήθηκε από νεότερη έκδοση του macshot. Ενημερώστε πρώτα το macshot.";
+
+/* URL scheme: ocr-translate (issue #283) */
+"Capture, translate, and overlay the text on the image" = "Καταγράψτε, μεταφράστε και επικαλύψτε το κείμενο στην εικόνα";

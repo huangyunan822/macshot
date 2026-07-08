@@ -661,3 +661,6 @@
 "This file is not a valid macshot settings file." = "இந்தக் கோப்பு செல்லுபடியாகும் macshot அமைப்புகள் கோப்பு அல்ல.";
 "This settings file contains no settings." = "இந்த அமைப்புகள் கோப்பில் எந்த அமைப்புகளும் இல்லை.";
 "This settings file was made by a newer version of macshot. Please update macshot first." = "இந்த அமைப்புகள் கோப்பு macshot இன் புதிய பதிப்பால் உருவாக்கப்பட்டது. முதலில் macshot ஐப் புதுப்பிக்கவும்.";
+
+/* URL scheme: ocr-translate (issue #283) */
+"Capture, translate, and overlay the text on the image" = "படத்தைப் பிடித்து, மொழிபெயர்த்து, உரையைப் படத்தின் மேல் இடுக";

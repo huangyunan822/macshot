@@ -717,6 +717,8 @@ class OverlayView: NSView {
     }
     var autoEnterRecordingMode: Bool = false  // set by "Record Screen" menu — enters recording mode after selection
     var autoOCRMode: Bool = false  // set by "Capture OCR & QR" menu — triggers OCR immediately after selection
+    var autoTranslateOverlayMode: Bool = false  // set by macshot://ocr-translate — OCR + translate + overlay after selection
+    var autoTranslateOverlayLang: String?  // target language for autoTranslateOverlayMode (nil = saved default)
     var autoQuickSaveMode: Bool = false  // set by "Quick Capture" menu — quick-saves immediately after selection
     var autoScrollCaptureMode: Bool = false  // set by "Scroll Capture" menu — triggers scroll capture immediately after selection
     var autoConfirmMode: Bool = false  // set by "Add Capture" — auto-confirms selection (no toolbars, no save)
@@ -6525,6 +6527,18 @@ class OverlayView: NSView {
             autoOCRMode = false
             overlayDelegate?.overlayViewDidRequestOCR()
         }
+        // Auto-trigger OCR + translate + in-place overlay (macshot://ocr-translate).
+        // Unlike OCR, this keeps the overlay open so the translated result can be
+        // reviewed/edited before saving. Toolbars stay visible (not suppressed above).
+        if autoTranslateOverlayMode {
+            autoTranslateOverlayMode = false
+            let lang = autoTranslateOverlayLang ?? TranslationService.targetLanguage
+            autoTranslateOverlayLang = nil
+            // Mirror the interactive Translate tool's state so the toolbar button
+            // shows as active and the language picker re-translates on change.
+            translateEnabled = true
+            performTranslate(targetLang: lang)
+        }
         // Auto-trigger quick save if triggered from "Quick Capture"
         if autoQuickSaveMode {
             autoQuickSaveMode = false
@@ -9795,6 +9809,8 @@ class OverlayView: NSView {
         // must NOT leak into the next session.
         autoEnterRecordingMode = false
         autoOCRMode = false
+        autoTranslateOverlayMode = false
+        autoTranslateOverlayLang = nil
         autoQuickSaveMode = false
         autoScrollCaptureMode = false
         autoConfirmMode = false
