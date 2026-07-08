@@ -463,6 +463,9 @@ extension DetachedEditorWindowController: OverlayViewDelegate {
                     if shouldShowWindow {
                         self.ocrController?.close()
                         let ocr = OCRResultController(text: result.text, image: image, qrCodes: result.qrCodes)
+                        ocr.onClose = { [weak self, weak ocr] in
+                            if self?.ocrController === ocr { self?.ocrController = nil }
+                        }
                         self.ocrController = ocr
                         ocr.show()
                     }

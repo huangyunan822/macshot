@@ -351,6 +351,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
             self?.onboardingController = nil
             self?.prewarmCapturePath()
         }
+        oc.onClose = { [weak self, weak oc] in
+            if self?.onboardingController === oc { self?.onboardingController = nil }
+        }
         onboardingController = oc
         oc.show()
     }
@@ -982,6 +985,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
     }
 
     private func beginCaptureFullScreen(fromMenu: Bool) {
+        guard canStartCapture else { return }
         pendingFullScreen = true
         startCapture(fromMenu: fromMenu)
     }
@@ -1009,6 +1013,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
     }
 
     private func beginCaptureOCR(fromMenu: Bool) {
+        guard canStartCapture else { return }
         pendingOCRMode = true
         startCapture(fromMenu: fromMenu)
     }
@@ -1022,6 +1027,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
     }
 
     private func beginQuickCapture(fromMenu: Bool) {
+        guard canStartCapture else { return }
         pendingQuickCaptureMode = true
         startCapture(fromMenu: fromMenu)
     }
@@ -1035,6 +1041,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
     }
 
     private func beginScrollCapture(fromMenu: Bool) {
+        guard canStartCapture else { return }
         pendingScrollCaptureMode = true
         startCapture(fromMenu: fromMenu)
     }
@@ -1050,6 +1057,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
     }
 
     private func beginCaptureLastArea(fromMenu: Bool) {
+        guard canStartCapture else { return }
         pendingRestoreLastArea = true
         startCapture(fromMenu: fromMenu)
     }
@@ -1064,6 +1072,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
     }
 
     private func beginRecordArea(fromMenu: Bool) {
+        guard canStartCapture else { return }
         pendingRecordMode = true
         startCapture(fromMenu: fromMenu)
     }
@@ -1077,6 +1086,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
     }
 
     private func beginRecordFullScreen(fromMenu: Bool) {
+        guard canStartCapture else { return }
         pendingFullScreenRecord = true
         if UserDefaults.standard.integer(forKey: "captureDelaySeconds") > 0 {
             pendingFullScreenRecordAutoStart = true
@@ -1092,6 +1102,20 @@ class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
                 item.state = item.tag == sender.tag ? .on : .off
             }
         }
+    }
+
+    /// Whether a new capture can start right now. The `begin*` entry points set
+    /// their pending mode flag (pendingOCRMode, pendingRecordMode, …) BEFORE
+    /// calling `startCapture`. If `startCapture` were to bail at its guards after
+    /// the flag was set, the flag would strand and get applied to the *next*
+    /// capture — e.g. a stranded `pendingOCRMode` makes a later screenshot spawn
+    /// an unexpected OCR window (issue #276). So each `begin*` checks this FIRST
+    /// and only sets its flag when a capture will actually run. We must not clear
+    /// the flags inside `startCapture`'s `!isCapturing` guard, because during a
+    /// delay-capture countdown `isCapturing` is already true and the pending mode
+    /// belongs to that accepted (not-yet-consumed) capture.
+    private var canStartCapture: Bool {
+        !isCapturing && recordingEngine == nil
     }
 
     private func startCapture(fromMenu: Bool = false) {
@@ -1331,6 +1355,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
     ) {
         if captures.isEmpty {
             captureTimingTrace?.mark("no captures returned — bailing out")
+            // This accepted capture is ending without a selection, so nothing
+            // consumes the remaining pending flags. Clear them here so they don't
+            // strand into the next capture (e.g. pendingRestoreLastArea, which
+            // performCapture doesn't clear). See issue #276.
+            pendingRestoreLastArea = false
             dismissOverlays(refocusPreviousApp: true)
             showOnboarding()
             return
@@ -1871,6 +1900,12 @@ class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
                     if shouldShowWindow {
                         self.ocrController?.close()
                         let ocr = OCRResultController(text: result.text, image: image, qrCodes: result.qrCodes)
+                        // Drop our reference when the window closes (incl. red-X),
+                        // but only if it's still this controller (a newer OCR run
+                        // may have replaced it).
+                        ocr.onClose = { [weak self, weak ocr] in
+                            if self?.ocrController === ocr { self?.ocrController = nil }
+                        }
                         self.ocrController = ocr
                         ocr.show()
                     }
@@ -2324,6 +2359,9 @@ extension AppDelegate: OverlayWindowControllerDelegate {
         if shouldShowWindow {
             ocrController?.close()
             let ocr = OCRResultController(text: result.text, image: image, qrCodes: result.qrCodes)
+            ocr.onClose = { [weak self, weak ocr] in
+                if self?.ocrController === ocr { self?.ocrController = nil }
+            }
             ocrController = ocr
             ocr.show()
         }

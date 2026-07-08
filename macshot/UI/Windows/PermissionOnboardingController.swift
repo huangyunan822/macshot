@@ -9,6 +9,11 @@ class PermissionOnboardingController: NSWindowController {
     // Called when the user has granted permission and we're ready to go
     var onPermissionGranted: (() -> Void)?
 
+    /// Called when the window closes without permission being granted (e.g. the
+    /// user dismisses it with the title-bar red-X), so the owner can drop its
+    /// reference and the poll timer stops.
+    var onClose: (() -> Void)?
+
     private var pollTimer: Timer?
     private var permissionGranted = false
 
@@ -28,6 +33,7 @@ class PermissionOnboardingController: NSWindowController {
         window.isMovableByWindowBackground = true
 
         super.init(window: window)
+        window.delegate = self   // catch the title-bar red-X (see windowWillClose)
         buildUI()
     }
 
@@ -268,5 +274,27 @@ class PermissionOnboardingController: NSWindowController {
         pollTimer = nil
         window?.orderOut(nil)
         onPermissionGranted?()
+    }
+}
+
+extension PermissionOnboardingController: NSWindowDelegate {
+    func windowWillClose(_ notification: Notification) {
+        // Title-bar red-X (the Continue button uses orderOut, not close, so it
+        // doesn't come through here). Stop the permission poll and let the owner
+        // drop its reference so the controller + timer don't leak.
+        pollTimer?.invalidate()
+        pollTimer = nil
+        // If permission was already granted (red-X hit during the 1s auto-continue
+        // gap), honor the granted path so prewarm still runs; otherwise it's a
+        // plain dismissal.
+        if permissionGranted {
+            let granted = onPermissionGranted
+            onPermissionGranted = nil
+            onClose = nil
+            granted?()
+        } else {
+            onClose?()
+            onClose = nil
+        }
     }
 }

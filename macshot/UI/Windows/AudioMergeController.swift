@@ -4,7 +4,7 @@ import AVFoundation
 /// Shows a dialog to merge microphone + system audio tracks into one,
 /// with individual volume sliders. Presented after recording when both
 /// audio sources were active.
-final class AudioMergeController {
+final class AudioMergeController: NSObject {
 
     private var window: NSPanel?
     private var micSlider: NSSlider!
@@ -80,6 +80,7 @@ final class AudioMergeController {
         content.addSubview(skipBtn)
 
         panel.contentView = content
+        panel.delegate = self   // treat title-bar red-X as "skip" (see windowWillClose)
         self.window = panel
 
         mergeBtn.target = self
@@ -102,20 +103,31 @@ final class AudioMergeController {
         let micVol = Float(micSlider.doubleValue)
         let sysVol = Float(systemSlider.doubleValue)
         let url = _url!
-        let completion = _completion!
+        // Take the completion so windowWillClose (fired by close() below) won't
+        // deliver a second time.
+        let completion = _completion
+        _completion = nil
         window?.close()
         window = nil
 
         mergeAudioTracks(url: url, micVolume: micVol, systemVolume: sysVol) { mergedURL in
             DispatchQueue.main.async {
-                completion(mergedURL ?? url)
+                completion?(mergedURL ?? url)
             }
         }
     }
 
     @objc private func skipClicked() {
+        deliverOriginalAndClose()
+    }
+
+    /// Deliver the un-merged recording and close. Used by the Skip button and by
+    /// a title-bar red-X close (windowWillClose), which must not silently drop
+    /// the just-finished recording.
+    private func deliverOriginalAndClose() {
+        guard let completion = _completion else { return }
         let url = _url!
-        let completion = _completion!
+        _completion = nil
         window?.close()
         window = nil
         completion(url)
@@ -202,5 +214,14 @@ final class AudioMergeController {
                 completion(nil)
             }
         }
+    }
+}
+
+extension AudioMergeController: NSWindowDelegate {
+    func windowWillClose(_ notification: Notification) {
+        // Title-bar red-X: behave like Skip so the finished recording is still
+        // delivered instead of silently lost. No-op if a button already handled
+        // it (deliverOriginalAndClose / mergeClicked nil out _completion first).
+        deliverOriginalAndClose()
     }
 }

@@ -6,6 +6,11 @@
 
 - Import/export settings: back up your preferences to a file and move them to another Mac or a clean install (Preferences → General → Settings Backup). Upload credentials, your save folder, and screenshot history are never included. Answers where settings are stored (issues #265, #280).
 
+### Fixed
+
+- Text Recognition window no longer spawns unexpectedly on wake, unlock, or connecting a monitor after using OCR once. An OCR/record/quick-capture/scroll request made while a capture was already in flight or during recording could strand its pending mode and apply it to the next capture (issue #276).
+- Closing the OCR, audio-merge, or permission-onboarding windows with the title-bar close button no longer leaks the controller. The audio-merge window's close button now still delivers the finished recording instead of silently dropping it.
+
 ## [4.2.0-beta.10] - 2026-07-03
 
 ### Added
