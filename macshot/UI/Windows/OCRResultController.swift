@@ -14,6 +14,10 @@ class OCRResultController: NSObject {
     private var qrCodes: [QRCodePayload]
     private var isShowingTranslation = false
 
+    /// Invoked once when the window closes (either close button or title-bar
+    /// red-X), so the owner can drop its reference to this controller.
+    var onClose: (() -> Void)?
+
     init(text: String, image: NSImage?, qrCodes: [QRCodePayload] = []) {
         self.originalText = text
         self.qrCodes = qrCodes
@@ -46,6 +50,10 @@ class OCRResultController: NSObject {
         panel.isReleasedWhenClosed = false
         panel.becomesKeyOnlyIfNeeded = false
         panel.hidesOnDeactivate = false
+        // Catch the title-bar red-X close so it runs the same teardown as the
+        // in-app close buttons (otherwise the controller stays retained with a
+        // live-but-hidden panel).
+        panel.delegate = self
         panel.minSize = NSSize(width: 480, height: 300)
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
         panel.isMovableByWindowBackground = false
@@ -316,9 +324,16 @@ class OCRResultController: NSObject {
     }
 
     func close() {
-        window?.orderOut(nil)
+        // Route through window.close() so both the in-app buttons and the
+        // title-bar red-X converge on the same teardown in windowWillClose.
         window?.close()
+    }
+
+    private func tearDown() {
+        window?.delegate = nil
         window = nil
+        onClose?()
+        onClose = nil
         MainActor.assumeIsolated {
             (NSApp.delegate as? AppDelegate)?.returnFocusIfNeeded()
         }
@@ -453,6 +468,15 @@ class OCRResultController: NSObject {
         let chars = text.count
         let words = text.split(whereSeparator: { $0.isWhitespace || $0.isNewline }).count
         charCountLabel?.stringValue = String(format: L("%d chars · %d words"), chars, words)
+    }
+}
+
+extension OCRResultController: NSWindowDelegate {
+    func windowWillClose(_ notification: Notification) {
+        // Fires for both the title-bar red-X and the in-app close() path. Nil
+        // out our retained references and return focus exactly once.
+        guard window != nil else { return }
+        tearDown()
     }
 }
 
