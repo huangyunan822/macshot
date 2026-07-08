@@ -661,3 +661,6 @@
 "This file is not a valid macshot settings file." = "Ang file na ito ay hindi isang valid na settings file ng macshot.";
 "This settings file contains no settings." = "Walang lamang setting ang settings file na ito.";
 "This settings file was made by a newer version of macshot. Please update macshot first." = "Ang settings file na ito ay ginawa ng mas bagong bersyon ng macshot. Mangyaring i-update muna ang macshot.";
+
+/* URL scheme: ocr-translate (issue #283) */
+"Capture, translate, and overlay the text on the image" = "I-capture, isalin, at i-overlay ang text sa imahe";

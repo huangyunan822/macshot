@@ -661,3 +661,6 @@
 "This file is not a valid macshot settings file." = "Fail ini bukan fail tetapan macshot yang sah.";
 "This settings file contains no settings." = "Fail tetapan ini tidak mengandungi sebarang tetapan.";
 "This settings file was made by a newer version of macshot. Please update macshot first." = "Fail tetapan ini dibuat oleh versi macshot yang lebih baharu. Sila kemas kini macshot terlebih dahulu.";
+
+/* URL scheme: ocr-translate (issue #283) */
+"Capture, translate, and overlay the text on the image" = "Tangkap, terjemah, dan tindih teks pada imej";

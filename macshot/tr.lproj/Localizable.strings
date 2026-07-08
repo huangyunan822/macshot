@@ -661,3 +661,6 @@
 "This file is not a valid macshot settings file." = "Bu dosya geçerli bir macshot ayar dosyası değil.";
 "This settings file contains no settings." = "Bu ayar dosyası hiçbir ayar içermiyor.";
 "This settings file was made by a newer version of macshot. Please update macshot first." = "Bu ayar dosyası macshot'un daha yeni bir sürümüyle oluşturulmuş. Lütfen önce macshot'u güncelleyin.";
+
+/* URL scheme: ocr-translate (issue #283) */
+"Capture, translate, and overlay the text on the image" = "Metni yakalayın, çevirin ve görüntünün üzerine yerleştirin";

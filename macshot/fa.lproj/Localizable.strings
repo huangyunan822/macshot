@@ -661,3 +661,6 @@
 "This file is not a valid macshot settings file." = "این فایل یک فایل تنظیمات معتبر macshot نیست.";
 "This settings file contains no settings." = "این فایل تنظیمات حاوی هیچ تنظیمی نیست.";
 "This settings file was made by a newer version of macshot. Please update macshot first." = "این فایل تنظیمات توسط نسخه‌ی جدیدتری از macshot ساخته شده است. لطفاً ابتدا macshot را به‌روزرسانی کنید.";
+
+/* URL scheme: ocr-translate (issue #283) */
+"Capture, translate, and overlay the text on the image" = "متن را ثبت، ترجمه و روی تصویر هم‌پوشانی کنید";

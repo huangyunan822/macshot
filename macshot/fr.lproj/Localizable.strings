@@ -659,3 +659,6 @@
 "This file is not a valid macshot settings file." = "Ce fichier n'est pas un fichier de réglages macshot valide.";
 "This settings file contains no settings." = "Ce fichier de réglages ne contient aucun réglage.";
 "This settings file was made by a newer version of macshot. Please update macshot first." = "Ce fichier de réglages a été créé par une version plus récente de macshot. Veuillez d'abord mettre à jour macshot.";
+
+/* URL scheme: ocr-translate (issue #283) */
+"Capture, translate, and overlay the text on the image" = "Capturer, traduire et superposer le texte sur l'image";

@@ -661,3 +661,6 @@
 "This file is not a valid macshot settings file." = "קובץ זה אינו קובץ הגדרות תקין של macshot.";
 "This settings file contains no settings." = "קובץ הגדרות זה אינו מכיל הגדרות.";
 "This settings file was made by a newer version of macshot. Please update macshot first." = "קובץ הגדרות זה נוצר על ידי גרסה חדשה יותר של macshot. אנא עדכן תחילה את macshot.";
+
+/* URL scheme: ocr-translate (issue #283) */
+"Capture, translate, and overlay the text on the image" = "צלמו, תרגמו והוסיפו את הטקסט על גבי התמונה";

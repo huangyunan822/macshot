@@ -661,3 +661,6 @@
 "This file is not a valid macshot settings file." = "此檔案不是有效的 macshot 設定檔案。";
 "This settings file contains no settings." = "此設定檔案不含任何設定。";
 "This settings file was made by a newer version of macshot. Please update macshot first." = "此設定檔案是由較新版本的 macshot 所建立。請先更新 macshot。";
+
+/* URL scheme: ocr-translate (issue #283) */
+"Capture, translate, and overlay the text on the image" = "擷取、翻譯並將文字疊加在影像上";

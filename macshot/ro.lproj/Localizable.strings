@@ -659,3 +659,6 @@
 "This file is not a valid macshot settings file." = "Acest fișier nu este un fișier de setări macshot valid.";
 "This settings file contains no settings." = "Acest fișier de setări nu conține nicio setare.";
 "This settings file was made by a newer version of macshot. Please update macshot first." = "Acest fișier de setări a fost creat cu o versiune mai nouă de macshot. Actualizează mai întâi macshot.";
+
+/* URL scheme: ocr-translate (issue #283) */
+"Capture, translate, and overlay the text on the image" = "Capturează, traduce și suprapune textul pe imagine";

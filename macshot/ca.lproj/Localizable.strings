@@ -661,3 +661,6 @@
 "This file is not a valid macshot settings file." = "Aquest fitxer no és un fitxer de configuració de macshot vàlid.";
 "This settings file contains no settings." = "Aquest fitxer de configuració no conté cap opció.";
 "This settings file was made by a newer version of macshot. Please update macshot first." = "Aquest fitxer de configuració s'ha creat amb una versió més recent de macshot. Actualitza macshot primer.";
+
+/* URL scheme: ocr-translate (issue #283) */
+"Capture, translate, and overlay the text on the image" = "Captura, tradueix i superposa el text a la imatge";

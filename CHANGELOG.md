@@ -5,6 +5,7 @@
 ### Added
 
 - Import/export settings: back up your preferences to a file and move them to another Mac or a clean install (Preferences → General → Settings Backup). Upload credentials, your save folder, and screenshot history are never included. Answers where settings are stored (issues #265, #280).
+- URL scheme `macshot://ocr-translate?target=<lang>`: capture a region, OCR it, translate, and overlay the translation in place over the original text (WeChat-style). `target` is a language code (e.g. `zh-CN`); omit it to use your default translation language. Triggerable from Raycast, Alfred, Shortcuts, or the command line (issue #283).
 
 ### Fixed
 

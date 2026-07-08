@@ -659,3 +659,6 @@
 "This file is not a valid macshot settings file." = "Ova datoteka nije valjana macshot datoteka postavki.";
 "This settings file contains no settings." = "Ova datoteka postavki ne sadrži nijednu postavku.";
 "This settings file was made by a newer version of macshot. Please update macshot first." = "Ova datoteka postavki izrađena je novijom verzijom macshota. Najprije ažurirajte macshot.";
+
+/* URL scheme: ocr-translate (issue #283) */
+"Capture, translate, and overlay the text on the image" = "Snimite, prevedite i prekrijte tekst na slici";

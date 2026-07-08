@@ -2971,6 +2971,7 @@ class SettingsWindowController: NSWindowController, NSToolbarDelegate, NSWindowD
             ("macshot://capture-last",        L("Re-capture the last selected area")),
             ("macshot://quick-capture",       L("Quick capture (uses your Enter action)")),
             ("macshot://ocr",                 L("Capture area and read text/QR codes")),
+            ("macshot://ocr-translate?target=zh-CN", L("Capture, translate, and overlay the text on the image")),
             ("macshot://record",              L("Start area recording")),
             ("macshot://record-fullscreen",   L("Start full-screen recording")),
             ("macshot://stop-recording",      L("Stop the current recording")),

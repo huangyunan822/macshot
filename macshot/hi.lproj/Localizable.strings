@@ -661,3 +661,6 @@
 "This file is not a valid macshot settings file." = "यह फ़ाइल एक मान्य macshot सेटिंग्स फ़ाइल नहीं है।";
 "This settings file contains no settings." = "इस सेटिंग्स फ़ाइल में कोई सेटिंग्स नहीं हैं।";
 "This settings file was made by a newer version of macshot. Please update macshot first." = "यह सेटिंग्स फ़ाइल macshot के किसी नए संस्करण द्वारा बनाई गई थी। कृपया पहले macshot को अपडेट करें।";
+
+/* URL scheme: ocr-translate (issue #283) */
+"Capture, translate, and overlay the text on the image" = "टेक्स्ट को कैप्चर करें, अनुवाद करें और छवि पर ओवरले करें";

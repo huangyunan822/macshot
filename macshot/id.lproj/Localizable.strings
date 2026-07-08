@@ -659,3 +659,6 @@
 "This file is not a valid macshot settings file." = "Berkas ini bukan berkas pengaturan macshot yang valid.";
 "This settings file contains no settings." = "Berkas pengaturan ini tidak berisi pengaturan apa pun.";
 "This settings file was made by a newer version of macshot. Please update macshot first." = "Berkas pengaturan ini dibuat oleh versi macshot yang lebih baru. Harap perbarui macshot terlebih dahulu.";
+
+/* URL scheme: ocr-translate (issue #283) */
+"Capture, translate, and overlay the text on the image" = "Tangkap, terjemahkan, dan tampilkan teks di atas gambar";

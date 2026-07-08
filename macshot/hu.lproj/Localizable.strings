@@ -659,3 +659,6 @@
 "This file is not a valid macshot settings file." = "Ez a fájl nem érvényes macshot beállításfájl.";
 "This settings file contains no settings." = "Ez a beállításfájl nem tartalmaz beállításokat.";
 "This settings file was made by a newer version of macshot. Please update macshot first." = "Ez a beállításfájl a macshot egy újabb verziójával készült. Kérlek, először frissítsd a macshotot.";
+
+/* URL scheme: ocr-translate (issue #283) */
+"Capture, translate, and overlay the text on the image" = "A kép szövegének rögzítése, fordítása és rávetítése";
