@@ -206,7 +206,13 @@ If you'd like to help out, starring the repo, reporting bugs, or contributing is
 
 ## Star History
 
-[![Star History Chart](https://api.star-history.com/svg?repos=sw33tLie/macshot&type=Date)](https://star-history.com/#sw33tLie/macshot&Date)
+<a href="https://www.star-history.com/?type=date&repos=sw33tLie%2Fmacshot">
+ <picture>
+   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/chart?repos=sw33tLie/macshot&type=date&theme=dark&legend=top-left&sealed_token=cGABeABxKwRrI6y0MxEhh5y6c6U-TgTzFdPZSYSeaGnRmxDA__Q3haAJBOamrR7OSXNXQk3qnqEQGJ7_GDpbAk1SxIXrrYPN2yjnjUVB3BYhNIPjKFozWsiavKRr7fiNhF7nsyDIQzYNE9K1repNx879MKeBaK5WiFfrGXpoiDchQK6eFqJs2I5NuZXd" />
+   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/chart?repos=sw33tLie/macshot&type=date&legend=top-left&sealed_token=cGABeABxKwRrI6y0MxEhh5y6c6U-TgTzFdPZSYSeaGnRmxDA__Q3haAJBOamrR7OSXNXQk3qnqEQGJ7_GDpbAk1SxIXrrYPN2yjnjUVB3BYhNIPjKFozWsiavKRr7fiNhF7nsyDIQzYNE9K1repNx879MKeBaK5WiFfrGXpoiDchQK6eFqJs2I5NuZXd" />
+   <img alt="Star History Chart" src="https://api.star-history.com/chart?repos=sw33tLie/macshot&type=date&legend=top-left&sealed_token=cGABeABxKwRrI6y0MxEhh5y6c6U-TgTzFdPZSYSeaGnRmxDA__Q3haAJBOamrR7OSXNXQk3qnqEQGJ7_GDpbAk1SxIXrrYPN2yjnjUVB3BYhNIPjKFozWsiavKRr7fiNhF7nsyDIQzYNE9K1repNx879MKeBaK5WiFfrGXpoiDchQK6eFqJs2I5NuZXd" />
+ </picture>
+</a>
 
 ## Requirements
 
