@@ -166,8 +166,14 @@ extension Annotation {
 
         // Text
         ann.text = c.text
-        if let rtfData = c.attributedTextRTF {
-            ann.attributedText = NSAttributedString(rtf: rtfData, documentAttributes: nil)
+        if let rtfData = c.attributedTextRTF,
+           let decoded = NSAttributedString(rtf: rtfData, documentAttributes: nil) {
+            // Convert any legacy centered .strokeWidth glyph stroke (from files
+            // saved before #257) into the outside-outline attribute so it renders
+            // through OutlineTextLayoutManager instead of the old thin stroke.
+            let mutable = NSMutableAttributedString(attributedString: decoded)
+            OutlineTextRenderer.normalizeLegacyStroke(mutable)
+            ann.attributedText = mutable
         }
         ann.fontSize = c.fontSize
         ann.isBold = c.isBold
@@ -240,6 +246,14 @@ extension Annotation {
         // Legacy captures have seed=0; assign a fresh one so sketchy variation
         // remains deterministic per-load even for old data.
         ann.randomSeed = c.randomSeed != 0 ? c.randomSeed : UInt32.random(in: 1...UInt32.max)
+
+        // Files saved before #257 cached a text image with the old centered
+        // glyph stroke. Re-render stroked text through the outside-outline path
+        // so reloaded annotations look correct (no-op for text without a stroke).
+        if ann.tool == .text, ann.textGlyphStrokeColor != nil,
+           ann.attributedText != nil, ann.textDrawRect != .zero {
+            ann.reRenderTextImage()
+        }
 
         return ann
     }

@@ -5878,15 +5878,11 @@ class OverlayView: NSView {
                     annotation.startPoint = newRect.origin
                     annotation.endPoint = NSPoint(x: newRect.maxX, y: newRect.maxY)
                     annotation.textDrawRect = newRect
-                    // Re-render textImage at new size
+                    // Re-render textImage at new size through the outline layout
+                    // manager so a per-glyph outline stays outside the fill (#257).
                     if let attrStr = annotation.attributedText {
-                        let inset: CGFloat = 4
-                        let img = NSImage(size: newRect.size, flipped: true) { _ in
-                            attrStr.draw(in: NSRect(x: inset, y: inset,
-                                width: newRect.width - inset * 2, height: newRect.height - inset * 2))
-                            return true
-                        }
-                        annotation.textImage = img
+                        annotation.textImage = OutlineTextRenderer.renderImage(
+                            attrStr, size: newRect.size, inset: 4)
                     }
                     cachedCompositedImage = nil
                     needsDisplay = true
@@ -8055,20 +8051,15 @@ class OverlayView: NSView {
     func applyGlyphStrokeToLiveTextView() {
         guard let tv = textEditor.textView, let storage = tv.textStorage else { return }
         let range = NSRange(location: 0, length: storage.length)
-        if textEditor.glyphStrokeEnabled {
-            if range.length > 0 {
-                storage.addAttribute(.strokeColor, value: textEditor.glyphStrokeColor, range: range)
-                storage.addAttribute(.strokeWidth, value: -6.0, range: range)
-            }
-            tv.typingAttributes[.strokeColor] = textEditor.glyphStrokeColor
-            tv.typingAttributes[.strokeWidth] = -6.0
+        let enabled = textEditor.glyphStrokeEnabled
+        if range.length > 0 {
+            OutlineTextRenderer.applyOutline(enabled ? textEditor.glyphStrokeColor : nil,
+                                             to: storage, range: range)
+        }
+        if enabled {
+            tv.typingAttributes[.macshotOutlineColor] = textEditor.glyphStrokeColor
         } else {
-            if range.length > 0 {
-                storage.removeAttribute(.strokeColor, range: range)
-                storage.removeAttribute(.strokeWidth, range: range)
-            }
-            tv.typingAttributes.removeValue(forKey: .strokeColor)
-            tv.typingAttributes.removeValue(forKey: .strokeWidth)
+            tv.typingAttributes.removeValue(forKey: .macshotOutlineColor)
         }
         tv.needsDisplay = true
     }

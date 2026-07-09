@@ -1,5 +1,15 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+
+- `macshot://edit?id=<historyEntryID>` URL scheme: reopen a specific history entry in the editor with its annotations still editable (PR #272).
+
+### Fixed
+
+- Text glyph stroke now draws as an outline *outside* the letter fill instead of a centered stroke that thinned the text and made it hard to read. Live editing, the committed image, resizing, and re-editing all render identically, and older captures with a stroke are converted on load (issue #257).
+
 ## [4.2.0-beta.11] - 2026-07-08
 
 ### Added

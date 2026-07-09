@@ -274,7 +274,19 @@ class TextEditingController {
         sv.drawsBackground = false
         sv.borderType = .noBorder
 
-        let tv = NSTextView(frame: NSRect(origin: .zero, size: viewFrame.size))
+        // Build the text view on an OutlineTextLayoutManager so the per-glyph
+        // outline renders outside the fill live, identically to the committed
+        // image (issue #257).
+        let textStorage = NSTextStorage()
+        let layoutManager = OutlineTextRenderer.makeLayoutManager()
+        let textContainer = NSTextContainer(size: NSSize(
+            width: viewFrame.width, height: CGFloat.greatestFiniteMagnitude))
+        textContainer.widthTracksTextView = true
+        layoutManager.addTextContainer(textContainer)
+        textStorage.addLayoutManager(layoutManager)
+
+        let tv = NSTextView(frame: NSRect(origin: .zero, size: viewFrame.size),
+                            textContainer: textContainer)
         tv.isRichText = true
         tv.allowsUndo = true
         tv.drawsBackground = false
@@ -310,23 +322,20 @@ class TextEditingController {
             attrs[.strikethroughStyle] = NSUnderlineStyle.single.rawValue
         }
         if glyphStrokeEnabled {
-            attrs[.strokeColor] = glyphStrokeColor
-            attrs[.strokeWidth] = -6.0
+            attrs[.macshotOutlineColor] = glyphStrokeColor
         }
         tv.typingAttributes = attrs
         tv.alignment = alignment
 
-        // Apply paragraph style to any existing text
+        // Apply paragraph style + outline to any existing text. Normalize first
+        // so a legacy centered stroke (baked into re-opened text) is converted
+        // to the outside outline (#257).
         let range = NSRange(location: 0, length: tv.textStorage?.length ?? 0)
-        if range.length > 0 {
-            tv.textStorage?.addAttribute(.paragraphStyle, value: paraStyle, range: range)
-            if glyphStrokeEnabled {
-                tv.textStorage?.addAttribute(.strokeColor, value: glyphStrokeColor, range: range)
-                tv.textStorage?.addAttribute(.strokeWidth, value: -6.0, range: range)
-            } else {
-                tv.textStorage?.removeAttribute(.strokeColor, range: range)
-                tv.textStorage?.removeAttribute(.strokeWidth, range: range)
-            }
+        if range.length > 0, let storage = tv.textStorage {
+            OutlineTextRenderer.normalizeLegacyStroke(storage)
+            storage.addAttribute(.paragraphStyle, value: paraStyle, range: range)
+            OutlineTextRenderer.applyOutline(glyphStrokeEnabled ? glyphStrokeColor : nil,
+                                             to: storage, range: range)
         }
 
         sv.documentView = tv
@@ -374,14 +383,9 @@ class TextEditingController {
             sv.frame = NSRect(x: sv.frame.minX, y: topEdge - imgHeight,
                               width: imgWidth, height: imgHeight)
 
-            let img = NSImage(size: imgSize, flipped: true) { _ in
-                attrStr.draw(
-                    in: NSRect(
-                        x: inset.width, y: inset.height,
-                        width: imgSize.width - inset.width * 2,
-                        height: imgSize.height - inset.height * 2))
-                return true
-            }
+            // Render through the outline layout manager so a per-glyph outline
+            // is baked outside the fill, matching the live editor (#257).
+            let img = OutlineTextRenderer.renderImage(attrStr, size: imgSize, inset: inset.width)
 
             let canvasOrigin = canvas.viewToCanvas(sv.frame.origin)
             let canvasEnd = canvas.viewToCanvas(NSPoint(x: sv.frame.maxX, y: sv.frame.maxY))

@@ -1699,16 +1699,12 @@ class Annotation {
         paraStyle.alignment = textAlignment
         mutable.addAttribute(.paragraphStyle, value: paraStyle, range: range)
 
-        // Per-glyph stroke. NSAttributedString's .strokeWidth is a percentage
-        // of font point size; negative means "fill AND stroke" (positive
-        // would skip the fill, leaving just an outline).
-        if let glyphStroke = textGlyphStrokeColor {
-            mutable.addAttribute(.strokeColor, value: glyphStroke, range: range)
-            mutable.addAttribute(.strokeWidth, value: -6.0, range: range)
-        } else {
-            mutable.removeAttribute(.strokeColor, range: range)
-            mutable.removeAttribute(.strokeWidth, range: range)
-        }
+        // Per-glyph outline drawn OUTSIDE the fill (issue #257). AppKit's
+        // built-in .strokeWidth draws a centered stroke that eats the fill, so
+        // we express the outline as a custom attribute rendered by
+        // OutlineTextLayoutManager (stroke-underneath + fill-on-top). Same
+        // renderer as the live editor, so committed/live appearance matches.
+        OutlineTextRenderer.applyOutline(textGlyphStrokeColor, to: mutable, range: range)
 
         attributedText = mutable
 
@@ -1721,15 +1717,9 @@ class Annotation {
         let newHeight = max(textDrawRect.height, ceil(boundingRect.height) + inset * 2)
         let imgSize = NSSize(width: textDrawRect.width, height: newHeight)
 
-        // Re-render image
-        let img = NSImage(size: imgSize, flipped: true) { _ in
-            mutable.draw(in: NSRect(
-                x: inset, y: inset,
-                width: imgSize.width - inset * 2,
-                height: imgSize.height - inset * 2))
-            return true
-        }
-        textImage = img
+        // Re-render image through the outline layout manager so the per-glyph
+        // outline is drawn outside the fill (matches the live editor).
+        textImage = OutlineTextRenderer.renderImage(mutable, size: imgSize, inset: inset)
 
         // Update draw rect height (keep top edge fixed in AppKit coords: maxY stays the same)
         let heightDelta = newHeight - textDrawRect.height
