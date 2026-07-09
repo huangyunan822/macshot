@@ -148,8 +148,9 @@ private struct TmpFileCleaner: LaunchCleaner {
     ]
 
     /// Extensions that, when paired with a UUID basename, are our scratch
-    /// output (GIF conversion, video re-encode).
-    private let uuidScratchExtensions: Set<String> = ["gif", "mp4"]
+    /// output (GIF conversion, video re-encode, copy-with-edits export —
+    /// which keeps the source container, so .mov and .m4v too).
+    private let uuidScratchExtensions: Set<String> = ["gif", "mp4", "mov", "m4v"]
 
     func sweep() -> DirectorySweeper.Result {
         return DirectorySweeper.sweep(

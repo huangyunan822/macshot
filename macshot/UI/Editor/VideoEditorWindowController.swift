@@ -1459,6 +1459,26 @@ private final class VideoEditorView: NSView {
             return
         }
 
+        // Trim, zoom/censor/text, cuts, speed, mute etc. exist only in the
+        // export pipeline — copying the raw source URL would silently discard
+        // them (#193). savedURL is reset to nil on every edit, so it being nil
+        // with pending edits means the source file is stale.
+        if savedURL == nil && hasPendingEdits {
+            showStatus(L("Exporting..."))
+            exportEditedTemp { [weak self] url in
+                guard let self = self else { return }
+                guard let url = url else {
+                    self.showStatus(L("Export failed"), isError: true)
+                    return
+                }
+                let pasteboard = NSPasteboard.general
+                pasteboard.clearContents()
+                pasteboard.writeObjects([url as NSURL])
+                self.showStatus(L("Copied to clipboard!"))
+            }
+            return
+        }
+
         let url = savedURL ?? videoURL
         let pasteboard = NSPasteboard.general
         pasteboard.clearContents()
@@ -1468,6 +1488,46 @@ private final class VideoEditorView: NSView {
         } else {
             pasteboard.writeObjects([url as NSURL])
             showStatus(L("Copied to clipboard!"))
+        }
+    }
+
+    /// True when the timeline differs from the source file on disk — the same
+    /// conditions saveToDestination uses to decide whether an export is needed.
+    private var hasPendingEdits: Bool {
+        let needsTrim = trimStart > 0.01 || (duration - trimEnd) > 0.01
+        let needsScale = exportScale < 0.999
+        let needsRecompress = exportQuality != .high
+        let needsEffects = !zoomSegments.isEmpty || !censorSegments.isEmpty || !textSegments.isEmpty
+        return needsTrim || isMuted || needsScale || needsRecompress || needsEffects
+            || !cutSegments.isEmpty || !speedSegments.isEmpty || !freezeSegments.isEmpty
+    }
+
+    /// Export the edited timeline to a temp file using the same pipeline
+    /// selection as saveToDestination, calling completion on the main thread.
+    private func exportEditedTemp(completion: @escaping (URL?) -> Void) {
+        guard let asset = asset else { completion(nil); return }
+        let tmpURL = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".\(videoURL.pathExtension)")
+        let timeRange = CMTimeRange(start: CMTime(seconds: trimStart, preferredTimescale: 600),
+                                    end: CMTime(seconds: trimEnd, preferredTimescale: 600))
+        // reencodeExport can complete from its background queue on early
+        // exits — always hop to main before touching pasteboard/UI.
+        let done: (Bool) -> Void = { success in
+            DispatchQueue.main.async {
+                if !success { try? FileManager.default.removeItem(at: tmpURL) }
+                completion(success ? tmpURL : nil)
+            }
+        }
+        if exportQuality != .high {
+            reencodeExport(asset: asset, timeRange: timeRange, outputURL: tmpURL, completion: done)
+        } else {
+            guard let session = exportSession(asset: asset, timeRange: timeRange, outputURL: tmpURL) else {
+                done(false)
+                return
+            }
+            Task {
+                await session.export()
+                await MainActor.run { done(session.status == .completed) }
+            }
         }
     }
 
@@ -1801,14 +1861,8 @@ private final class VideoEditorView: NSView {
     }
 
     private func saveToDestination(_ destURL: URL, dirURL: URL?) {
-        let needsTrim = trimStart > 0.01 || (duration - trimEnd) > 0.01
-        let needsScale = exportScale < 0.999
         let needsRecompress = exportQuality != .high
-        let needsEffects = !zoomSegments.isEmpty || !censorSegments.isEmpty || !textSegments.isEmpty
-        let needsCuts = !cutSegments.isEmpty
-        let needsSpeed = !speedSegments.isEmpty
-        let needsFreeze = !freezeSegments.isEmpty
-        let needsExport = needsTrim || isMuted || needsScale || needsRecompress || needsEffects || needsCuts || needsSpeed || needsFreeze
+        let needsExport = hasPendingEdits
 
         if !needsExport {
             // No processing needed — copy source to destination.
