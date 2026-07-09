@@ -6391,12 +6391,21 @@ class OverlayView: NSView {
     /// inside the selection we rewind the stack to that snapshot — removing any annotation the
     /// first click finished — cancel any in-progress drawing, then trigger confirm.
     private func handleDoubleClickToCopy(event: NSEvent, at point: NSPoint) -> Bool {
-        // Select remains the deliberate way to double-click-edit text annotations.
-        if currentTool == .select {
-            let hitText = annotations.reversed().first(where: {
+        // A double-click landing on an existing text annotation should never
+        // "copy" — it means "edit that text" (issue #287). Return false so the
+        // downstream edit paths (text-tool inline / select-tool handler) run.
+        // For tools that don't route into text editing (e.g. crop, colorSampler)
+        // this simply suppresses the accidental copy, which is the safe outcome.
+        //
+        // Only while NOT already editing: when a text field is open, the
+        // in-editor double-click-to-copy path (deadline logic below) owns this
+        // gesture, and another committed text box happening to sit under the
+        // click must not hijack it.
+        if !textEditor.isEditing {
+            let hitText = annotations.reversed().contains(where: {
                 $0.tool == .text && $0.hitTest(point: point)
-            })
-            if hitText != nil {
+            }) || (selectedAnnotation?.tool == .text && selectedAnnotation?.hitTest(point: point) == true)
+            if hitText {
                 textToolDoubleClickCopyDeadline = 0
                 return false
             }
