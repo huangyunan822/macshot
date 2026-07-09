@@ -263,20 +263,8 @@ class HotkeyManager {
     }
 
     static func keyString(from keyCode: UInt32) -> String {
-        let keyMap: [UInt32: String] = [
-            UInt32(kVK_ANSI_A): "A", UInt32(kVK_ANSI_B): "B", UInt32(kVK_ANSI_C): "C",
-            UInt32(kVK_ANSI_D): "D", UInt32(kVK_ANSI_E): "E", UInt32(kVK_ANSI_F): "F",
-            UInt32(kVK_ANSI_G): "G", UInt32(kVK_ANSI_H): "H", UInt32(kVK_ANSI_I): "I",
-            UInt32(kVK_ANSI_J): "J", UInt32(kVK_ANSI_K): "K", UInt32(kVK_ANSI_L): "L",
-            UInt32(kVK_ANSI_M): "M", UInt32(kVK_ANSI_N): "N", UInt32(kVK_ANSI_O): "O",
-            UInt32(kVK_ANSI_P): "P", UInt32(kVK_ANSI_Q): "Q", UInt32(kVK_ANSI_R): "R",
-            UInt32(kVK_ANSI_S): "S", UInt32(kVK_ANSI_T): "T", UInt32(kVK_ANSI_U): "U",
-            UInt32(kVK_ANSI_V): "V", UInt32(kVK_ANSI_W): "W", UInt32(kVK_ANSI_X): "X",
-            UInt32(kVK_ANSI_Y): "Y", UInt32(kVK_ANSI_Z): "Z",
-            UInt32(kVK_ANSI_0): "0", UInt32(kVK_ANSI_1): "1", UInt32(kVK_ANSI_2): "2",
-            UInt32(kVK_ANSI_3): "3", UInt32(kVK_ANSI_4): "4", UInt32(kVK_ANSI_5): "5",
-            UInt32(kVK_ANSI_6): "6", UInt32(kVK_ANSI_7): "7", UInt32(kVK_ANSI_8): "8",
-            UInt32(kVK_ANSI_9): "9",
+        // Non-character keys have fixed, layout-independent names.
+        let specialKeyMap: [UInt32: String] = [
             UInt32(kVK_F1): "F1", UInt32(kVK_F2): "F2", UInt32(kVK_F3): "F3",
             UInt32(kVK_F4): "F4", UInt32(kVK_F5): "F5", UInt32(kVK_F6): "F6",
             UInt32(kVK_F7): "F7", UInt32(kVK_F8): "F8", UInt32(kVK_F9): "F9",
@@ -293,27 +281,58 @@ class HotkeyManager {
             UInt32(kVK_Home): "Home", UInt32(kVK_End): "End",
             UInt32(kVK_PageUp): "PgUp", UInt32(kVK_PageDown): "PgDn",
         ]
-        if let name = keyMap[keyCode] { return name }
+        if let name = specialKeyMap[keyCode] { return name }
 
-        // Fallback: use UCKeyTranslate to get the character for unknown keyCodes
-        // (handles non-Apple keyboards, international layouts, BTT remapped keys)
-        if let inputSource = TISCopyCurrentKeyboardInputSource()?.takeRetainedValue(),
-           let layoutPtr = TISGetInputSourceProperty(inputSource, kTISPropertyUnicodeKeyLayoutData) {
-            let layoutData = Unmanaged<CFData>.fromOpaque(layoutPtr).takeUnretainedValue() as Data
-            var deadKeyState: UInt32 = 0
-            var chars = [UniChar](repeating: 0, count: 4)
-            var length: Int = 0
-            layoutData.withUnsafeBytes { rawBuf in
-                guard let ptr = rawBuf.baseAddress?.assumingMemoryBound(to: UCKeyboardLayout.self) else { return }
-                UCKeyTranslate(ptr, UInt16(keyCode), UInt16(kUCKeyActionDown), 0, UInt32(LMGetKbdType()),
-                               UInt32(kUCKeyTranslateNoDeadKeysBit), &deadKeyState, 4, &length, &chars)
-            }
-            if length > 0 {
-                let str = String(utf16CodeUnits: chars, count: length).uppercased()
-                if !str.isEmpty && str != "\0" { return str }
-            }
+        // Character keys: a virtual keycode identifies a physical key position,
+        // and on Dvorak/Colemak/etc. that position types a different character
+        // than on QWERTY — so the display must go through the active layout.
+        if let translated = layoutCharacter(for: keyCode) {
+            // Uppercase for display, but only when it doesn't change length
+            // ("ß".uppercased() == "SS" — keep the original there).
+            let upper = translated.uppercased()
+            return upper.count == translated.count ? upper : translated
         }
+
+        // No usable layout data — fall back to QWERTY position names.
+        let qwertyFallbackMap: [UInt32: String] = [
+            UInt32(kVK_ANSI_A): "A", UInt32(kVK_ANSI_B): "B", UInt32(kVK_ANSI_C): "C",
+            UInt32(kVK_ANSI_D): "D", UInt32(kVK_ANSI_E): "E", UInt32(kVK_ANSI_F): "F",
+            UInt32(kVK_ANSI_G): "G", UInt32(kVK_ANSI_H): "H", UInt32(kVK_ANSI_I): "I",
+            UInt32(kVK_ANSI_J): "J", UInt32(kVK_ANSI_K): "K", UInt32(kVK_ANSI_L): "L",
+            UInt32(kVK_ANSI_M): "M", UInt32(kVK_ANSI_N): "N", UInt32(kVK_ANSI_O): "O",
+            UInt32(kVK_ANSI_P): "P", UInt32(kVK_ANSI_Q): "Q", UInt32(kVK_ANSI_R): "R",
+            UInt32(kVK_ANSI_S): "S", UInt32(kVK_ANSI_T): "T", UInt32(kVK_ANSI_U): "U",
+            UInt32(kVK_ANSI_V): "V", UInt32(kVK_ANSI_W): "W", UInt32(kVK_ANSI_X): "X",
+            UInt32(kVK_ANSI_Y): "Y", UInt32(kVK_ANSI_Z): "Z",
+            UInt32(kVK_ANSI_0): "0", UInt32(kVK_ANSI_1): "1", UInt32(kVK_ANSI_2): "2",
+            UInt32(kVK_ANSI_3): "3", UInt32(kVK_ANSI_4): "4", UInt32(kVK_ANSI_5): "5",
+            UInt32(kVK_ANSI_6): "6", UInt32(kVK_ANSI_7): "7", UInt32(kVK_ANSI_8): "8",
+            UInt32(kVK_ANSI_9): "9",
+        ]
+        if let name = qwertyFallbackMap[keyCode] { return name }
         return "Key \(keyCode)"
+    }
+
+    /// Character produced by `keyCode` under the current keyboard layout, or
+    /// nil when the layout has no printable mapping for it.
+    private static func layoutCharacter(for keyCode: UInt32) -> String? {
+        guard let inputSource = TISCopyCurrentKeyboardInputSource()?.takeRetainedValue(),
+              let layoutPtr = TISGetInputSourceProperty(inputSource, kTISPropertyUnicodeKeyLayoutData) else { return nil }
+        let layoutData = Unmanaged<CFData>.fromOpaque(layoutPtr).takeUnretainedValue() as Data
+        var deadKeyState: UInt32 = 0
+        var chars = [UniChar](repeating: 0, count: 4)
+        var length: Int = 0
+        layoutData.withUnsafeBytes { rawBuf in
+            guard let ptr = rawBuf.baseAddress?.assumingMemoryBound(to: UCKeyboardLayout.self) else { return }
+            UCKeyTranslate(ptr, UInt16(keyCode), UInt16(kUCKeyActionDown), 0, UInt32(LMGetKbdType()),
+                           UInt32(kUCKeyTranslateNoDeadKeysBit), &deadKeyState, 4, &length, &chars)
+        }
+        guard length > 0 else { return nil }
+        let str = String(utf16CodeUnits: chars, count: length)
+        guard !str.isEmpty, str != "\0",
+              str.rangeOfCharacter(from: .controlCharacters) == nil,
+              str.rangeOfCharacter(from: .whitespacesAndNewlines) == nil else { return nil }
+        return str
     }
 
     /// NSMenuItem-compatible Unicode character for special keys that can't
@@ -342,13 +361,17 @@ class HotkeyManager {
         let (keyCode, carbonMods) = readHotkey(for: slot)
         if keyCode == 0 && carbonMods == 0 { return nil }
 
-        // Special keys need Unicode function characters; letters/digits just lowercase
+        // Special keys need Unicode function characters. Character keys use the
+        // RAW layout character (not the uppercased display string — "ß" would
+        // become "SS", an invalid multi-char NSMenuItem keyEquivalent).
         let key: String
         if let special = menuKeyCharMap[keyCode] {
             key = special
+        } else if let raw = layoutCharacter(for: keyCode), raw.count == 1 {
+            key = raw.lowercased()
         } else {
             let display = keyString(from: keyCode)
-            if display.hasPrefix("Key ") { return nil }
+            if display.hasPrefix("Key ") || display.count != 1 { return nil }
             key = display.lowercased()
         }
 
