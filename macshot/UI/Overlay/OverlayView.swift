@@ -552,6 +552,8 @@ class OverlayView: NSView {
 
     // Tool options row (second row below bottom bar)
     var currentMeasureInPoints: Bool = UserDefaults.standard.bool(forKey: "measureInPoints")
+    // Default ON: measuring outside the capture area is almost always an accident (#212)
+    var currentMeasureClampToSelection: Bool = UserDefaults.standard.object(forKey: "measureClampToSelection") as? Bool ?? true
     var currentLineStyle: LineStyle =
         LineStyle(rawValue: UserDefaults.standard.integer(forKey: "currentLineStyle")) ?? .solid
     var currentArrowStyle: ArrowStyle =

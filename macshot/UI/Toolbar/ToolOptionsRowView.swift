@@ -1130,6 +1130,11 @@ class ToolOptionsRowView: NSView {
         addSubview(seg)
         curX += 72
 
+        curX = addToggle(at: curX, title: L("Limit to selection"), isOn: ov.currentMeasureClampToSelection) { [weak ov] isOn in
+            ov?.currentMeasureClampToSelection = isOn
+            UserDefaults.standard.set(isOn, forKey: "measureClampToSelection")
+        }
+
         // Hint
         curX = addHintLabel(at: curX, text: L("Hold 1 auto-vertical  ·  Hold 2 auto-horizontal"))
         return curX

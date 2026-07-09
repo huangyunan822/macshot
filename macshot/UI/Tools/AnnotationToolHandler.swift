@@ -14,6 +14,7 @@ protocol AnnotationCanvas: AnyObject {
     var currentRectFillStyle: RectFillStyle { get }
     var currentRectCornerRadius: CGFloat { get }
     var currentMeasureInPoints: Bool { get }
+    var currentMeasureClampToSelection: Bool { get }
     var currentLoupeSize: CGFloat { get }
     var currentLoupeMagnification: CGFloat { get }
     var currentLoupeOutlineColor: NSColor { get }

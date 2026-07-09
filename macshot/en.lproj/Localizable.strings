@@ -667,3 +667,6 @@
 
 /* URL scheme: edit (PR #272) */
 "Open a history entry in the editor (keeps annotations editable)" = "Open a history entry in the editor (keeps annotations editable)";
+
+/* Measure tool: clamp toggle (#212) */
+"Limit to selection" = "Limit to selection";
