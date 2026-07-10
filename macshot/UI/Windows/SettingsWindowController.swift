@@ -54,6 +54,7 @@ class SettingsWindowController: NSWindowController, NSToolbarDelegate, NSWindowD
     private var savePathField: NSTextField!
     private var saveActionPopup: NSPopUpButton!
     private var ocrActionPopup: NSPopUpButton!
+    private var translationTargetLanguagePopup: NSPopUpButton!
     private var copySoundCheckbox: NSButton!
     // rememberSelectionCheckbox removed — selection is always saved for "Capture Last Area"
     private var rememberToolCheckbox: NSButton!
@@ -994,21 +995,14 @@ class SettingsWindowController: NSWindowController, NSToolbarDelegate, NSWindowD
         stack.addArrangedSubview(sectionHeader(L("Translation")))
         stack.setCustomSpacing(10, after: stack.arrangedSubviews.last!)
 
-        let translationTargetLanguagePopup = NSPopUpButton()
+        translationTargetLanguagePopup = NSPopUpButton()
         translationTargetLanguagePopup.addItem(withTitle: L("Follow System"))
         translationTargetLanguagePopup.lastItem?.representedObject = ""
         for language in TranslationService.availableLanguages {
             translationTargetLanguagePopup.addItem(withTitle: language.name)
             translationTargetLanguagePopup.lastItem?.representedObject = language.code
         }
-        if let explicitCode = TranslationService.explicitTargetLanguage,
-           let index = translationTargetLanguagePopup.itemArray.firstIndex(where: {
-               $0.representedObject as? String == explicitCode
-           }) {
-            translationTargetLanguagePopup.selectItem(at: index)
-        } else {
-            translationTargetLanguagePopup.selectItem(at: 0)
-        }
+        refreshTranslationTargetLanguageSelection()
         translationTargetLanguagePopup.target = self
         translationTargetLanguagePopup.action = #selector(translationTargetLanguageChanged(_:))
         stack.addArrangedSubview(labeledRow(L("Target language:"), controls: [translationTargetLanguagePopup]))
@@ -2403,6 +2397,7 @@ class SettingsWindowController: NSWindowController, NSToolbarDelegate, NSWindowD
             UserDefaults.standard.set(legacyAutoCopy ? 0 : 1, forKey: "ocrAction")
         }
         ocrActionPopup.selectItem(at: UserDefaults.standard.integer(forKey: "ocrAction"))
+        refreshTranslationTargetLanguageSelection()
         captureMenuOrder = CaptureMenuItemID.orderedItems()
         rebuildCaptureMenuOrderRows()
 
@@ -3131,6 +3126,18 @@ class SettingsWindowController: NSWindowController, NSToolbarDelegate, NSWindowD
     @objc private func translationTargetLanguageChanged(_ sender: NSPopUpButton) {
         guard let code = sender.selectedItem?.representedObject as? String else { return }
         TranslationService.explicitTargetLanguage = code.isEmpty ? nil : code
+    }
+
+    private func refreshTranslationTargetLanguageSelection() {
+        guard let popup = translationTargetLanguagePopup else { return }
+        if let explicitCode = TranslationService.explicitTargetLanguage,
+           let index = popup.itemArray.firstIndex(where: {
+               $0.representedObject as? String == explicitCode
+           }) {
+            popup.selectItem(at: index)
+        } else {
+            popup.selectItem(at: 0)
+        }
     }
 
     @objc private func openTranslationSettings() {
