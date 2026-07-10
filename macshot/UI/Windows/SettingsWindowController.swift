@@ -991,9 +991,31 @@ class SettingsWindowController: NSWindowController, NSToolbarDelegate, NSWindowD
         stack.setCustomSpacing(20, after: stack.arrangedSubviews.last!)
 
         // ── Translation ──────────────────────────────────────
+        stack.addArrangedSubview(sectionHeader(L("Translation")))
+        stack.setCustomSpacing(10, after: stack.arrangedSubviews.last!)
+
+        let translationTargetLanguagePopup = NSPopUpButton()
+        translationTargetLanguagePopup.addItem(withTitle: L("Follow System"))
+        translationTargetLanguagePopup.lastItem?.representedObject = ""
+        for language in TranslationService.availableLanguages {
+            translationTargetLanguagePopup.addItem(withTitle: language.name)
+            translationTargetLanguagePopup.lastItem?.representedObject = language.code
+        }
+        if let explicitCode = TranslationService.explicitTargetLanguage,
+           let index = translationTargetLanguagePopup.itemArray.firstIndex(where: {
+               $0.representedObject as? String == explicitCode
+           }) {
+            translationTargetLanguagePopup.selectItem(at: index)
+        } else {
+            translationTargetLanguagePopup.selectItem(at: 0)
+        }
+        translationTargetLanguagePopup.target = self
+        translationTargetLanguagePopup.action = #selector(translationTargetLanguageChanged(_:))
+        stack.addArrangedSubview(labeledRow(L("Target language:"), controls: [translationTargetLanguagePopup]))
+        stack.setCustomSpacing(20, after: stack.arrangedSubviews.last!)
+
         if TranslationService.appleTranslationAvailable {
-            stack.addArrangedSubview(sectionHeader(L("Translation")))
-            stack.setCustomSpacing(10, after: stack.arrangedSubviews.last!)
+            stack.setCustomSpacing(8, after: stack.arrangedSubviews.last!)
 
             let translationProviderPopup = NSPopUpButton()
             translationProviderPopup.addItems(withTitles: [
@@ -3104,6 +3126,11 @@ class SettingsWindowController: NSWindowController, NSToolbarDelegate, NSWindowD
 
     @objc private func translationProviderChanged(_ sender: NSPopUpButton) {
         TranslationService.provider = sender.indexOfSelectedItem == 0 ? .apple : .google
+    }
+
+    @objc private func translationTargetLanguageChanged(_ sender: NSPopUpButton) {
+        guard let code = sender.selectedItem?.representedObject as? String else { return }
+        TranslationService.explicitTargetLanguage = code.isEmpty ? nil : code
     }
 
     @objc private func openTranslationSettings() {
